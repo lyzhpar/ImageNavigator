@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal">
+
+
+
+    <!-- Barre latérale avec les vignettes -->
+    <ScrollView
+        android:layout_width="100dp"
+        android:layout_height="match_parent">
+
+        <LinearLayout
+            android:id="@+id/imageList"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"/>
+    </ScrollView>
+
+    <!-- Vue principale avec image et zones -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <com.example.imagenavigator.screens.DrawingView
+            android:id="@+id/drawingView"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"/>
+
+        <LinearLayout
+            android:id="@+id/actionBar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="end"
+            android:padding="8dp">
+
+            <ImageButton
+                android:id="@+id/resetButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="@android:color/transparent"
+                android:src="@drawable/ic_reset"
+                app:tint="#FF000000"
+                android:contentDescription="Effacer les zones" />
+
+            <ImageButton
+                android:id="@+id/saveButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginStart="16dp"
+                android:background="@android:color/transparent"
+                android:src="@drawable/ic_save"
+                app:tint="#FF000000"
+                android:contentDescription="Sauvegarder la configuration" />
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

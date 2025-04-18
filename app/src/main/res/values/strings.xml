@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">ImageNavigator</string>
+    <string name="save_button_text">Sauvegarder et lancer</string>
+    <string name="nav_image_description">Image principale du navigateur</string>
+    <string name="back_button_description">Bouton de retour en arrière</string>
+    <string name="delete_zone_button_text">Supprimer la zone</string>
+</resources>
