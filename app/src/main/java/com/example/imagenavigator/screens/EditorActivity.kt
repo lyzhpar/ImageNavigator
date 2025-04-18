@@ -154,3 +154,5 @@ class EditorActivity : AppCompatActivity() {
         }
     }
 }
+
+C'est vraiment super'
