@@ -74,7 +74,7 @@ class EditorActivity : AppCompatActivity() {
 
         // Set aspect ratio for drawingView after layoutParams and padding setup
         val layoutParams = binding.drawingView.layoutParams as ConstraintLayout.LayoutParams
-        layoutParams.dimensionRatio = "4:3"
+        //layoutParams.dimensionRatio = "4:3"
         binding.drawingView.layoutParams = layoutParams
 
         // NOTE: ✅ Ajoute la zone dessinée dans imageDataMap pour l'image courante
