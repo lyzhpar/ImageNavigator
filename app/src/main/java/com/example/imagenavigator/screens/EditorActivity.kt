@@ -7,6 +7,7 @@ import android.graphics.Color // NOTE: Ajout de l'import pour Color
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
+import android.widget.FrameLayout // Ajout de l'import pour FrameLayout
 import android.widget.ImageView // NOTE: Ajout de l'import pour ImageView
 import android.widget.LinearLayout
 import android.widget.TextView // NOTE: Ajout de l'import pour TextView
@@ -19,26 +20,55 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.InputStream
+import android.view.View
 
 class EditorActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityEditorBinding
+
     // NOTE: ✅ Stocke les zones par image
     private val imageDataMap: MutableMap<String, MutableList<Zone>> = mutableMapOf()
+
     // NOTE: Stocke les mondes (dossiers) et les images associées
     private val worldsMap: MutableMap<String, MutableList<String>> = mutableMapOf()
     private var currentImageName: String? = null
     private val REQUEST_CODE_OPEN_FOLDER = 1001
     private var adventureName: String = ""
     private var selectedFolderName: String = ""
+    private var adventureUri: Uri? = null
     private var folderPathView: TextView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityEditorBinding.inflate(layoutInflater)
+        if (savedInstanceState != null) {
+            currentImageName = savedInstanceState.getString("currentImage")
+            adventureName = savedInstanceState.getString("adventureName", "")
+            selectedFolderName = savedInstanceState.getString("selectedFolder", "")
+            savedInstanceState.getString("adventureUri")?.let {
+                adventureUri = Uri.parse(it)
+                loadImagesFromFolder(adventureUri!!)
+            }
+            savedInstanceState.getBundle("zoneMap")?.let { zoneBundle ->
+                for (key in zoneBundle.keySet()) {
+                    val zoneList = zoneBundle.getParcelableArrayList<Zone>(key)
+                    if (zoneList != null) {
+                        imageDataMap[key] = zoneList.toMutableList()
+                    }
+                }
+            }
+        }
         setContentView(binding.root)
 
-        showAdventureSetupDialog()
+        val isPortrait = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+        binding.startGuideline.setGuidelineBegin(if (isPortrait) 0 else 120)
+        binding.bottomGuideline.setGuidelineEnd(if (isPortrait) 120 else 0)
+        binding.sidebarLeft.visibility = if (isPortrait) View.GONE else View.VISIBLE
+        binding.bottomBar.visibility = if (isPortrait) View.VISIBLE else View.GONE
+
+        if (savedInstanceState == null) {
+            showAdventureSetupDialog()
+        }
 
         // NOTE: ✅ Ajoute la zone dessinée dans imageDataMap pour l'image courante
         binding.drawingView.onZoneCreated = { zone ->
@@ -83,6 +113,7 @@ class EditorActivity : AppCompatActivity() {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQUEST_CODE_OPEN_FOLDER && resultCode == RESULT_OK) {
             val treeUri = data?.data ?: return
+            adventureUri = treeUri
 
             // NOTE: Demander une permission persistante pour l'URI
             try {
@@ -96,7 +127,11 @@ class EditorActivity : AppCompatActivity() {
                 folderPathView?.text = "Dossier sélectionné : $selectedFolderName"
                 loadImagesFromFolder(treeUri)
             } catch (e: SecurityException) {
-                Log.e("EditorActivity", "Erreur lors de la prise de la permission persistante pour l'URI", e)
+                Log.e(
+                    "EditorActivity",
+                    "Erreur lors de la prise de la permission persistante pour l'URI",
+                    e
+                )
                 // NOTE: Gérer l'erreur ici, comme afficher un message à l'utilisateur
             }
         }
@@ -118,7 +153,8 @@ class EditorActivity : AppCompatActivity() {
                         file.name?.lowercase()?.endsWith(".png") == true ||
                         file.name?.lowercase()?.endsWith(".webp") == true ||
                         file.name?.lowercase()?.endsWith(".bmp") == true ||
-                        file.name?.lowercase()?.endsWith(".gif") == true) {
+                        file.name?.lowercase()?.endsWith(".gif") == true
+                    ) {
 
                         val inputStream: InputStream? = contentResolver.openInputStream(file.uri)
                         val bitmap = BitmapFactory.decodeStream(inputStream)
@@ -128,8 +164,12 @@ class EditorActivity : AppCompatActivity() {
                         if (bitmap != null && file.name != null) {
                             imageFiles.add(bitmap to file.name!!)
                             // NOTE: Calculer le monde et enregistrer l'image dans worldsMap
-                            val relativePath = file.uri.path?.substringAfterLast("document/") ?: file.name!!
-                            val world = relativePath.substringBeforeLast('/', missingDelimiterValue = "racine")
+                            val relativePath =
+                                file.uri.path?.substringAfterLast("document/") ?: file.name!!
+                            val world = relativePath.substringBeforeLast(
+                                '/',
+                                missingDelimiterValue = "racine"
+                            )
                             val imageName = file.name!!
 
                             val imagesInWorld = worldsMap.getOrPut(world) { mutableListOf() }
@@ -146,28 +186,59 @@ class EditorActivity : AppCompatActivity() {
             traverseFolder(folder)
 
             withContext(Dispatchers.Main) {
-                imageFiles.forEach { (bitmap, name) ->
+            val container = if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT)
+                binding.imageListHorizontal else binding.imageListVertical
+
+            container.removeAllViews()
+
+            imageFiles.forEach { (bitmap, name) ->
                     Log.d("ImageLoader", "Ajout dans la vue : $name")
-                    addImageToSidebar(bitmap, name)
-                }
+                    addImageToSidebar(bitmap, name, container)
+            }
                 Log.d("WorldsMap", "Structure des mondes : $worldsMap")
+
+                if (currentImageName != null) {
+                    val matching = imageFiles.find { it.second == currentImageName }
+                    if (matching != null) {
+                        binding.drawingView.imageBitmap = matching.first
+                        val zones = imageDataMap[currentImageName] ?: mutableListOf()
+                        binding.drawingView.zones.clear()
+                        binding.drawingView.zones.addAll(zones)
+                        binding.drawingView.invalidate()
+                    }
+                }
             }
         }
     }
 
-    private fun addImageToSidebar(bitmap: Bitmap, imageName: String) {
-        val imageView = ImageView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                100
-            ).apply {
+    private fun addImageToSidebar(bitmap: Bitmap, imageName: String, container: LinearLayout) {
+        val density = resources.displayMetrics.density
+        val widthPx = (120 * density).toInt()
+        val heightPx = (90 * density).toInt()
+
+        val frameLayout = FrameLayout(this).apply {
+            layoutParams = LinearLayout.LayoutParams(widthPx, heightPx).apply {
                 setMargins(8, 8, 8, 8)
             }
+        }
+
+        val imageView = ImageView(this).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
             scaleType = ImageView.ScaleType.CENTER_CROP
-            setImageBitmap(bitmap)
-            contentDescription = imageName
+            adjustViewBounds = false
+            setBackgroundColor(Color.parseColor("#DDDDDD"))
+            setPadding(2, 2, 2, 2)
+            isClickable = true
+            isFocusable = true
+
+            val vignetteBitmap = Bitmap.createScaledBitmap(bitmap, 400, 300, true)
+            setImageBitmap(vignetteBitmap)
 
             setOnClickListener {
+                Log.d("VIGNETTE", "Vignette cliquée : $imageName")
                 currentImageName = imageName
                 binding.drawingView.imageBitmap = bitmap
                 val zones = imageDataMap[imageName] ?: mutableListOf()
@@ -177,25 +248,13 @@ class EditorActivity : AppCompatActivity() {
             }
         }
 
-        // NOTE: Assurer que le LinearLayout est visible avant l'ajout
-        binding.imageList.visibility = LinearLayout.VISIBLE
-
-        // NOTE: Ajouter l'image à la vue
-        binding.imageList.addView(imageView)
-
-        // NOTE: Force la mise à jour de l'affichage
-        binding.imageList.invalidate()
+        frameLayout.addView(imageView)
+        container.addView(frameLayout)
+        container.invalidate()
 
         if (!imageDataMap.containsKey(imageName)) {
             imageDataMap[imageName] = mutableListOf()
         }
-        // TODO : c'est super
-        // FIXME : c'est génial à corriger
-        // NOTE: c'est incroyable
-        // BUG: Code problématique
-        // HACK : solution temporaire
-        // OPTIMIZE : code à améliorer
-
     }
 
     private fun showAdventureSetupDialog() {
@@ -220,7 +279,7 @@ class EditorActivity : AppCompatActivity() {
             orientation = android.widget.LinearLayout.VERTICAL
             setPadding(50, 40, 50, 10)
             addView(editText)
-            addView(folderPathView)
+            addView(this@EditorActivity.folderPathView)
             addView(chooseFolderButton)
         }
 
@@ -237,5 +296,19 @@ class EditorActivity : AppCompatActivity() {
                 }
             }
             .show()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        currentImageName?.let { outState.putString("currentImage", it) }
+        outState.putString("adventureName", adventureName)
+        outState.putString("selectedFolder", selectedFolderName)
+        adventureUri?.let { outState.putString("adventureUri", it.toString()) }
+
+        val zoneBundle = Bundle()
+        for ((imageName, zones) in imageDataMap) {
+            zoneBundle.putParcelableArrayList(imageName, ArrayList(zones))
+        }
+        outState.putBundle("zoneMap", zoneBundle)
     }
 }

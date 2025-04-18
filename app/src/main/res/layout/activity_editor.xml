@@ -1,64 +1,102 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout
+<androidx.constraintlayout.widget.ConstraintLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/editorRoot"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="horizontal">
+    android:layout_height="match_parent">
 
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/startGuideline"
+        android:layout_width="wrap_content"
+        android:layout_height="120dp"
+        android:orientation="vertical"
+        app:layout_constraintGuide_begin="0dp" />
 
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/bottomGuideline"
+        android:layout_width="wrap_content"
+        android:layout_height="120dp"
+        android:orientation="horizontal"
+        app:layout_constraintGuide_end="0dp" />
 
-    <!-- Barre latérale avec les vignettes -->
+    <!-- Bandeau vertical (visible en paysage) -->
     <ScrollView
-        android:layout_width="100dp"
-        android:layout_height="match_parent">
+        android:id="@+id/sidebarLeft"
+        android:layout_width="120dp"
+        android:layout_height="wrap_content"
+        android:maxHeight="300dp"
+        android:background="#F0F0F0"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
 
         <LinearLayout
-            android:id="@+id/imageList"
+            android:id="@+id/imageListVertical"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"/>
+            android:orientation="vertical"
+            android:clipChildren="true"/>
     </ScrollView>
 
-    <!-- Vue principale avec image et zones -->
-    <LinearLayout
+    <!-- Bandeau horizontal (visible en portrait) -->
+    <HorizontalScrollView
+        android:id="@+id/bottomBar"
         android:layout_width="0dp"
-        android:layout_height="match_parent"
-        android:layout_weight="1"
-        android:orientation="vertical">
-
-        <com.example.imagenavigator.screens.DrawingView
-            android:id="@+id/drawingView"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"/>
+        android:layout_height="120dp"
+        android:maxHeight="120dp"
+        android:background="#F0F0F0"
+        android:visibility="gone"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent">
 
         <LinearLayout
-            android:id="@+id/actionBar"
-            android:layout_width="match_parent"
+            android:id="@+id/imageListHorizontal"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="end"
-            android:padding="8dp">
+            android:orientation="horizontal"/>
+    </HorizontalScrollView>
 
-            <ImageButton
-                android:id="@+id/resetButton"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:background="@android:color/transparent"
-                android:src="@drawable/ic_reset"
-                app:tint="#FF000000"
-                android:contentDescription="Effacer les zones" />
+    <!-- Vue de dessin principale -->
+    <com.example.imagenavigator.screens.DrawingView
+        android:id="@+id/drawingView"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toTopOf="@+id/bottomGuideline"
+        app:layout_constraintStart_toEndOf="@+id/startGuideline"
+        app:layout_constraintEnd_toEndOf="parent"/>
 
-            <ImageButton
-                android:id="@+id/saveButton"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:layout_marginStart="16dp"
-                android:background="@android:color/transparent"
-                android:src="@drawable/ic_save"
-                app:tint="#FF000000"
-                android:contentDescription="Sauvegarder la configuration" />
-        </LinearLayout>
+    <!-- Barre d'action avec les boutons -->
+    <LinearLayout
+        android:id="@+id/actionBar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="end"
+        android:padding="8dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <ImageButton
+            android:id="@+id/resetButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="@android:color/transparent"
+            android:src="@drawable/ic_reset"
+            app:tint="#FF000000"
+            android:contentDescription="Effacer les zones" />
+
+        <ImageButton
+            android:id="@+id/saveButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="16dp"
+            android:background="@android:color/transparent"
+            android:src="@drawable/ic_save"
+            app:tint="#FF000000"
+            android:contentDescription="Sauvegarder la configuration" />
     </LinearLayout>
-</LinearLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>
