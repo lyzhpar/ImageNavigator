@@ -154,6 +154,3 @@ class EditorActivity : AppCompatActivity() {
         }
     }
 }
-
-
-uuuuuaaaaaaaaaah
