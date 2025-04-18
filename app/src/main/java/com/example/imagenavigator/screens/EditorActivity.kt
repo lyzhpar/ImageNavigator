@@ -21,6 +21,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.InputStream
 import android.view.View
+import android.view.ViewGroup
+import androidx.constraintlayout.widget.ConstraintLayout
 
 class EditorActivity : AppCompatActivity() {
 
@@ -69,6 +71,11 @@ class EditorActivity : AppCompatActivity() {
         if (savedInstanceState == null) {
             showAdventureSetupDialog()
         }
+
+        // Set aspect ratio for drawingView after layoutParams and padding setup
+        val layoutParams = binding.drawingView.layoutParams as ConstraintLayout.LayoutParams
+        layoutParams.dimensionRatio = "4:3"
+        binding.drawingView.layoutParams = layoutParams
 
         // NOTE: ✅ Ajoute la zone dessinée dans imageDataMap pour l'image courante
         binding.drawingView.onZoneCreated = { zone ->
@@ -220,6 +227,10 @@ class EditorActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(widthPx, heightPx).apply {
                 setMargins(8, 8, 8, 8)
             }
+            isClickable = true
+            isFocusable = true
+            isFocusableInTouchMode = true
+            descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
         }
 
         val imageView = ImageView(this).apply {
@@ -233,24 +244,36 @@ class EditorActivity : AppCompatActivity() {
             setPadding(2, 2, 2, 2)
             isClickable = true
             isFocusable = true
+            isFocusableInTouchMode = true
+            isEnabled = true
+            visibility = View.VISIBLE
 
             val vignetteBitmap = Bitmap.createScaledBitmap(bitmap, 400, 300, true)
             setImageBitmap(vignetteBitmap)
 
-            setOnClickListener {
-                Log.d("VIGNETTE", "Vignette cliquée : $imageName")
-                currentImageName = imageName
-                binding.drawingView.imageBitmap = bitmap
-                val zones = imageDataMap[imageName] ?: mutableListOf()
-                binding.drawingView.zones.clear()
-                binding.drawingView.zones.addAll(zones)
-                binding.drawingView.invalidate()
+            setOnTouchListener { _, event ->
+                if (event.action == android.view.MotionEvent.ACTION_UP) {
+                    Log.d("VIGNETTE", "TOUCH détecté sur $imageName")
+                    currentImageName = imageName
+                    binding.drawingView.imageBitmap = bitmap
+                    val zones = imageDataMap[imageName] ?: mutableListOf()
+                    binding.drawingView.zones.clear()
+                    binding.drawingView.zones.addAll(zones)
+                    binding.drawingView.invalidate()
+                }
+                true
             }
+        }
+
+        frameLayout.setOnClickListener {
+            Log.d("VIGNETTE", "Frame cliqué : $imageName → on déclenche le click de l'image")
+            imageView.performClick()
         }
 
         frameLayout.addView(imageView)
         container.addView(frameLayout)
         container.invalidate()
+        container.requestLayout()
 
         if (!imageDataMap.containsKey(imageName)) {
             imageDataMap[imageName] = mutableListOf()
