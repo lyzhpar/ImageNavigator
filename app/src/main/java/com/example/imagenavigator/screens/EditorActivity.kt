@@ -3,11 +3,11 @@ package com.example.imagenavigator.screens
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.Color // Ajout de l'import pour Color
+import android.graphics.Color // NOTE: Ajout de l'import pour Color
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
-import android.widget.ImageView // Ajout de l'import pour ImageView
+import android.widget.ImageView // NOTE: Ajout de l'import pour ImageView
 import android.widget.LinearLayout
 import androidx.appcompat.app.AppCompatActivity
 import androidx.documentfile.provider.DocumentFile
@@ -22,7 +22,7 @@ import java.io.InputStream
 class EditorActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityEditorBinding
-
+// NOTE: ✅ Stocke les zones par image
     private val imageDataMap: MutableMap<String, MutableList<Zone>> = mutableMapOf()
     private var currentImageName: String? = null
     private val REQUEST_CODE_OPEN_FOLDER = 1001
@@ -32,24 +32,38 @@ class EditorActivity : AppCompatActivity() {
         binding = ActivityEditorBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Ouvrir automatiquement la fenêtre de sélection de dossier lors de l'ouverture de l'éditeur
-        openFolderPicker()
+        // NOTE: ✅ Ajoute la zone dessinée dans imageDataMap pour l'image courante
+        binding.drawingView.onZoneCreated = { zone ->
+            currentImageName?.let { name ->
+                val zones = imageDataMap.getOrPut(name) { mutableListOf() }
+                zones.add(zone)
+            }
+        }
 
+        // NOTE: Ouvrir automatiquement la fenêtre de sélection de dossier lors de l'ouverture de l'éditeur
+        openFolderPicker()
+// ✅ Reset : efface les zones de l’image courante
         binding.resetButton.setOnClickListener {
             currentImageName?.let { name ->
                 imageDataMap[name]?.clear()
                 binding.drawingView.zones.clear()
                 binding.drawingView.invalidate()
+                // ✅ Bien joué, feedback instantané
+                // TODO : Ajouter un Toast ou effet visuel pour confirmer l'effacement
             }
         }
 
         binding.saveButton.setOnClickListener {
             // TODO : sauvegarder imageDataMap dans un fichier JSON
+            // 💡 Étapes suggérées :
+            // 1. Créer un AdventureConfig avec mainImage, worlds, links
+            // 2. Utiliser Gson().toJson(adventureConfig)
+            // 3. Écrire ce JSON dans un fichier local
         }
     }
 
     private fun openFolderPicker() {
-        // Lancer la fenêtre de sélection du dossier
+        // NOTE: Lancer la fenêtre de sélection du dossier
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
         startActivityForResult(intent, REQUEST_CODE_OPEN_FOLDER)
     }
@@ -59,17 +73,17 @@ class EditorActivity : AppCompatActivity() {
         if (requestCode == REQUEST_CODE_OPEN_FOLDER && resultCode == RESULT_OK) {
             val treeUri = data?.data ?: return
 
-            // Demander une permission persistante pour l'URI
+            // NOTE: Demander une permission persistante pour l'URI
             try {
                 contentResolver.takePersistableUriPermission(
                     treeUri,
                     Intent.FLAG_GRANT_READ_URI_PERMISSION
                 )
-                // Charger les images du dossier sélectionné
+                // NOTE: Charger les images du dossier sélectionné
                 loadImagesFromFolder(treeUri)
             } catch (e: SecurityException) {
                 Log.e("EditorActivity", "Erreur lors de la prise de la permission persistante pour l'URI", e)
-                // Gérer l'erreur ici, comme afficher un message à l'utilisateur
+                // NOTE: Gérer l'erreur ici, comme afficher un message à l'utilisateur
             }
         }
     }
@@ -140,17 +154,24 @@ class EditorActivity : AppCompatActivity() {
             }
         }
 
-        // Assurer que le LinearLayout est visible avant l'ajout
+        // NOTE: Assurer que le LinearLayout est visible avant l'ajout
         binding.imageList.visibility = LinearLayout.VISIBLE
 
-        // Ajouter l'image à la vue
+        // NOTE: Ajouter l'image à la vue
         binding.imageList.addView(imageView)
 
-        // Force la mise à jour de l'affichage
+        // NOTE: Force la mise à jour de l'affichage
         binding.imageList.invalidate()
 
         if (!imageDataMap.containsKey(imageName)) {
             imageDataMap[imageName] = mutableListOf()
         }
+        // TODO : c'est super
+        // FIXME : c'est génial à corriger
+        // NOTE: c'est incroyable
+       // BUG: Code problématique
+        // HACK : solution temporaire
+        // OPTIMIZE : code à améliorer
+
     }
 }

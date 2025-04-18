@@ -1,11 +1,7 @@
 package com.example.imagenavigator.model
 
-import android.graphics.RectF
-
-/**
- * Représente la configuration complète d'une aventure Théodyssée.
- * Ce modèle est utilisé pour l'enregistrement et la lecture en JSON.
- */
+// TODO: Ajouter des méthodes utilitaires pour lire et écrire cette config depuis un fichier JSON
+// TODO: Valider la cohérence des chemins d'images (existence, racine, etc.)
 data class AdventureConfig(
     var name: String,
     var mainImage: String?, // chemin relatif de l'image de départ
@@ -13,9 +9,9 @@ data class AdventureConfig(
     var links: MutableMap<String, MutableList<ZoneLink>> // image source -> liste de zones cliquables
 )
 
-/**
- * Zone cliquable sur une image, exprimée en coordonnées relatives (0f à 1f).
- */
+// ✅ La structure des zones fonctionne avec des coordonnées relatives
+// TODO: Ajouter une méthode pour tester si un point (clic) est dans la zone
+// TODO: Ajouter une option pour rendre la zone visible (affichage coloré par exemple)
 data class ZoneLink(
     val rect: RectF, // zone sous forme de rectangle relatif à l'image
     var target: String, // image de destination
