@@ -1,5 +1,7 @@
 package com.example.imagenavigator.model
 
+import android.graphics.RectF
+
 // TODO: Ajouter des méthodes utilitaires pour lire et écrire cette config depuis un fichier JSON
 // TODO: Valider la cohérence des chemins d'images (existence, racine, etc.)
 data class AdventureConfig(

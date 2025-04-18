@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.util.Log
 import android.widget.ImageView // NOTE: Ajout de l'import pour ImageView
 import android.widget.LinearLayout
+import android.widget.TextView // NOTE: Ajout de l'import pour TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.lifecycleScope
@@ -22,15 +23,22 @@ import java.io.InputStream
 class EditorActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityEditorBinding
-// NOTE: ✅ Stocke les zones par image
+    // NOTE: ✅ Stocke les zones par image
     private val imageDataMap: MutableMap<String, MutableList<Zone>> = mutableMapOf()
+    // NOTE: Stocke les mondes (dossiers) et les images associées
+    private val worldsMap: MutableMap<String, MutableList<String>> = mutableMapOf()
     private var currentImageName: String? = null
     private val REQUEST_CODE_OPEN_FOLDER = 1001
+    private var adventureName: String = ""
+    private var selectedFolderName: String = ""
+    private var folderPathView: TextView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityEditorBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        showAdventureSetupDialog()
 
         // NOTE: ✅ Ajoute la zone dessinée dans imageDataMap pour l'image courante
         binding.drawingView.onZoneCreated = { zone ->
@@ -40,9 +48,12 @@ class EditorActivity : AppCompatActivity() {
             }
         }
 
-        // NOTE: Ouvrir automatiquement la fenêtre de sélection de dossier lors de l'ouverture de l'éditeur
-        openFolderPicker()
-// ✅ Reset : efface les zones de l’image courante
+        // openFolderPicker()
+        // TODO: Afficher une interface de création d'aventure :
+        // 1. Entrer un nom d'aventure
+        // 2. Choisir un dossier complet ou un monde (sous-dossier)
+        // 3. Initialiser les données seulement après cette sélection
+        // ✅ Reset : efface les zones de l’image courante
         binding.resetButton.setOnClickListener {
             currentImageName?.let { name ->
                 imageDataMap[name]?.clear()
@@ -80,6 +91,9 @@ class EditorActivity : AppCompatActivity() {
                     Intent.FLAG_GRANT_READ_URI_PERMISSION
                 )
                 // NOTE: Charger les images du dossier sélectionné
+                val folder = DocumentFile.fromTreeUri(this@EditorActivity, treeUri) ?: return
+                selectedFolderName = folder.name ?: ""
+                folderPathView?.text = "Dossier sélectionné : $selectedFolderName"
                 loadImagesFromFolder(treeUri)
             } catch (e: SecurityException) {
                 Log.e("EditorActivity", "Erreur lors de la prise de la permission persistante pour l'URI", e)
@@ -113,6 +127,14 @@ class EditorActivity : AppCompatActivity() {
 
                         if (bitmap != null && file.name != null) {
                             imageFiles.add(bitmap to file.name!!)
+                            // NOTE: Calculer le monde et enregistrer l'image dans worldsMap
+                            val relativePath = file.uri.path?.substringAfterLast("document/") ?: file.name!!
+                            val world = relativePath.substringBeforeLast('/', missingDelimiterValue = "racine")
+                            val imageName = file.name!!
+
+                            val imagesInWorld = worldsMap.getOrPut(world) { mutableListOf() }
+                            imagesInWorld.add(imageName)
+
                             Log.d("ImageLoader", "Ajouté à la liste : ${file.name}")
                         } else {
                             Log.w("ImageLoader", "Impossible de décoder : ${file.name}")
@@ -128,6 +150,7 @@ class EditorActivity : AppCompatActivity() {
                     Log.d("ImageLoader", "Ajout dans la vue : $name")
                     addImageToSidebar(bitmap, name)
                 }
+                Log.d("WorldsMap", "Structure des mondes : $worldsMap")
             }
         }
     }
@@ -169,9 +192,50 @@ class EditorActivity : AppCompatActivity() {
         // TODO : c'est super
         // FIXME : c'est génial à corriger
         // NOTE: c'est incroyable
-       // BUG: Code problématique
+        // BUG: Code problématique
         // HACK : solution temporaire
         // OPTIMIZE : code à améliorer
 
+    }
+
+    private fun showAdventureSetupDialog() {
+        val editText = android.widget.EditText(this).apply {
+            hint = "Nom de l'aventure"
+        }
+
+        folderPathView = android.widget.TextView(this).apply {
+            text = "Aucun dossier sélectionné"
+            setPadding(0, 16, 0, 16)
+        }
+
+        val chooseFolderButton = android.widget.Button(this).apply {
+            text = "Choisir un dossier"
+            setOnClickListener {
+                folderPathView?.text = "Sélection en cours..."
+                openFolderPicker()
+            }
+        }
+
+        val layout = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(50, 40, 50, 10)
+            addView(editText)
+            addView(folderPathView)
+            addView(chooseFolderButton)
+        }
+
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Nouvelle aventure")
+            .setView(layout)
+            .setCancelable(false)
+            .setPositiveButton("OK") { dialog, _ ->
+                val name = editText.text.toString()
+                if (name.isNotBlank()) {
+                    adventureName = name
+                    dialog.dismiss()
+                    // NOTE: Ici tu peux appeler openFolderPicker() ou une autre étape d'initialisation
+                }
+            }
+            .show()
     }
 }
