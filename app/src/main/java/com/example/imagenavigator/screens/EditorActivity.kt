@@ -23,6 +23,7 @@ import java.io.InputStream
 import android.view.View
 import android.view.ViewGroup
 import androidx.constraintlayout.widget.ConstraintLayout
+import android.content.res.Configuration
 
 class EditorActivity : AppCompatActivity() {
 
@@ -43,6 +44,29 @@ class EditorActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityEditorBinding.inflate(layoutInflater)
+
+        val isPortrait = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+
+        val startGuide = binding.startGuideline
+        val bottomGuide = binding.bottomGuideline
+
+        val density = resources.displayMetrics.density
+        val dpToPx = { dp: Int -> (dp * density).toInt() }
+
+        val startParams = startGuide.layoutParams as ConstraintLayout.LayoutParams
+        val bottomParams = bottomGuide.layoutParams as ConstraintLayout.LayoutParams
+
+        if (isPortrait) {
+            startParams.guideBegin = 0
+            bottomParams.guideEnd = dpToPx(120)
+        } else {
+            startParams.guideBegin = dpToPx(120)
+            bottomParams.guideEnd = 0
+        }
+
+        startGuide.layoutParams = startParams
+        bottomGuide.layoutParams = bottomParams
+
         if (savedInstanceState != null) {
             currentImageName = savedInstanceState.getString("currentImage")
             adventureName = savedInstanceState.getString("adventureName", "")
@@ -62,9 +86,6 @@ class EditorActivity : AppCompatActivity() {
         }
         setContentView(binding.root)
 
-        val isPortrait = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
-        binding.startGuideline.setGuidelineBegin(if (isPortrait) 0 else 120)
-        binding.bottomGuideline.setGuidelineEnd(if (isPortrait) 120 else 0)
         binding.sidebarLeft.visibility = if (isPortrait) View.GONE else View.VISIBLE
         binding.bottomBar.visibility = if (isPortrait) View.VISIBLE else View.GONE
 
@@ -333,5 +354,31 @@ class EditorActivity : AppCompatActivity() {
             zoneBundle.putParcelableArrayList(imageName, ArrayList(zones))
         }
         outState.putBundle("zoneMap", zoneBundle)
+    }
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+
+        val isPortrait = newConfig.orientation == Configuration.ORIENTATION_PORTRAIT
+
+        val density = resources.displayMetrics.density
+        val dpToPx = { dp: Int -> (dp * density).toInt() }
+
+        val startParams = binding.startGuideline.layoutParams as ConstraintLayout.LayoutParams
+        val bottomParams = binding.bottomGuideline.layoutParams as ConstraintLayout.LayoutParams
+
+        if (isPortrait) {
+            startParams.guideBegin = 0
+            bottomParams.guideEnd = dpToPx(120)
+        } else {
+            startParams.guideBegin = dpToPx(120)
+            bottomParams.guideEnd = 0
+        }
+
+        binding.startGuideline.layoutParams = startParams
+        binding.bottomGuideline.layoutParams = bottomParams
+
+        // ✅ Très important : mettre à jour la visibilité
+        binding.sidebarLeft.visibility = if (isPortrait) View.GONE else View.VISIBLE
+        binding.bottomBar.visibility = if (isPortrait) View.VISIBLE else View.GONE
     }
 }

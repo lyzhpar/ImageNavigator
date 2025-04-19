@@ -26,11 +26,12 @@
         android:layout_width="120dp"
         android:layout_height="match_parent"
         android:maxHeight="300dp"
-        android:background="#F0F0F0"
+        android:background="#FF0000"
         android:visibility="gone"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent">
+
 
         <LinearLayout
             android:id="@+id/imageListVertical"
@@ -54,6 +55,7 @@
         android:visibility="gone"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/bottomGuideline"
         app:layout_constraintBottom_toBottomOf="parent">
 
         <LinearLayout
@@ -67,7 +69,9 @@
             android:importantForAccessibility="yes"/>
     </HorizontalScrollView>
 
+
     <!-- Vue de dessin principale -->
+    <!--
     <com.example.imagenavigator.screens.DrawingView
         android:id="@+id/drawingView"
         android:layout_width="0dp"
@@ -77,6 +81,19 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toTopOf="@+id/bottomBar"
         app:layout_constraintStart_toEndOf="@+id/sidebarLeft"
+        app:layout_constraintEnd_toEndOf="parent" />
+        -->
+
+
+    <com.example.imagenavigator.screens.DrawingView
+        android:id="@+id/drawingView"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginBottom="0dp"
+        android:background="#22FF0000"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toTopOf="@+id/bottomGuideline"
+        app:layout_constraintStart_toEndOf="@+id/startGuideline"
         app:layout_constraintEnd_toEndOf="parent" />
 
     <!-- Barre d'action avec les boutons -->
