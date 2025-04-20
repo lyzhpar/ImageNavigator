@@ -11,7 +11,7 @@
         android:id="@+id/bottomBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:minHeight="120dp"
+        android:minHeight="200dp"
         android:maxHeight="120dp"
         android:background="#EEEEEE"
         android:visibility="visible"
