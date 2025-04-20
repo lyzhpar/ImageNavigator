@@ -1,4 +1,8 @@
 package com.example.imagenavigator.screens
+import android.widget.ScrollView
+import android.widget.HorizontalScrollView
+import android.content.res.Configuration
+import com.example.imagenavigator.R
 import android.view.MotionEvent
 
 import android.content.Intent
@@ -36,12 +40,18 @@ class EditorActivity : AppCompatActivity() {
     private var selectedFolderName: String = ""
     private var adventureUri: Uri? = null
     private var folderPathView: TextView? = null
+    private lateinit var imageListHorizontalContainer: LinearLayout
+    private lateinit var imageListVerticalContainer: LinearLayout
 
     // Initialise l'activité, restaure les états précédents si disponibles, et prépare les écouteurs
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityEditorBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        val scrollHorizontal = findViewById<HorizontalScrollView>(R.id.imageListHorizontal)
+        val scrollVertical = findViewById<ScrollView>(R.id.imageListVertical)
+        imageListHorizontalContainer = findViewById(R.id.linearImageListHorizontal)
+        imageListVerticalContainer = findViewById(R.id.linearImageListVertical)
 
         if (savedInstanceState != null) {
             currentImageName = savedInstanceState.getString("currentImage")
@@ -147,12 +157,12 @@ class EditorActivity : AppCompatActivity() {
             traverseFolder(folder)
 
             withContext(Dispatchers.Main) {
+                imageListHorizontalContainer.removeAllViews()
+                imageListVerticalContainer.removeAllViews()
                 val isPortrait = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
-                val container = if (isPortrait) binding.imageListHorizontal else binding.imageListVertical
+                val container = if (isPortrait) imageListHorizontalContainer else imageListVerticalContainer
 
                 container?.let {
-                    it.removeAllViews()
-
                     // Définir la taille cible uniforme des vignettes
                     val density = resources.displayMetrics.density
                     val widthPx = if (isPortrait) ViewGroup.LayoutParams.MATCH_PARENT else (120 * density).toInt()
@@ -324,5 +334,49 @@ class EditorActivity : AppCompatActivity() {
             zoneBundle.putParcelableArrayList(imageName, ArrayList(zones))
         }
         outState.putBundle("zoneMap", zoneBundle)
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+
+        val isPortrait = newConfig.orientation == Configuration.ORIENTATION_PORTRAIT
+
+        val sidebarLeft = findViewById<View>(R.id.sidebarLeft)
+        val bottomBar = findViewById<View>(R.id.bottomBar)
+        val newImageListVerticalContainer = findViewById<LinearLayout>(R.id.linearImageListVertical)
+        val newImageListHorizontalContainer = findViewById<LinearLayout>(R.id.linearImageListHorizontal)
+        imageListVerticalContainer = newImageListVerticalContainer
+        imageListHorizontalContainer = newImageListHorizontalContainer
+
+        if (isPortrait) {
+            sidebarLeft.visibility = View.GONE
+            bottomBar.visibility = View.VISIBLE
+            imageListHorizontalContainer.visibility = View.VISIBLE
+            imageListVerticalContainer.visibility = View.GONE
+
+            // Déplacer les vues du vertical vers l’horizontal
+            while (imageListVerticalContainer.childCount > 0) {
+                val child = imageListVerticalContainer.getChildAt(0)
+                imageListVerticalContainer.removeViewAt(0)
+                imageListHorizontalContainer.addView(child)
+            }
+        } else {
+            sidebarLeft.visibility = View.VISIBLE
+            bottomBar.visibility = View.GONE
+            imageListHorizontalContainer.visibility = View.GONE
+            imageListVerticalContainer.visibility = View.VISIBLE
+
+            // Déplacer les vues de l’horizontal vers le vertical
+            while (imageListHorizontalContainer.childCount > 0) {
+                val child = imageListHorizontalContainer.getChildAt(0)
+                imageListHorizontalContainer.removeViewAt(0)
+                imageListVerticalContainer.addView(child)
+            }
+        }
+
+        sidebarLeft.requestLayout()
+        bottomBar.requestLayout()
+        imageListHorizontalContainer.requestLayout()
+        imageListVerticalContainer.requestLayout()
     }
 }
