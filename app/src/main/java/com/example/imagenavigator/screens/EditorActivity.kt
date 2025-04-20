@@ -341,32 +341,23 @@ class EditorActivity : AppCompatActivity() {
 
         val isPortrait = newConfig.orientation == Configuration.ORIENTATION_PORTRAIT
 
-        val sidebarLeft = findViewById<View>(R.id.sidebarLeft)
-        val bottomBar = findViewById<View>(R.id.bottomBar)
-        val newImageListVerticalContainer = findViewById<LinearLayout>(R.id.linearImageListVertical)
-        val newImageListHorizontalContainer = findViewById<LinearLayout>(R.id.linearImageListHorizontal)
-        imageListVerticalContainer = newImageListVerticalContainer
-        imageListHorizontalContainer = newImageListHorizontalContainer
+        binding.sidebarLeft.visibility = if (isPortrait) View.GONE else View.VISIBLE
+        binding.bottomBar.visibility = if (isPortrait) View.VISIBLE else View.GONE
+        binding.imageListHorizontal.visibility = if (isPortrait) View.VISIBLE else View.GONE
+        binding.imageListVertical.visibility = if (isPortrait) View.GONE else View.VISIBLE
+
+        imageListHorizontalContainer = binding.linearImageListHorizontal
+        imageListVerticalContainer = binding.linearImageListVertical
 
         if (isPortrait) {
-            sidebarLeft.visibility = View.GONE
-            bottomBar.visibility = View.VISIBLE
-            imageListHorizontalContainer.visibility = View.VISIBLE
-            imageListVerticalContainer.visibility = View.GONE
-
-            // Déplacer les vues du vertical vers l’horizontal
+            // Déplacer les vues verticales vers horizontal
             while (imageListVerticalContainer.childCount > 0) {
                 val child = imageListVerticalContainer.getChildAt(0)
                 imageListVerticalContainer.removeViewAt(0)
                 imageListHorizontalContainer.addView(child)
             }
         } else {
-            sidebarLeft.visibility = View.VISIBLE
-            bottomBar.visibility = View.GONE
-            imageListHorizontalContainer.visibility = View.GONE
-            imageListVerticalContainer.visibility = View.VISIBLE
-
-            // Déplacer les vues de l’horizontal vers le vertical
+            // Déplacer les vues horizontales vers vertical
             while (imageListHorizontalContainer.childCount > 0) {
                 val child = imageListHorizontalContainer.getChildAt(0)
                 imageListHorizontalContainer.removeViewAt(0)
@@ -374,9 +365,9 @@ class EditorActivity : AppCompatActivity() {
             }
         }
 
-        sidebarLeft.requestLayout()
-        bottomBar.requestLayout()
-        imageListHorizontalContainer.requestLayout()
-        imageListVerticalContainer.requestLayout()
+        binding.sidebarLeft.requestLayout()
+        binding.bottomBar.requestLayout()
+        binding.imageListHorizontal.requestLayout()
+        binding.imageListVertical.requestLayout()
     }
 }
