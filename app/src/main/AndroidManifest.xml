@@ -18,7 +18,6 @@
         </activity>
         <activity
             android:name=".screens.EditorActivity"
-            android:configChanges="orientation|screenSize"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
