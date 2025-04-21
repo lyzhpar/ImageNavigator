@@ -1,22 +1,19 @@
 package com.example.imagenavigator.screens
-import android.widget.ScrollView
-import android.widget.HorizontalScrollView
-import android.content.res.Configuration
-import com.example.imagenavigator.R
-import android.view.MotionEvent
 
 import android.content.Intent
+import android.content.pm.ActivityInfo
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
-import android.widget.FrameLayout
-import android.widget.ImageView
-import android.widget.LinearLayout
-import android.widget.TextView
+import android.view.MotionEvent
+import android.view.ViewGroup
+import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.lifecycleScope
 import com.example.imagenavigator.databinding.ActivityEditorBinding
@@ -25,9 +22,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.InputStream
+import com.example.imagenavigator.R
+import android.widget.Toast
 import android.view.View
-import android.view.ViewGroup
-import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.appcompat.app.AlertDialog
+import android.widget.ProgressBar
+import kotlinx.coroutines.delay
+
 
 class EditorActivity : AppCompatActivity() {
 
@@ -40,27 +41,74 @@ class EditorActivity : AppCompatActivity() {
     private var selectedFolderName: String = ""
     private var adventureUri: Uri? = null
     private var folderPathView: TextView? = null
-    private lateinit var imageListHorizontalContainer: LinearLayout
     private lateinit var imageListVerticalContainer: LinearLayout
 
-    // Initialise l'activité, restaure les états précédents si disponibles, et prépare les écouteurs
+
+
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+
+
+        // 🔒 Forcer le mode paysage pour cette activité
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+
+        // 🧱 Lier la vue avec ViewBinding
         binding = ActivityEditorBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        val scrollHorizontal = findViewById<HorizontalScrollView>(R.id.imageListHorizontal)
-        val scrollVertical = findViewById<ScrollView>(R.id.imageListVertical)
-        imageListHorizontalContainer = findViewById(R.id.linearImageListHorizontal)
-        imageListVerticalContainer = findViewById(R.id.linearImageListVertical)
 
+        // 🖼️ Plein écran sans barre de statut ni navigation
+        window.decorView.systemUiVisibility = (
+                View.SYSTEM_UI_FLAG_FULLSCREEN
+                        or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                        or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                )
+        actionBar?.hide()
+        supportActionBar?.hide()
+
+        // 📌 Récupérer la référence de la liste de vignettes
+        imageListVerticalContainer = findViewById(R.id.imageListVertical)
+
+        // 🖋️ Afficher le nom de l’aventure (et permettre de le modifier)
+        val titleView = findViewById<TextView>(R.id.adventureTitle)
+        titleView.setOnClickListener {
+            val editText = EditText(this).apply {
+                setText(adventureName)
+                setSelection(adventureName.length)
+            }
+            AlertDialog.Builder(this)
+                .setTitle("Changer le nom de l’aventure")
+                .setView(editText)
+                .setPositiveButton("OK") { _, _ ->
+                    adventureName = editText.text.toString()
+                    titleView.text = adventureName
+                    Log.d("ADVENTURE", "Nom modifié : $adventureName")
+                }
+                .setNegativeButton("Annuler", null)
+                .show()
+        }
+
+        // 🔁 Restauration après rotation ou première ouverture
         if (savedInstanceState != null) {
             currentImageName = savedInstanceState.getString("currentImage")
             adventureName = savedInstanceState.getString("adventureName", "")
+            titleView.text = adventureName
             selectedFolderName = savedInstanceState.getString("selectedFolder", "")
+            Log.d("RESTORE", "Nom de l’aventure restauré : $adventureName")
+
             savedInstanceState.getString("adventureUri")?.let {
                 adventureUri = Uri.parse(it)
+                try {
+                    val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                    contentResolver.takePersistableUriPermission(adventureUri!!, flags)
+                    Log.d("RESTORE", "Permission persistante restaurée")
+                } catch (e: SecurityException) {
+                    Log.e("RESTORE", "Erreur de permission persistante", e)
+                }
                 loadImagesFromFolder(adventureUri!!)
             }
+
             savedInstanceState.getBundle("zoneMap")?.let { zoneBundle ->
                 for (key in zoneBundle.keySet()) {
                     val zoneList = zoneBundle.getParcelableArrayList<Zone>(key)
@@ -73,55 +121,89 @@ class EditorActivity : AppCompatActivity() {
             showAdventureSetupDialog()
         }
 
+        // 🎯 Zone de dessin — ajustement du layout
         val layoutParams = binding.drawingView.layoutParams as ConstraintLayout.LayoutParams
         binding.drawingView.layoutParams = layoutParams
 
+        // ➕ Ajout d’une zone
         binding.drawingView.onZoneCreated = { zone ->
             currentImageName?.let { name ->
                 val zones = imageDataMap.getOrPut(name) { mutableListOf() }
                 zones.add(zone)
+                Log.d("ZONE", "Zone ajoutée à l’image : $name")
             }
         }
 
+        // 🧽 Réinitialiser les zones
         binding.resetButton.setOnClickListener {
             currentImageName?.let { name ->
                 imageDataMap[name]?.clear()
                 binding.drawingView.zones.clear()
                 binding.drawingView.invalidate()
+                Log.d("ZONE", "Zones effacées pour l’image : $name")
             }
         }
 
+        // 💾 Sauvegarder (à implémenter plus tard)
         binding.saveButton.setOnClickListener {
-            // À compléter : sauvegarde en JSON
+            Toast.makeText(this, "Fonction de sauvegarde à implémenter", Toast.LENGTH_SHORT).show()
         }
+
         Log.d("LAYOUT_DEBUG", "Chargé en orientation: ${resources.configuration.orientation}")
     }
 
-    // Ouvre le sélecteur de dossier pour choisir les images
+    // 📂 Ouvre un sélecteur de dossier
     private fun openFolderPicker() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
         startActivityForResult(intent, REQUEST_CODE_OPEN_FOLDER)
     }
 
-    // Gère le résultat du sélecteur de dossier et lance le chargement des images
+    // ✅ Traite le résultat du sélecteur
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQUEST_CODE_OPEN_FOLDER && resultCode == RESULT_OK) {
             val treeUri = data?.data ?: return
             adventureUri = treeUri
+
             try {
-                contentResolver.takePersistableUriPermission(treeUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                contentResolver.takePersistableUriPermission(
+                    treeUri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+
                 val folder = DocumentFile.fromTreeUri(this@EditorActivity, treeUri) ?: return
                 selectedFolderName = folder.name ?: ""
                 folderPathView?.text = "Dossier sélectionné : $selectedFolderName"
                 loadImagesFromFolder(treeUri)
+
             } catch (e: SecurityException) {
                 Log.e("EditorActivity", "Erreur permission URI", e)
             }
         }
     }
 
-    // Parcourt récursivement le dossier sélectionné pour charger les images
+    private fun showProgress(show: Boolean) {
+        val overlay = binding.loadingOverlay
+        val progressBar = binding.loadingProgressBar
+
+        if (show) {
+            overlay?.apply {
+                visibility = View.VISIBLE
+                animate().alpha(1f).setDuration(200).start()
+            }
+            progressBar?.visibility = View.VISIBLE
+            binding.editorRoot.isEnabled = false
+        } else {
+            overlay?.animate()?.alpha(0f)?.setDuration(200)?.withEndAction {
+                overlay.visibility = View.GONE
+            }?.start()
+            progressBar?.visibility = View.GONE
+            binding.editorRoot.isEnabled = true
+        }
+    }
+
+
+    // 🔄 Chargement récursif des images depuis le dossier
     private fun loadImagesFromFolder(uri: Uri) {
         lifecycleScope.launch(Dispatchers.IO) {
             val folder = DocumentFile.fromTreeUri(this@EditorActivity, uri) ?: return@launch
@@ -131,15 +213,12 @@ class EditorActivity : AppCompatActivity() {
                 for (file in folder.listFiles()) {
                     if (file.isDirectory) {
                         traverseFolder(file)
-                    } else if (file.name?.lowercase()?.endsWith(".jpg") == true ||
-                        file.name?.lowercase()?.endsWith(".jpeg") == true ||
-                        file.name?.lowercase()?.endsWith(".png") == true ||
-                        file.name?.lowercase()?.endsWith(".webp") == true ||
-                        file.name?.lowercase()?.endsWith(".bmp") == true ||
-                        file.name?.lowercase()?.endsWith(".gif") == true) {
-
+                    } else if (file.name?.lowercase()?.matches(Regex(".*\\.(jpg|jpeg|png|webp|bmp|gif)$")) == true) {
                         val inputStream: InputStream? = contentResolver.openInputStream(file.uri)
-                        val bitmap = BitmapFactory.decodeStream(inputStream)
+                        val options = BitmapFactory.Options().apply {
+                            inSampleSize = 4 // ✅ réduit la taille (1=plein, 2=moitié, 4=quart)
+                        }
+                        val bitmap = BitmapFactory.decodeStream(inputStream, null, options)
                         inputStream?.close()
 
                         if (bitmap != null && file.name != null) {
@@ -149,6 +228,9 @@ class EditorActivity : AppCompatActivity() {
                             val imageName = file.name!!
                             val imagesInWorld = worldsMap.getOrPut(world) { mutableListOf() }
                             imagesInWorld.add(imageName)
+
+                            // ✅ Limite temporaire à 100 images
+                            if (imageFiles.size >= 100) break
                         }
                     }
                 }
@@ -157,57 +239,47 @@ class EditorActivity : AppCompatActivity() {
             traverseFolder(folder)
 
             withContext(Dispatchers.Main) {
-                imageListHorizontalContainer.removeAllViews()
                 imageListVerticalContainer.removeAllViews()
-                val isPortrait = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
-                val container = if (isPortrait) imageListHorizontalContainer else imageListVerticalContainer
+                val density = resources.displayMetrics.density
+                val widthPx = ViewGroup.LayoutParams.MATCH_PARENT
+                val heightPx = (80 * density).toInt() // ✅ vignette plus petite
 
-                container?.let {
-                    // Définir la taille cible uniforme des vignettes
-                    val density = resources.displayMetrics.density
-                    val widthPx = if (isPortrait) ViewGroup.LayoutParams.MATCH_PARENT else (120 * density).toInt()
-                    val heightPx = if (isPortrait) (100 * density).toInt() else ViewGroup.LayoutParams.WRAP_CONTENT
-
-                    imageFiles.forEach { (bitmap, name) ->
-                        val frameLayout = FrameLayout(this@EditorActivity).apply {
-                            layoutParams = LinearLayout.LayoutParams(widthPx, heightPx).apply {
-                                setMargins(8, 8, 8, 8)
-                            }
-                        }
-
-                        val imageView = ImageView(this@EditorActivity).apply {
-                            layoutParams = FrameLayout.LayoutParams(
-                                FrameLayout.LayoutParams.MATCH_PARENT,
-                                FrameLayout.LayoutParams.MATCH_PARENT
-                            )
-                            scaleType = ImageView.ScaleType.CENTER_CROP
-                            adjustViewBounds = true
-                            setImageBitmap(bitmap)
-                            setBackgroundColor(Color.parseColor("#DDDDDD"))
-
-                            setOnClickListener {
-                                currentImageName = name
-                                binding.drawingView.imageBitmap = bitmap
-                                val zones = imageDataMap[name] ?: mutableListOf()
-                                binding.drawingView.zones.clear()
-                                binding.drawingView.zones.addAll(zones)
-                                binding.drawingView.invalidate()
-                            }
-                        }
-
-                        frameLayout.addView(imageView)
-                        it.addView(frameLayout)
-
-                        if (!imageDataMap.containsKey(name)) {
-                            imageDataMap[name] = mutableListOf()
+                imageFiles.forEach { (bitmap, name) ->
+                    val frameLayout = FrameLayout(this@EditorActivity).apply {
+                        layoutParams = LinearLayout.LayoutParams(widthPx, heightPx).apply {
+                            setMargins(8, 8, 8, 8)
                         }
                     }
 
-                    it.invalidate()
-                    it.requestLayout()
+                    val imageView = ImageView(this@EditorActivity).apply {
+                        layoutParams = FrameLayout.LayoutParams(
+                            FrameLayout.LayoutParams.MATCH_PARENT,
+                            FrameLayout.LayoutParams.MATCH_PARENT
+                        )
+                        scaleType = ImageView.ScaleType.CENTER_CROP
+                        adjustViewBounds = true
+                        setImageBitmap(bitmap)
+                        setBackgroundColor(Color.parseColor("#DDDDDD"))
+                        setOnClickListener {
+                            currentImageName = name
+                            binding.drawingView.imageBitmap = bitmap
+                            val zones = imageDataMap[name] ?: mutableListOf()
+                            binding.drawingView.zones.clear()
+                            binding.drawingView.zones.addAll(zones)
+                            binding.drawingView.invalidate()
+                        }
+                    }
+
+                    frameLayout.addView(imageView)
+                    imageListVerticalContainer.addView(frameLayout)
+                    if (!imageDataMap.containsKey(name)) {
+                        imageDataMap[name] = mutableListOf()
+                    }
                 }
 
-                // Recharge l'image courante
+                imageListVerticalContainer.invalidate()
+                imageListVerticalContainer.requestLayout()
+
                 currentImageName?.let { current ->
                     imageFiles.find { it.second == current }?.let { (bitmap, _) ->
                         binding.drawingView.imageBitmap = bitmap
@@ -221,63 +293,15 @@ class EditorActivity : AppCompatActivity() {
         }
     }
 
-    // Ajoute une vignette de l'image dans la barre latérale ou inférieure selon l'orientation
-    private fun addImageToSidebar(bitmap: Bitmap, imageName: String, container: LinearLayout) {
-        val frameLayout = FrameLayout(this).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                0,
-                1f // chaque vignette prend une part égale de la sidebar
-            ).apply {
-                setMargins(8, 8, 8, 8)
-            }
-        }
-
-        val imageView = ImageView(this).apply {
-            layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-            )
-            scaleType = ImageView.ScaleType.CENTER_CROP
-            setPadding(2, 2, 2, 2)
-            setImageBitmap(Bitmap.createScaledBitmap(bitmap, 400, 300, true))
-
-            setOnTouchListener { _, event ->
-                if (event.action == MotionEvent.ACTION_UP) {
-                    Log.d("VIGNETTE", "TOUCH détecté sur $imageName")
-                    currentImageName = imageName
-                    binding.drawingView.imageBitmap = bitmap
-                    val zones = imageDataMap[imageName] ?: mutableListOf()
-                    binding.drawingView.zones.clear()
-                    binding.drawingView.zones.addAll(zones)
-                    binding.drawingView.invalidate()
-                }
-                true
-            }
-        }
-
-        frameLayout.addView(imageView)
-        frameLayout.setOnClickListener { imageView.performClick() }
-        container.addView(frameLayout)
-
-        // 🔄 Redemande un recalcul du layout
-        container.invalidate()
-        container.requestLayout()
-
-        if (!imageDataMap.containsKey(imageName)) {
-            imageDataMap[imageName] = mutableListOf()
-        }
-    }
-
-    // Affiche une boîte de dialogue pour entrer le nom de l'aventure et choisir un dossier
+    // 🧩 Boîte de dialogue de configuration de l'aventure
     private fun showAdventureSetupDialog() {
-        val editText = android.widget.EditText(this).apply { hint = "Nom de l'aventure" }
-        folderPathView = android.widget.TextView(this).apply {
+        val editText = EditText(this).apply { hint = "Nom de l'aventure" }
+        folderPathView = TextView(this).apply {
             text = "Aucun dossier sélectionné"
             setPadding(0, 16, 0, 16)
         }
 
-        val chooseFolderButton = android.widget.Button(this).apply {
+        val chooseFolderButton = Button(this).apply {
             text = "Choisir un dossier"
             setOnClickListener {
                 folderPathView?.text = "Sélection en cours..."
@@ -306,14 +330,11 @@ class EditorActivity : AppCompatActivity() {
                 val name = editText.text.toString()
                 if (name.isNotBlank() && adventureUri != null) {
                     adventureName = name
+                    findViewById<TextView>(R.id.adventureTitle).text = adventureName
                     dialog.dismiss()
                 } else {
-                    if (adventureUri == null) {
-                        folderPathView?.error = "Vous devez choisir un dossier"
-                    }
-                    if (name.isBlank()) {
-                        editText.error = "Le nom est requis"
-                    }
+                    if (adventureUri == null) folderPathView?.error = "Vous devez choisir un dossier"
+                    if (name.isBlank()) editText.error = "Le nom est requis"
                 }
             }
         }
@@ -321,7 +342,7 @@ class EditorActivity : AppCompatActivity() {
         dialog.show()
     }
 
-    // Sauvegarde l’état actuel de l’activité (image courante, zones, etc.)
+    // 💾 Sauvegarde de l’état en cas de rotation ou fermeture
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         currentImageName?.let { outState.putString("currentImage", it) }
@@ -336,38 +357,12 @@ class EditorActivity : AppCompatActivity() {
         outState.putBundle("zoneMap", zoneBundle)
     }
 
+    // 🔕 Rotation désactivée pour cette activité
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-
-        val isPortrait = newConfig.orientation == Configuration.ORIENTATION_PORTRAIT
-
-        binding.sidebarLeft.visibility = if (isPortrait) View.GONE else View.VISIBLE
-        binding.bottomBar.visibility = if (isPortrait) View.VISIBLE else View.GONE
-        binding.imageListHorizontal.visibility = if (isPortrait) View.VISIBLE else View.GONE
-        binding.imageListVertical.visibility = if (isPortrait) View.GONE else View.VISIBLE
-
-        imageListHorizontalContainer = binding.linearImageListHorizontal
-        imageListVerticalContainer = binding.linearImageListVertical
-
-        if (isPortrait) {
-            // Déplacer les vues verticales vers horizontal
-            while (imageListVerticalContainer.childCount > 0) {
-                val child = imageListVerticalContainer.getChildAt(0)
-                imageListVerticalContainer.removeViewAt(0)
-                imageListHorizontalContainer.addView(child)
-            }
-        } else {
-            // Déplacer les vues horizontales vers vertical
-            while (imageListHorizontalContainer.childCount > 0) {
-                val child = imageListHorizontalContainer.getChildAt(0)
-                imageListHorizontalContainer.removeViewAt(0)
-                imageListVerticalContainer.addView(child)
-            }
+        Log.d("CONFIG_CHANGE", "Orientation changed to: ${newConfig.orientation}")
+        if (newConfig.orientation == Configuration.ORIENTATION_PORTRAIT) {
+            Toast.makeText(this, "L'application fonctionne uniquement en mode paysage.", Toast.LENGTH_SHORT).show()
         }
-
-        binding.sidebarLeft.requestLayout()
-        binding.bottomBar.requestLayout()
-        binding.imageListHorizontal.requestLayout()
-        binding.imageListVertical.requestLayout()
     }
 }
