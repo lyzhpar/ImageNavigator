@@ -123,6 +123,10 @@ class EditorActivity : AppCompatActivity() {
 
         // 🎯 Zone de dessin — ajustement du layout
         val layoutParams = binding.drawingView.layoutParams as ConstraintLayout.LayoutParams
+<<<<<<< HEAD
+=======
+        layoutParams.dimensionRatio = "4:3"
+>>>>>>> parent of f8c30da (Version affichage simple fonctionnel !!!)
         binding.drawingView.layoutParams = layoutParams
 
         // ➕ Ajout d’une zone

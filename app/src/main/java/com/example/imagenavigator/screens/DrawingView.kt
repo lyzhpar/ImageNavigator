@@ -130,7 +130,6 @@ class DrawingView @JvmOverloads constructor(
         val scaledWidth = imageWidth * scale
         val scaledHeight = imageHeight * scale
 
-        // Center the image horizontally and vertically
         val left = (viewWidth - scaledWidth) / 2
         val top = (viewHeight - scaledHeight) / 2
 
