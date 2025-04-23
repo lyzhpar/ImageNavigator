@@ -1,10 +1,8 @@
 package com.example.imagenavigator.screens
 
-import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
-import android.provider.DocumentsContract
 import android.view.View
 import android.widget.EditText
 import android.widget.TextView
@@ -14,11 +12,11 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.isVisible
 import androidx.documentfile.provider.DocumentFile
 import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
 import com.example.imagenavigator.adapters.ImageAdapter
 import com.example.imagenavigator.databinding.ActivityEditorBinding
 import kotlinx.coroutines.*
 import java.io.InputStream
+import android.graphics.BitmapFactory
 
 class EditorActivity : AppCompatActivity() {
     private lateinit var binding: ActivityEditorBinding
@@ -42,6 +40,7 @@ class EditorActivity : AppCompatActivity() {
 
         binding.recyclerViewThumbnails.layoutManager = LinearLayoutManager(this)
         binding.recyclerViewThumbnails.setHasFixedSize(true)
+        binding.recyclerViewThumbnails.adapter = ImageAdapter(emptyList()) { _, _ -> }
 
         binding.saveButton.setOnClickListener {
             // Ajoutez ici la logique de sauvegarde si besoin
@@ -56,14 +55,24 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun hideSystemUI() {
-        window.decorView.systemUiVisibility = (
-                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                        or View.SYSTEM_UI_FLAG_FULLSCREEN
-                        or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                        or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                        or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                        or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                )
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            @Suppress("DEPRECATION")
+            window.insetsController?.let {
+                it.hide(android.view.WindowInsets.Type.systemBars())
+                it.systemBarsBehavior =
+                    android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = (
+                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                            or View.SYSTEM_UI_FLAG_FULLSCREEN
+                            or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                            or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                            or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                            or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    )
+        }
     }
 
     private fun setupTitleEditor() {
@@ -87,23 +96,43 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun loadImagesFromFolder(uri: Uri) {
+        val skippedFiles = mutableListOf<String>()
+
         binding.loadingOverlay.isVisible = true
         images.clear()
 
         CoroutineScope(Dispatchers.IO).launch {
             val folder = DocumentFile.fromTreeUri(this@EditorActivity, uri) ?: return@launch
 
-            suspend fun traverse(file: DocumentFile) {
+            fun traverse(file: DocumentFile) {
                 if (file.isDirectory) {
                     file.listFiles().forEach { traverse(it) }
-                } else if (file.name?.lowercase()?.matches(Regex(".*\\.(jpg|jpeg|png|webp|bmp|gif)$")) == true) {
-                    val inputStream: InputStream? = contentResolver.openInputStream(file.uri)
-                    val bitmap = inputStream?.use { android.graphics.BitmapFactory.decodeStream(it) }
-                    bitmap?.let {
-                        val name = file.name!!
-                        imageBitmapMap[name] = it
-                        images.add(it to name)
-                        imageDataMap[name] = mutableListOf()
+                } else {
+                    val mimeType = contentResolver.getType(file.uri)
+                    if (mimeType?.startsWith("image/") == true &&
+                        file.name?.lowercase()?.matches(Regex(".*\\.(jpg|jpeg|png|webp|bmp|gif)$")) == true) {
+
+                        val inputStreamCheck: InputStream? = contentResolver.openInputStream(file.uri)
+                        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                        BitmapFactory.decodeStream(inputStreamCheck, null, options)
+                        inputStreamCheck?.close()
+
+                        if (options.outWidth > 0 && options.outHeight > 0) {
+                            val inputStream: InputStream? = contentResolver.openInputStream(file.uri)
+                            val bitmap = inputStream?.use { BitmapFactory.decodeStream(it) }
+                            if (bitmap != null) {
+                                val name = file.name!!
+                                imageBitmapMap[name] = bitmap
+                                images.add(bitmap to name)
+                                imageDataMap[name] = mutableListOf()
+                            } else {
+                                skippedFiles.add("${file.name} : bitmap décodé nul")
+                            }
+                        } else {
+                            skippedFiles.add("${file.name} : dimensions invalides")
+                        }
+                    } else {
+                        skippedFiles.add("${file.name} : type MIME non image ou extension incorrecte")
                     }
                 }
             }
@@ -120,6 +149,14 @@ class EditorActivity : AppCompatActivity() {
                     binding.drawingView.invalidate()
                 }
                 binding.loadingOverlay.isVisible = false
+
+                if (skippedFiles.isNotEmpty()) {
+                    AlertDialog.Builder(this@EditorActivity)
+                        .setTitle("Images ignorées")
+                        .setMessage(skippedFiles.joinToString("\n"))
+                        .setPositiveButton("OK", null)
+                        .show()
+                }
             }
         }
     }
