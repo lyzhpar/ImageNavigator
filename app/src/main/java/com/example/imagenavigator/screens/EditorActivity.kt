@@ -21,6 +21,7 @@ import kotlinx.coroutines.*
 import java.io.InputStream
 import android.graphics.BitmapFactory
 import android.util.Log
+import android.view.inputmethod.EditorInfo
 
 class EditorActivity : AppCompatActivity() {
     private lateinit var binding: ActivityEditorBinding
@@ -37,28 +38,92 @@ class EditorActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+
         super.onCreate(savedInstanceState)
         binding = ActivityEditorBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        hideSystemUI()
-        setupTitleEditor()
-
-        imageAdapter = ImageAdapter(groupedImages) { bitmap, name ->
-
-            Log.d("EditorActivity", "Nom reçu dans callback : $name")
-
-            currentImageName = name
-
-            Log.d("DrawingView", "Image demandée: $currentImageName")
-            Log.d("DrawingView", "Bitmap trouvé ? ${imageBitmapMap.containsKey(currentImageName)}")
-
-            binding.drawingView.imageBitmap = imageBitmapMap[name]
-            val zones = imageDataMap[name] ?: mutableListOf()
-            binding.drawingView.zones.clear()
-            binding.drawingView.zones.addAll(zones)
-            binding.drawingView.invalidate()
+        binding.adventureNameTextView.setOnLongClickListener {
+            binding.adventureNameTextView.visibility = View.GONE
+            binding.adventureTitleEdit.visibility = View.VISIBLE
+            binding.adventureTitleEdit.setText(binding.adventureNameTextView.text)
+            binding.adventureTitleEdit.requestFocus()
+            binding.adventureTitleEdit.setSelection(binding.adventureTitleEdit.text.length)
+            true
         }
+
+        binding.adventureTitleEdit.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                binding.adventureNameTextView.text = binding.adventureTitleEdit.text.toString().trim()
+                binding.adventureNameTextView.visibility = View.VISIBLE
+                binding.adventureTitleEdit.visibility = View.GONE
+                true
+            } else {
+                false
+            }
+        }
+
+        binding.adventureTitleEdit.setOnFocusChangeListener { _, hasFocus ->
+            if (!hasFocus) {
+                binding.adventureNameTextView.text = binding.adventureTitleEdit.text.toString().trim()
+                binding.adventureNameTextView.visibility = View.VISIBLE
+                binding.adventureTitleEdit.visibility = View.GONE
+            }
+        }
+
+        hideSystemUI()
+
+        imageAdapter = ImageAdapter(
+            rootGroups = groupedImages,
+            onImageSelected = { bitmap, name ->
+                Log.d("EditorActivity", "Nom reçu dans callback : $name")
+                currentImageName = name
+                Log.d("DrawingView", "Image demandée: $currentImageName")
+                Log.d("DrawingView", "Bitmap trouvé ? ${imageBitmapMap.containsKey(currentImageName)}")
+                binding.drawingView.imageBitmap = imageBitmapMap[name]
+                val zones = imageDataMap[name] ?: mutableListOf()
+                binding.drawingView.zones.clear()
+                binding.drawingView.zones.addAll(zones)
+                binding.drawingView.invalidate()
+            },
+            onGroupRenameRequested = { updatedItem ->
+                fun updateGroupName(node: ImageGroupNode) {
+                    if (node.fullPath == updatedItem.fullPath) {
+                        node.name = updatedItem.name
+                    } else {
+                        node.children.forEach { updateGroupName(it) }
+                    }
+                }
+
+                fun sortNodeRecursively(node: ImageGroupNode) {
+                    node.children.sortBy { it.name }
+                    node.children.forEach { sortNodeRecursively(it) }
+                    node.images.sortBy { it.second }
+                }
+
+                updateGroupName(imageRootNode)
+                sortNodeRecursively(imageRootNode)
+                imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
+            },
+            onGroupDeleteRequested = { itemToDelete ->
+                fun removeGroupRecursively(parent: ImageGroupNode): Boolean {
+                    val iterator = parent.children.iterator()
+                    while (iterator.hasNext()) {
+                        val child = iterator.next()
+                        if (child.fullPath == itemToDelete.fullPath) {
+                            iterator.remove()
+                            return true
+                        } else if (removeGroupRecursively(child)) {
+                            return true
+                        }
+                    }
+                    return false
+                }
+
+                removeGroupRecursively(imageRootNode)
+                imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
+            }
+        )
 
         binding.recyclerViewThumbnails.layoutManager = LinearLayoutManager(this)
         binding.recyclerViewThumbnails.setHasFixedSize(true)
@@ -97,25 +162,6 @@ class EditorActivity : AppCompatActivity() {
         }
     }
 
-    private fun setupTitleEditor() {
-        val titleView: TextView = binding.adventureTitle
-        titleView.text = adventureName
-        titleView.setOnClickListener {
-            val editText = EditText(this).apply {
-                setText(adventureName)
-                setSelection(adventureName.length)
-            }
-            AlertDialog.Builder(this)
-                .setTitle("Changer le nom de l’aventure")
-                .setView(editText)
-                .setPositiveButton("OK") { _, _ ->
-                    adventureName = editText.text.toString()
-                    titleView.text = adventureName
-                }
-                .setNegativeButton("Annuler", null)
-                .show()
-        }
-    }
 
     private fun getThumbnail(uri: Uri, maxSize: Int = 200): Bitmap? {
         val options = BitmapFactory.Options().apply {

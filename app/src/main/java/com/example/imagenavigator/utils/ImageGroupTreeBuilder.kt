@@ -10,18 +10,18 @@ object ImageGroupTreeBuilder {
 
         for ((bitmap, fullPath) in imagePaths) {
             Log.d("TreeBuilder", "Ajout image: $fullPath")
-            val parts = fullPath.split("/")
+            val parts = fullPath.split("/").filter { it != "Racine" }
             var currentNode = root
 
             for (i in 0 until parts.size - 1) {
-                val part = parts[i]
+                val part = parts[i].trim()
                 val existingChild = currentNode.children.find { it.name == part }
                 if (existingChild != null) {
                     currentNode = existingChild
                 } else {
                     val newNode = ImageGroupNode(
                         name = part,
-                        fullPath = if (currentNode.fullPath != null) "${currentNode.fullPath}/$part" else part
+                        parent = currentNode
                     )
                     Log.d("TreeBuilder", "Création noeud: name=$part | fullPath=${newNode.fullPath}")
                     currentNode.children.add(newNode)
@@ -32,6 +32,14 @@ object ImageGroupTreeBuilder {
             currentNode.images.add(bitmap to fullPath)
         }
 
+        sortNodeRecursively(root)
+
         return root
+    }
+
+    private fun sortNodeRecursively(node: ImageGroupNode) {
+        node.children.sortBy { it.name }
+        node.children.forEach { sortNodeRecursively(it) }
+        node.images.sortBy { it.second }
     }
 }

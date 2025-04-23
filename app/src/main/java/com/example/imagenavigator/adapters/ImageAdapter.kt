@@ -10,10 +10,13 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.imagenavigator.R
 import com.example.imagenavigator.utils.ImageGroup
 import android.util.Log
+import com.bumptech.glide.Glide
 
 class ImageAdapter(
     private var rootGroups: List<ImageGroup>,
-    private val onImageSelected: (Bitmap, String) -> Unit
+    private val onImageSelected: (Bitmap, String) -> Unit,
+    private val onGroupRenameRequested: (DisplayItem) -> Unit,
+    private val onGroupDeleteRequested: (DisplayItem) -> Unit
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     private val expandedGroups = mutableSetOf<String>()
@@ -38,14 +41,15 @@ class ImageAdapter(
 
     private fun flattenGroups(groups: List<ImageGroup>, level: Int = 0): List<DisplayItem> {
         val result = mutableListOf<DisplayItem>()
-        for (group in groups) {
-            val groupPath = group.fullPath
+        for (group in groups.sortedBy { it.name }) {
             Log.d("Adapter", "Ajout de groupe: ${group.name} | fullPath=${group.fullPath}")
-            result.add(DisplayItem(ItemType.GROUP, group.fullPath, level = level, fullPath = groupPath))
-            if (expandedGroups.contains(groupPath)) {
+            val safeGroupName = group.name.ifBlank { "[nom inconnu]" }
+            result.add(DisplayItem(ItemType.GROUP, safeGroupName, level = level, fullPath = group.fullPath ?: safeGroupName))
+            if (expandedGroups.contains(group.fullPath ?: safeGroupName)) {
                 result.addAll(group.images.map { (bitmap, name) ->
                     Log.d("Adapter", "Ajout image: $name dans ${group.fullPath}")
-                DisplayItem(ItemType.IMAGE, name, bitmap, name, level + 1, fullPath = name) })
+                    DisplayItem(ItemType.IMAGE, name.ifBlank { "[image]" }, bitmap, name.ifBlank { "[image]" }, level + 1, fullPath = name.ifBlank { "[image]" })
+                })
                 result.addAll(flattenGroups(group.children, level + 1))
             }
         }
@@ -81,11 +85,19 @@ class ImageAdapter(
 
     inner class GroupViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         private val textView: TextView = view.findViewById(R.id.worldNameTextView)
+        private val editText: android.widget.EditText = view.findViewById(R.id.worldNameEditText)
+        private val deleteIcon: ImageView = view.findViewById(R.id.deleteGroupIcon)
 
         fun bind(item: DisplayItem) {
             val key = item.fullPath
             textView.text = "${"  ".repeat(item.level)}📁 ${item.name}"
+            editText.setText(item.name)
+            textView.visibility = View.VISIBLE
+            editText.visibility = View.GONE
+            deleteIcon.visibility = View.GONE
+
             itemView.setOnClickListener {
+                val key = item.fullPath
                 if (expandedGroups.contains(key)) {
                     expandedGroups.remove(key)
                 } else {
@@ -94,6 +106,42 @@ class ImageAdapter(
                 displayItems = flattenGroups(rootGroups)
                 notifyDataSetChanged()
             }
+
+            itemView.setOnLongClickListener {
+                textView.visibility = View.GONE
+                editText.visibility = View.VISIBLE
+                deleteIcon.visibility = View.VISIBLE
+                editText.requestFocus()
+                editText.setSelection(editText.text.length)
+                true
+            }
+
+            editText.setOnEditorActionListener { _, actionId, _ ->
+                if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE) {
+                    val newName = editText.text.toString().trim()
+                    if (newName.isNotBlank() && newName != item.name) {
+                        onGroupRenameRequested(item.copy(name = newName))
+                    }
+                    textView.visibility = View.VISIBLE
+                    editText.visibility = View.GONE
+                    deleteIcon.visibility = View.GONE
+                    true
+                } else {
+                    false
+                }
+            }
+
+            editText.setOnFocusChangeListener { _, hasFocus ->
+                if (!hasFocus) {
+                    textView.visibility = View.VISIBLE
+                    editText.visibility = View.GONE
+                    deleteIcon.visibility = View.GONE
+                }
+            }
+
+            deleteIcon.setOnClickListener {
+                onGroupDeleteRequested(item)
+            }
         }
     }
 
@@ -101,8 +149,13 @@ class ImageAdapter(
         private val imageView: ImageView = view.findViewById(R.id.image_view)
 
         fun bind(item: DisplayItem) {
-            imageView.setImageBitmap(item.bitmap)
-            itemView.setOnClickListener {
+            Glide.with(imageView.context)
+                .load(item.bitmap)
+                .override(400, 250)
+                .centerCrop()
+                .thumbnail(Glide.with(imageView.context).load(item.bitmap).override(40, 25))
+                .into(imageView)
+                itemView.setOnClickListener {
                 item.bitmap?.let { onImageSelected(it, item.fullPath) }
             }
         }
