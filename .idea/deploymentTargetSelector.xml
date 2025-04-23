@@ -4,18 +4,6 @@
     <selectionStates>
       <SelectionState runConfigName="app">
         <option name="selectionMode" value="DROPDOWN" />
-<<<<<<< HEAD
-        <DropdownSelection timestamp="2025-04-19T12:57:18.751509Z">
-=======
-        <DropdownSelection timestamp="2025-04-18T21:53:42.514998Z">
->>>>>>> parent of f8c30da (Version affichage simple fonctionnel !!!)
-          <Target type="DEFAULT_BOOT">
-            <handle>
-              <DeviceId pluginId="LocalEmulator" identifier="path=/Users/raphzyl/.android/avd/Medium_Tablet_UUU.avd" />
-            </handle>
-          </Target>
-        </DropdownSelection>
-        <DialogSelection />
       </SelectionState>
     </selectionStates>
   </component>

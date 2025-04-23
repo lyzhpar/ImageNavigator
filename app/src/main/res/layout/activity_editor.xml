@@ -40,7 +40,6 @@
     <com.example.imagenavigator.screens.DrawingView
         android:id="@+id/drawingView"
         android:layout_width="0dp"
-<<<<<<< HEAD
         android:layout_height="match_parent"
         android:background="#22FF0000"
         app:layout_constraintStart_toEndOf="@id/recyclerViewThumbnails"
