@@ -6,6 +6,8 @@ import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
 import com.example.imagenavigator.model.Zone
+import android.R.attr.bitmap
+import android.util.Log
 
 /**
  * Vue personnalisée qui permet d'afficher une image et de dessiner des zones rectangulaires
@@ -44,6 +46,9 @@ class DrawingView @JvmOverloads constructor(
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
+
+        Log.d("DrawingView", "onDraw avec bitmap = ${bitmap != null}")
+
 
         val bitmap = imageBitmap ?: return
         val dstRect = getImageDisplayRect(bitmap)

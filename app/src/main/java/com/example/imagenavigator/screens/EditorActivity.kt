@@ -14,9 +14,13 @@ import androidx.documentfile.provider.DocumentFile
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.imagenavigator.adapters.ImageAdapter
 import com.example.imagenavigator.databinding.ActivityEditorBinding
+import com.example.imagenavigator.utils.ImageGroup
+import com.example.imagenavigator.utils.ImageGroupTreeBuilder
+import com.example.imagenavigator.utils.ImageGroupNode
 import kotlinx.coroutines.*
 import java.io.InputStream
 import android.graphics.BitmapFactory
+import android.util.Log
 
 class EditorActivity : AppCompatActivity() {
     private lateinit var binding: ActivityEditorBinding
@@ -24,7 +28,9 @@ class EditorActivity : AppCompatActivity() {
     private val imageBitmapMap = mutableMapOf<String, Bitmap>()
     private var currentImageName: String? = null
     private var adventureName = "Nom de l'aventure"
-    private val images = mutableListOf<Pair<Bitmap, String>>()
+    private val groupedImages = mutableListOf<ImageGroup>()
+    private lateinit var imageAdapter: ImageAdapter
+    private lateinit var imageRootNode: ImageGroupNode
 
     private val folderPickerLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         uri?.let { loadImagesFromFolder(it) }
@@ -38,9 +44,25 @@ class EditorActivity : AppCompatActivity() {
         hideSystemUI()
         setupTitleEditor()
 
+        imageAdapter = ImageAdapter(groupedImages) { bitmap, name ->
+
+            Log.d("EditorActivity", "Nom reçu dans callback : $name")
+
+            currentImageName = name
+
+            Log.d("DrawingView", "Image demandée: $currentImageName")
+            Log.d("DrawingView", "Bitmap trouvé ? ${imageBitmapMap.containsKey(currentImageName)}")
+
+            binding.drawingView.imageBitmap = imageBitmapMap[name]
+            val zones = imageDataMap[name] ?: mutableListOf()
+            binding.drawingView.zones.clear()
+            binding.drawingView.zones.addAll(zones)
+            binding.drawingView.invalidate()
+        }
+
         binding.recyclerViewThumbnails.layoutManager = LinearLayoutManager(this)
         binding.recyclerViewThumbnails.setHasFixedSize(true)
-        binding.recyclerViewThumbnails.adapter = ImageAdapter(emptyList()) { _, _ -> }
+        binding.recyclerViewThumbnails.adapter = imageAdapter
 
         binding.saveButton.setOnClickListener {
             // Ajoutez ici la logique de sauvegarde si besoin
@@ -95,18 +117,46 @@ class EditorActivity : AppCompatActivity() {
         }
     }
 
+    private fun getThumbnail(uri: Uri, maxSize: Int = 200): Bitmap? {
+        val options = BitmapFactory.Options().apply {
+            inJustDecodeBounds = true
+        }
+        contentResolver.openInputStream(uri)?.use {
+            BitmapFactory.decodeStream(it, null, options)
+        }
+
+        var scale = 1
+        while (options.outWidth / scale > maxSize || options.outHeight / scale > maxSize) {
+            scale *= 2
+        }
+
+        val decodeOptions = BitmapFactory.Options().apply {
+            inSampleSize = scale
+        }
+
+        return contentResolver.openInputStream(uri)?.use {
+            BitmapFactory.decodeStream(it, null, decodeOptions)
+        }
+    }
+
     private fun loadImagesFromFolder(uri: Uri) {
+
         val skippedFiles = mutableListOf<String>()
 
         binding.loadingOverlay.isVisible = true
-        images.clear()
+        groupedImages.clear()
+        imageBitmapMap.clear()
+        imageDataMap.clear()
 
         CoroutineScope(Dispatchers.IO).launch {
             val folder = DocumentFile.fromTreeUri(this@EditorActivity, uri) ?: return@launch
+            val validImages = mutableListOf<Pair<Bitmap, String>>()
+            val imagePaths = mutableListOf<String>()
 
-            fun traverse(file: DocumentFile) {
+            fun traverse(file: DocumentFile, currentPath: String = "") {
                 if (file.isDirectory) {
-                    file.listFiles().forEach { traverse(it) }
+                    val newPath = if (currentPath.isEmpty()) file.name ?: "" else "$currentPath/${file.name}"
+                    file.listFiles().forEach { traverse(it, newPath) }
                 } else {
                     val mimeType = contentResolver.getType(file.uri)
                     if (mimeType?.startsWith("image/") == true &&
@@ -118,15 +168,23 @@ class EditorActivity : AppCompatActivity() {
                         inputStreamCheck?.close()
 
                         if (options.outWidth > 0 && options.outHeight > 0) {
-                            val inputStream: InputStream? = contentResolver.openInputStream(file.uri)
-                            val bitmap = inputStream?.use { BitmapFactory.decodeStream(it) }
-                            if (bitmap != null) {
+                            val fullBitmap = contentResolver.openInputStream(file.uri)?.use {
+                                BitmapFactory.decodeStream(it)
+                            }
+                            val thumbnail = getThumbnail(file.uri)
+                            if (fullBitmap != null && thumbnail != null) {
                                 val name = file.name!!
-                                imageBitmapMap[name] = bitmap
-                                images.add(bitmap to name)
-                                imageDataMap[name] = mutableListOf()
+                                val fullPath = if (currentPath.isEmpty()) name else "$currentPath/$name"
+
+                                Log.d("EditorActivity", "Ajout de l'image dans map : $fullPath")
+                                Log.d("EditorActivity", "Image ajoutée - Nom : $name | FullPath : $fullPath | Bitmap : ${fullBitmap.width}x${fullBitmap.height}")
+
+                                imageBitmapMap[fullPath] = fullBitmap
+                                imageDataMap[fullPath] = mutableListOf()
+                                validImages.add(thumbnail to fullPath)
+                                imagePaths.add(fullPath)
                             } else {
-                                skippedFiles.add("${file.name} : bitmap décodé nul")
+                                skippedFiles.add("${file.name} : impossible de charger le bitmap complet ou la miniature")
                             }
                         } else {
                             skippedFiles.add("${file.name} : dimensions invalides")
@@ -137,17 +195,13 @@ class EditorActivity : AppCompatActivity() {
                 }
             }
 
+
             folder.listFiles().forEach { traverse(it) }
 
+            imageRootNode = ImageGroupTreeBuilder.buildImageGroupTree(validImages)
+
             withContext(Dispatchers.Main) {
-                binding.recyclerViewThumbnails.adapter = ImageAdapter(images) { bitmap, name ->
-                    currentImageName = name
-                    binding.drawingView.imageBitmap = bitmap
-                    val zones = imageDataMap[name] ?: mutableListOf()
-                    binding.drawingView.zones.clear()
-                    binding.drawingView.zones.addAll(zones)
-                    binding.drawingView.invalidate()
-                }
+                imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
                 binding.loadingOverlay.isVisible = false
 
                 if (skippedFiles.isNotEmpty()) {
