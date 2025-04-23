@@ -14,7 +14,7 @@ class ImageAdapter(
 ) : RecyclerView.Adapter<ImageAdapter.ViewHolder>() {
 
     inner class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        val thumbnail: ImageView = itemView.findViewById(R.id.thumbnailImage)
+        val thumbnail: ImageView = itemView.findViewById(R.id.image_view)
 
         fun bind(bitmap: Bitmap, name: String) {
             thumbnail.setImageBitmap(bitmap)
