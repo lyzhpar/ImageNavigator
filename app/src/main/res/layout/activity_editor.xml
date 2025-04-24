@@ -38,18 +38,66 @@
             android:gravity="left" />
     </FrameLayout>
 
-    <!-- 🟦 Liste des vignettes -->
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recyclerViewThumbnails"
+    <!-- 🟦 Liste des vignettes + barre de boutons -->
+    <LinearLayout
+        android:id="@+id/sidebarContainer"
         android:layout_width="250dp"
         android:layout_height="0dp"
-        android:layout_marginTop="4dp"
-        android:clipToPadding="false"
-        android:padding="4dp"
-        android:scrollbars="vertical"
+        android:orientation="vertical"
         app:layout_constraintTop_toBottomOf="@id/adventureHeaderContainer"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
+        app:layout_constraintStart_toStartOf="parent">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recyclerViewThumbnails"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:clipToPadding="false"
+            android:padding="4dp"
+            android:scrollbars="vertical" />
+
+        <LinearLayout
+            android:id="@+id/sidebarButtonBar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:padding="4dp">
+
+            <ImageButton
+                android:id="@+id/buttonReset"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:src="@drawable/ic_reset"
+                android:contentDescription="Effacer les zones"
+                android:background="@android:color/transparent" />
+
+            <ImageButton
+                android:id="@+id/buttonSave"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:src="@drawable/ic_save"
+                android:contentDescription="Sauvegarder"
+                android:background="@android:color/transparent" />
+
+            <ImageButton
+                android:id="@+id/buttonImportFolder"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:src="@drawable/ic_folder"
+                android:contentDescription="Importer un dossier"
+                android:background="@android:color/transparent" />
+
+            <ImageButton
+                android:id="@+id/buttonImportImage"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:src="@drawable/ic_image"
+                android:contentDescription="Importer une image"
+                android:background="@android:color/transparent" />
+        </LinearLayout>
+    </LinearLayout>
 
     <!-- 🟥 Zone de dessin -->
     <com.example.imagenavigator.screens.DrawingView
@@ -57,7 +105,7 @@
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:background="#22FF0000"
-        app:layout_constraintStart_toEndOf="@id/recyclerViewThumbnails"
+        app:layout_constraintStart_toEndOf="@id/sidebarContainer"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toBottomOf="parent" />
