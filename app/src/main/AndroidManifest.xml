@@ -12,7 +12,7 @@
 
         <!-- 🧭 Menu en paysage uniquement -->
         <activity
-            android:name=".screens.MenuActivity"
+            android:name=".screens.MainActivity"
             android:screenOrientation="landscape"
             android:exported="true"
             android:configChanges="keyboardHidden|orientation|screenSize">

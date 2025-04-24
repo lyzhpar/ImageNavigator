@@ -13,7 +13,7 @@ import android.widget.Toast
  * Menu principal avec deux boutons : Éditeur et Navigateur.
  * Utilise ViewBinding pour gérer les clics.
  */
-class MenuActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMenuBinding
 
