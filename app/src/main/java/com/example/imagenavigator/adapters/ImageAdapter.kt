@@ -30,25 +30,35 @@ class ImageAdapter(
         val bitmap: Bitmap? = null,
         val imagePath: String? = null,
         val level: Int = 0,
-        val fullPath: String
+        val fullPath: String = name
     )
 
     fun updateData(newGroups: List<ImageGroup>) {
         rootGroups = newGroups
+        val racine = newGroups.find { it.name == "Racine" }
+        racine?.let {
+            val key = it.fullPath ?: it.name
+            if (!expandedGroups.contains(key)) {
+                expandedGroups.add(key)
+            }
+        }
         displayItems = flattenGroups(newGroups)
         notifyDataSetChanged()
     }
 
     private fun flattenGroups(groups: List<ImageGroup>, level: Int = 0): List<DisplayItem> {
         val result = mutableListOf<DisplayItem>()
-        for (group in groups.sortedBy { it.name }) {
-            Log.d("Adapter", "Ajout de groupe: ${group.name} | fullPath=${group.fullPath}")
+        val sortedGroups = groups.sortedWith(compareBy({ it.name != "Racine" }, { it.name }))
+        for (group in sortedGroups) {            Log.d("Adapter", "Ajout de groupe: ${group.name} | fullPath=${group.fullPath}")
             val safeGroupName = group.name.ifBlank { "[nom inconnu]" }
             result.add(DisplayItem(ItemType.GROUP, safeGroupName, level = level, fullPath = group.fullPath ?: safeGroupName))
-            if (expandedGroups.contains(group.fullPath ?: safeGroupName)) {
+            val key = group.fullPath ?: safeGroupName
+            val shouldExpand = key.isBlank() || expandedGroups.contains(key)
+            if (shouldExpand) {
                 result.addAll(group.images.map { (bitmap, name) ->
                     Log.d("Adapter", "Ajout image: $name dans ${group.fullPath}")
-                    DisplayItem(ItemType.IMAGE, name.ifBlank { "[image]" }, bitmap, name.ifBlank { "[image]" }, level + 1, fullPath = name.ifBlank { "[image]" })
+                    val safeName = name.ifBlank { "[image]" }
+                    DisplayItem(ItemType.IMAGE, safeName, bitmap, safeName, level + 1, fullPath = safeName)
                 })
                 result.addAll(flattenGroups(group.children, level + 1))
             }
@@ -91,6 +101,7 @@ class ImageAdapter(
         fun bind(item: DisplayItem) {
             val key = item.fullPath
             textView.text = "${"  ".repeat(item.level)}📁 ${item.name}"
+            textView.setTypeface(null, if (item.name == "Racine") android.graphics.Typeface.ITALIC else android.graphics.Typeface.NORMAL)
             editText.setText(item.name)
             textView.visibility = View.VISIBLE
             editText.visibility = View.GONE
@@ -108,6 +119,7 @@ class ImageAdapter(
             }
 
             itemView.setOnLongClickListener {
+                if (item.name == "Racine") return@setOnLongClickListener true
                 textView.visibility = View.GONE
                 editText.visibility = View.VISIBLE
                 deleteIcon.visibility = View.VISIBLE

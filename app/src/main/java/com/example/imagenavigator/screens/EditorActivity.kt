@@ -106,12 +106,22 @@ class EditorActivity : AppCompatActivity() {
                 imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
             },
             onGroupDeleteRequested = { itemToDelete ->
+
                 fun removeGroupRecursively(parent: ImageGroupNode): Boolean {
                     val iterator = parent.children.iterator()
                     while (iterator.hasNext()) {
                         val child = iterator.next()
                         if (child.fullPath == itemToDelete.fullPath) {
                             iterator.remove()
+                            child.images.forEach { (_, path) ->
+                                Log.d("DELETE", "Supprime image $path")
+                                if (imageBitmapMap.remove(path) != null) {
+                                    Log.d("DELETE", "$path supprimée de imageBitmapMap")
+                                }
+                                if (imageDataMap.remove(path) != null) {
+                                    Log.d("DELETE", "$path supprimée de imageDataMap")
+                                }
+                            }
                             return true
                         } else if (removeGroupRecursively(child)) {
                             return true
@@ -138,6 +148,14 @@ class EditorActivity : AppCompatActivity() {
             binding.drawingView.invalidate()
         }
 
+        binding.buttonImportFolder.setOnClickListener {
+            folderPickerLauncher.launch(null)
+        }
+
+        // Réinitialiser uniquement au premier chargement
+        groupedImages.clear()
+        imageBitmapMap.clear()
+        imageDataMap.clear()
         folderPickerLauncher.launch(null)
     }
 
@@ -186,13 +204,12 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun loadImagesFromFolder(uri: Uri) {
+        Log.d("DEBUG", "Chargement du dossier : $uri")
 
         val skippedFiles = mutableListOf<String>()
+        Log.d("DEBUG", "Début du chargement avec uri : $uri")
 
         binding.loadingOverlay.isVisible = true
-        groupedImages.clear()
-        imageBitmapMap.clear()
-        imageDataMap.clear()
 
         CoroutineScope(Dispatchers.IO).launch {
             val folder = DocumentFile.fromTreeUri(this@EditorActivity, uri) ?: return@launch
@@ -200,6 +217,7 @@ class EditorActivity : AppCompatActivity() {
             val imagePaths = mutableListOf<String>()
 
             fun traverse(file: DocumentFile, currentPath: String = "") {
+                Log.d("DEBUG", "Fichier détecté : ${file.name}")
                 if (file.isDirectory) {
                     val newPath = if (currentPath.isEmpty()) file.name ?: "" else "$currentPath/${file.name}"
                     file.listFiles().forEach { traverse(it, newPath) }
@@ -225,10 +243,14 @@ class EditorActivity : AppCompatActivity() {
                                 Log.d("EditorActivity", "Ajout de l'image dans map : $fullPath")
                                 Log.d("EditorActivity", "Image ajoutée - Nom : $name | FullPath : $fullPath | Bitmap : ${fullBitmap.width}x${fullBitmap.height}")
 
-                                imageBitmapMap[fullPath] = fullBitmap
-                                imageDataMap[fullPath] = mutableListOf()
-                                validImages.add(thumbnail to fullPath)
-                                imagePaths.add(fullPath)
+                                if (!imageBitmapMap.containsKey(fullPath)) {
+                                    imageBitmapMap[fullPath] = fullBitmap
+                                    imageDataMap[fullPath] = mutableListOf()
+                                    validImages.add(thumbnail to fullPath)
+                                    imagePaths.add(fullPath)
+                                } else {
+                                    skippedFiles.add("$fullPath : image déjà chargée")
+                                }
                             } else {
                                 skippedFiles.add("${file.name} : impossible de charger le bitmap complet ou la miniature")
                             }
@@ -243,14 +265,17 @@ class EditorActivity : AppCompatActivity() {
 
 
             folder.listFiles().forEach { traverse(it) }
+            Log.d("DEBUG", "Fin de la traversée. Images valides : ${validImages.size}, Ignorées : ${skippedFiles.size}")
 
-            imageRootNode = ImageGroupTreeBuilder.buildImageGroupTree(validImages)
+            val allImages = imageBitmapMap.map { (path, bitmap) -> bitmap to path }
+            imageRootNode = ImageGroupTreeBuilder.buildImageGroupTree(allImages)
 
             withContext(Dispatchers.Main) {
                 imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
                 binding.loadingOverlay.isVisible = false
 
                 if (skippedFiles.isNotEmpty()) {
+                    Log.d("DEBUG", "Affichage d’un message d’alerte avec ${skippedFiles.size} fichiers ignorés")
                     AlertDialog.Builder(this@EditorActivity)
                         .setTitle("Images ignorées")
                         .setMessage(skippedFiles.joinToString("\n"))
