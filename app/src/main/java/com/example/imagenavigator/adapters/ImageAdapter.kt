@@ -35,14 +35,21 @@ class ImageAdapter(
 
     fun updateData(newGroups: List<ImageGroup>) {
         rootGroups = newGroups
+        val racine = newGroups.find { it.name == "Racine" }
+        racine?.let {
+            val key = it.fullPath ?: it.name
+            if (!expandedGroups.contains(key)) {
+                expandedGroups.add(key)
+            }
+        }
         displayItems = flattenGroups(newGroups)
         notifyDataSetChanged()
     }
 
     private fun flattenGroups(groups: List<ImageGroup>, level: Int = 0): List<DisplayItem> {
         val result = mutableListOf<DisplayItem>()
-        for (group in groups.sortedBy { it.name }) {
-            Log.d("Adapter", "Ajout de groupe: ${group.name} | fullPath=${group.fullPath}")
+        val sortedGroups = groups.sortedWith(compareBy({ it.name != "Racine" }, { it.name }))
+        for (group in sortedGroups) {            Log.d("Adapter", "Ajout de groupe: ${group.name} | fullPath=${group.fullPath}")
             val safeGroupName = group.name.ifBlank { "[nom inconnu]" }
             result.add(DisplayItem(ItemType.GROUP, safeGroupName, level = level, fullPath = group.fullPath ?: safeGroupName))
             val key = group.fullPath ?: safeGroupName
@@ -94,6 +101,7 @@ class ImageAdapter(
         fun bind(item: DisplayItem) {
             val key = item.fullPath
             textView.text = "${"  ".repeat(item.level)}📁 ${item.name}"
+            textView.setTypeface(null, if (item.name == "Racine") android.graphics.Typeface.ITALIC else android.graphics.Typeface.NORMAL)
             editText.setText(item.name)
             textView.visibility = View.VISIBLE
             editText.visibility = View.GONE
@@ -111,6 +119,7 @@ class ImageAdapter(
             }
 
             itemView.setOnLongClickListener {
+                if (item.name == "Racine") return@setOnLongClickListener true
                 textView.visibility = View.GONE
                 editText.visibility = View.VISIBLE
                 deleteIcon.visibility = View.VISIBLE

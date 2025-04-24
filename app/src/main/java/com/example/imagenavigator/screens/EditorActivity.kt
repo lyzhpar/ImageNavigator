@@ -106,12 +106,22 @@ class EditorActivity : AppCompatActivity() {
                 imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
             },
             onGroupDeleteRequested = { itemToDelete ->
+
                 fun removeGroupRecursively(parent: ImageGroupNode): Boolean {
                     val iterator = parent.children.iterator()
                     while (iterator.hasNext()) {
                         val child = iterator.next()
                         if (child.fullPath == itemToDelete.fullPath) {
                             iterator.remove()
+                            child.images.forEach { (_, path) ->
+                                Log.d("DELETE", "Supprime image $path")
+                                if (imageBitmapMap.remove(path) != null) {
+                                    Log.d("DELETE", "$path supprimée de imageBitmapMap")
+                                }
+                                if (imageDataMap.remove(path) != null) {
+                                    Log.d("DELETE", "$path supprimée de imageDataMap")
+                                }
+                            }
                             return true
                         } else if (removeGroupRecursively(child)) {
                             return true
