@@ -30,7 +30,7 @@ class ImageAdapter(
         val bitmap: Bitmap? = null,
         val imagePath: String? = null,
         val level: Int = 0,
-        val fullPath: String
+        val fullPath: String = name
     )
 
     fun updateData(newGroups: List<ImageGroup>) {
@@ -45,10 +45,13 @@ class ImageAdapter(
             Log.d("Adapter", "Ajout de groupe: ${group.name} | fullPath=${group.fullPath}")
             val safeGroupName = group.name.ifBlank { "[nom inconnu]" }
             result.add(DisplayItem(ItemType.GROUP, safeGroupName, level = level, fullPath = group.fullPath ?: safeGroupName))
-            if (expandedGroups.contains(group.fullPath ?: safeGroupName)) {
+            val key = group.fullPath ?: safeGroupName
+            val shouldExpand = key.isBlank() || expandedGroups.contains(key)
+            if (shouldExpand) {
                 result.addAll(group.images.map { (bitmap, name) ->
                     Log.d("Adapter", "Ajout image: $name dans ${group.fullPath}")
-                    DisplayItem(ItemType.IMAGE, name.ifBlank { "[image]" }, bitmap, name.ifBlank { "[image]" }, level + 1, fullPath = name.ifBlank { "[image]" })
+                    val safeName = name.ifBlank { "[image]" }
+                    DisplayItem(ItemType.IMAGE, safeName, bitmap, safeName, level + 1, fullPath = safeName)
                 })
                 result.addAll(flattenGroups(group.children, level + 1))
             }

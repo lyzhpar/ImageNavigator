@@ -7,10 +7,15 @@ import com.example.imagenavigator.utils.ImageGroupNode
 object ImageGroupTreeBuilder {
     fun buildImageGroupTree(imagePaths: List<Pair<Bitmap, String>>): ImageGroupNode {
         val root = ImageGroupNode(name = "Racine")
+        val rootGroupNode = ImageGroupNode(name = "Racine", parent = root)
 
         for ((bitmap, fullPath) in imagePaths) {
             Log.d("TreeBuilder", "Ajout image: $fullPath")
             val parts = fullPath.split("/").filter { it != "Racine" }
+            if (parts.size == 1) {
+                rootGroupNode.images.add(bitmap to fullPath)
+                continue
+            }
             var currentNode = root
 
             for (i in 0 until parts.size - 1) {
@@ -33,6 +38,10 @@ object ImageGroupTreeBuilder {
         }
 
         sortNodeRecursively(root)
+
+        if (rootGroupNode.images.isNotEmpty()) {
+            root.children.add(0, rootGroupNode)
+        }
 
         return root
     }
