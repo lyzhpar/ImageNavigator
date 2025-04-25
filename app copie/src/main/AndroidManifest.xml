@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.ImageNavigator"
+        android:requestLegacyExternalStorage="true">
+
+        <!-- 🧭 Menu en paysage uniquement -->
+        <activity
+            android:name=".screens.MainActivity"
+            android:screenOrientation="landscape"
+            android:exported="true"
+            android:configChanges="keyboardHidden|orientation|screenSize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- ✏️ Éditeur en paysage uniquement -->
+        <activity
+            android:name=".screens.EditorActivity"
+            android:screenOrientation="landscape"
+            android:exported="false"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+            android:configChanges="keyboardHidden|orientation|screenSize" />
+
+        <!-- 🌌 Navigateur en paysage uniquement -->
+        <activity
+            android:name=".screens.NavigatorActivity"
+            android:screenOrientation="landscape"
+            android:exported="false"
+            android:configChanges="keyboardHidden|orientation|screenSize" />
+
+    </application>
+</manifest>

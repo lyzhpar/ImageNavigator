@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/bottomBar"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:minHeight="30dp"
+    android:maxHeight="64dp"
+    android:orientation="horizontal"
+    android:background="#EEEEEE"
+    android:padding="0dp"
+    android:gravity="center_vertical">
+
+    <!-- Importer un dossier -->
+    <Button
+        android:id="@+id/buttonImportFolder"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="#DDDDDD"
+        android:drawableStart="@drawable/ic_folder"
+        android:text=" Dossier "
+        android:contentDescription="Importer"
+        android:minWidth="50dp"
+        android:minHeight="30dp"
+        android:layout_margin="8dp"
+        android:padding="5dp"
+        />
+
+    <!-- Importer une image -->
+    <Button
+        android:id="@+id/buttonImportImage"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="#DDDDDD"
+        android:drawableStart="@drawable/ic_image"
+        android:text=" Image "
+        android:contentDescription="Image"
+        android:minWidth="50dp"
+        android:minHeight="30dp"
+        android:layout_margin="8dp"
+        android:padding="5dp" />
+
+    <!-- Sauvegarder -->
+    <Button
+        android:id="@+id/buttonSave"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="#DDDDDD"
+        android:text=" Sauvegarder "
+        android:contentDescription="Image"
+        android:minWidth="50dp"
+        android:minHeight="30dp"
+        android:layout_margin="8dp"
+        android:padding="5dp" />
+
+    <!-- Texte dynamique -->
+    <TextView
+        android:id="@+id/textImageCount"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Images : 0"
+        android:layout_marginStart="16dp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/textWorldCount"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Mondes : 0"
+        android:layout_marginStart="8dp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/textLinkedCount"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Liées : 0"
+        android:layout_marginStart="16dp" />
+
+    <TextView
+        android:id="@+id/textUnlinkedCount"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Non liées : 0"
+        android:layout_marginStart="8dp"
+        android:textColor="#0000FF" />
+
+</LinearLayout>
