@@ -111,22 +111,29 @@ class EditorActivity : AppCompatActivity() {
                 imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
             },
             onGroupDeleteRequested = { itemToDelete ->
-
+                // Supprime le groupe (dossier) et toutes ses images et sous-dossiers de la hiérarchie et des maps
                 fun removeGroupRecursively(parent: ImageGroupNode): Boolean {
                     val iterator = parent.children.iterator()
                     while (iterator.hasNext()) {
                         val child = iterator.next()
                         if (child.fullPath == itemToDelete.fullPath) {
-                            iterator.remove()
-                            child.images.forEach { (_, path) ->
-                                Log.d("DELETE", "Supprime image $path")
-                                if (imageBitmapMap.remove(path) != null) {
-                                    Log.d("DELETE", "$path supprimée de imageBitmapMap")
+                            // Supprimer récursivement tous les sous-groupes et images
+                            fun removeImagesAndSubgroups(node: ImageGroupNode) {
+                                // Supprimer les images de ce groupe
+                                node.images.forEach { (_, path) ->
+                                    Log.d("DELETE", "Supprime image $path")
+                                    if (imageBitmapMap.remove(path) != null) {
+                                        Log.d("DELETE", "$path supprimée de imageBitmapMap")
+                                    }
+                                    if (imageDataMap.remove(path) != null) {
+                                        Log.d("DELETE", "$path supprimée de imageDataMap")
+                                    }
                                 }
-                                if (imageDataMap.remove(path) != null) {
-                                    Log.d("DELETE", "$path supprimée de imageDataMap")
-                                }
+                                // Supprimer récursivement les sous-groupes
+                                node.children.forEach { removeImagesAndSubgroups(it) }
                             }
+                            removeImagesAndSubgroups(child)
+                            iterator.remove() // Retirer le dossier parent.children
                             return true
                         } else if (removeGroupRecursively(child)) {
                             return true
@@ -134,7 +141,6 @@ class EditorActivity : AppCompatActivity() {
                     }
                     return false
                 }
-
                 removeGroupRecursively(imageRootNode)
                 imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
             }
@@ -212,7 +218,7 @@ class EditorActivity : AppCompatActivity() {
     private var loadedImagesCount = 0
     private val imagesPerBatch = 10 // Nombre d'images à charger à la fois pour lazy loading
 
-    // Nouvelle version de la fonction loadImagesFromFolder avec gestion des doublons et batch optimisé
+    // Nouvelle version de la fonction loadImagesFromFolder avec gestion des doublons, async et lazy loading
     private fun loadImagesFromFolder(uri: Uri) {
         Log.d("DEBUG", "Chargement du dossier : $uri")
 
@@ -261,7 +267,8 @@ class EditorActivity : AppCompatActivity() {
             // Fonction refactorisée et claire pour charger une image, avec gestion d'erreur explicite
             suspend fun loadImageFile(pair: Pair<DocumentFile, String>) {
                 val (file, fullPath) = pair
-                if (imageBitmapMap.containsKey(fullPath)) {
+                // Ne pas écraser si déjà présente
+                if (imageBitmapMap.containsKey(fullPath) || imageDataMap.containsKey(fullPath)) {
                     skippedFiles.add("$fullPath : déjà chargée, ignorée")
                     Log.d("DEBUG", "Image ignorée (déjà chargée dans map): $fullPath")
                     return
@@ -296,7 +303,7 @@ class EditorActivity : AppCompatActivity() {
                 }
             }
 
-            // Chargement batch initial
+            // Chargement batch initial avec affichage progressif (async/lazy)
             val initialJobs = initialBatch.map { pair ->
                 async {
                     loadImageFile(pair)
@@ -310,7 +317,7 @@ class EditorActivity : AppCompatActivity() {
             }
             initialJobs.awaitAll()
 
-            // Chargement batch par batch du reste
+            // Chargement batch par batch du reste, lazy: affiche au fur et à mesure
             for (batch in remainingBatches.chunked(imagesPerBatch)) {
                 val jobs = batch.map { pair ->
                     async {

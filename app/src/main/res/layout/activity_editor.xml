@@ -46,6 +46,7 @@
         android:layout_height="0dp"
         android:orientation="vertical"
         app:layout_constraintTop_toBottomOf="@id/adventureHeaderContainer"
+        app:layout_constraintBottom_toTopOf="@id/bottomBar"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent">
 
