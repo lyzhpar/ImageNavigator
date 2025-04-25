@@ -3,11 +3,11 @@
     android:id="@+id/bottomBar"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:minHeight="160dp"
+    android:minHeight="30dp"
     android:maxHeight="64dp"
     android:orientation="horizontal"
     android:background="#EEEEEE"
-    android:padding="8dp"
+    android:padding="0dp"
     android:gravity="center_vertical">
 
     <!-- Importer un dossier -->
@@ -15,7 +15,17 @@
         android:id="@+id/buttonImportFolder"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="📂 Dossier" />
+        android:background="#DDDDDD"
+        android:drawableStart="@drawable/ic_folder"
+        android:text=" Dossier "
+        android:contentDescription="Importer"
+        android:minWidth="50dp"
+        android:minHeight="30dp"
+        android:layout_margin="8dp"
+        android:padding="5dp"
+        />
+
+    <!--   android:text="📂 Dossier"-->
 
     <!-- Importer une image -->
     <Button
