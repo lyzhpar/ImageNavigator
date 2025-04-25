@@ -22,6 +22,8 @@ import java.io.InputStream
 import android.graphics.BitmapFactory
 import android.util.Log
 import android.view.inputmethod.EditorInfo
+import android.widget.Button
+import com.example.imagenavigator.R
 
 class EditorActivity : AppCompatActivity() {
     private lateinit var binding: ActivityEditorBinding
@@ -42,6 +44,8 @@ class EditorActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityEditorBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        folderPickerLauncher.launch(null)
 
         binding.adventureNameTextView.setOnLongClickListener {
             binding.adventureNameTextView.visibility = View.GONE
@@ -139,24 +143,29 @@ class EditorActivity : AppCompatActivity() {
         binding.recyclerViewThumbnails.setHasFixedSize(true)
         binding.recyclerViewThumbnails.adapter = imageAdapter
 
-        //binding.saveButton.setOnClickListener {
-            // Ajoutez ici la logique de sauvegarde si besoin
-        //}
+        // Liaison des nouveaux boutons
+        val bottomBarView = binding.bottomBar.root
+        val buttonImportFolder = bottomBarView.findViewById<Button>(R.id.buttonImportFolder)
+        val buttonImportImage = bottomBarView.findViewById<Button>(R.id.buttonImportImage)
+        val buttonSave = bottomBarView.findViewById<Button>(R.id.buttonSave)
 
-        //binding.resetButton.setOnClickListener {
-        //    binding.drawingView.zones.clear()
-         //   binding.drawingView.invalidate()
-        //}
-
-        binding.buttonImportFolder.setOnClickListener {
+        buttonImportFolder.setOnClickListener {
             folderPickerLauncher.launch(null)
+        }
+
+        buttonImportImage.setOnClickListener {
+            // À compléter : code pour importer une seule image
+        }
+
+        buttonSave.setOnClickListener {
+            // À compléter : code pour sauvegarder les données
         }
 
         // Réinitialiser uniquement au premier chargement
         groupedImages.clear()
         imageBitmapMap.clear()
         imageDataMap.clear()
-        folderPickerLauncher.launch(null)
+        // folderPickerLauncher.launch(null)
     }
 
     private fun hideSystemUI() {

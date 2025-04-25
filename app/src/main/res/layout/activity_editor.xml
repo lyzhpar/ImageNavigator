@@ -2,6 +2,7 @@
 <androidx.constraintlayout.widget.ConstraintLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/editorRoot"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
@@ -38,7 +39,7 @@
             android:gravity="left" />
     </FrameLayout>
 
-    <!-- 🟦 Liste des vignettes + barre de boutons -->
+    <!-- 🟦 Sidebar -->
     <LinearLayout
         android:id="@+id/sidebarContainer"
         android:layout_width="250dp"
@@ -58,46 +59,7 @@
             android:scrollbars="vertical"
             />
 
-        <LinearLayout
-            android:id="@+id/sidebarButtonBar"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center"
-            android:padding="4dp">
 
-            <ImageButton
-                android:id="@+id/buttonReset"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:src="@drawable/ic_reset"
-                android:contentDescription="Effacer les zones"
-                android:background="@android:color/transparent" />
-
-            <ImageButton
-                android:id="@+id/buttonSave"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:src="@drawable/ic_reset"
-                android:contentDescription="Sauvegarder"
-                android:background="@android:color/transparent" />
-
-            <ImageButton
-                android:id="@+id/buttonImportFolder"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:src="@drawable/ic_folder"
-                android:contentDescription="Importer un dossier"
-                android:background="@android:color/transparent" />
-
-            <ImageButton
-                android:id="@+id/buttonImportImage"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:src="@drawable/ic_image"
-                android:contentDescription="Importer une image"
-                android:background="@android:color/transparent" />
-        </LinearLayout>
     </LinearLayout>
 
     <include
@@ -109,6 +71,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         android:elevation="2dp"
+        tools:viewBindingIgnore="false"
         />
 
     <!-- 🟥 Zone de dessin -->
@@ -140,35 +103,5 @@
         app:layout_constraintEnd_toEndOf="parent" />
 
 
-    <!-- 🟨 Barre d'actions (en bas à droite) -->
-    <!--
-<LinearLayout
-    android:id="@+id/actionBar"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:gravity="end"
-    android:padding="8dp"
-    app:layout_constraintBottom_toBottomOf="parent"
-    app:layout_constraintEnd_toEndOf="parent">
-
-    <ImageButton
-        android:id="@+id/resetButton"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:background="@android:color/transparent"
-        android:src="@drawable/ic_reset"
-        android:contentDescription="Effacer les zones" />
-
-    <ImageButton
-        android:id="@+id/saveButton"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_marginStart="16dp"
-        android:background="@android:color/transparent"
-        android:src="@drawable/ic_save"
-        android:contentDescription="Sauvegarder la configuration" />
-</LinearLayout>
--->
 
 </androidx.constraintlayout.widget.ConstraintLayout>
