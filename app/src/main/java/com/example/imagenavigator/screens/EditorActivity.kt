@@ -139,14 +139,14 @@ class EditorActivity : AppCompatActivity() {
         binding.recyclerViewThumbnails.setHasFixedSize(true)
         binding.recyclerViewThumbnails.adapter = imageAdapter
 
-        binding.saveButton.setOnClickListener {
+        //binding.saveButton.setOnClickListener {
             // Ajoutez ici la logique de sauvegarde si besoin
-        }
+        //}
 
-        binding.resetButton.setOnClickListener {
-            binding.drawingView.zones.clear()
-            binding.drawingView.invalidate()
-        }
+        //binding.resetButton.setOnClickListener {
+        //    binding.drawingView.zones.clear()
+         //   binding.drawingView.invalidate()
+        //}
 
         binding.buttonImportFolder.setOnClickListener {
             folderPickerLauncher.launch(null)

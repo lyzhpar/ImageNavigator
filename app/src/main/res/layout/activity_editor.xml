@@ -98,17 +98,29 @@
                 android:background="@android:color/transparent" />
         </LinearLayout>
     </LinearLayout>
+<!--
+    <include
+        layout="@layout/bottom_bar_layout"
+        android:id="@+id/bottomBar"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"/>
+                app:layout_constraintBottom_toTopOf="@id/bottomBar"
+        -->
 
     <!-- 🟥 Zone de dessin -->
     <com.example.imagenavigator.screens.DrawingView
         android:id="@+id/drawingView"
         android:layout_width="0dp"
-        android:layout_height="match_parent"
+        android:layout_height="0dp"
         android:background="#22FF0000"
         app:layout_constraintStart_toEndOf="@id/sidebarContainer"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent" />
+
+        android:layout_marginBottom="56dp" />
 
     <!-- ⏳ ProgressBar centrée -->
     <ProgressBar
@@ -124,33 +136,36 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
+
     <!-- 🟨 Barre d'actions (en bas à droite) -->
-    <LinearLayout
-        android:id="@+id/actionBar"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="end"
-        android:padding="8dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent">
+    <!--
+<LinearLayout
+    android:id="@+id/actionBar"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="end"
+    android:padding="8dp"
+    app:layout_constraintBottom_toBottomOf="parent"
+    app:layout_constraintEnd_toEndOf="parent">
 
-        <ImageButton
-            android:id="@+id/resetButton"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="@android:color/transparent"
-            android:src="@drawable/ic_reset"
-            android:contentDescription="Effacer les zones" />
+    <ImageButton
+        android:id="@+id/resetButton"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:background="@android:color/transparent"
+        android:src="@drawable/ic_reset"
+        android:contentDescription="Effacer les zones" />
 
-        <ImageButton
-            android:id="@+id/saveButton"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:layout_marginStart="16dp"
-            android:background="@android:color/transparent"
-            android:src="@drawable/ic_save"
-            android:contentDescription="Sauvegarder la configuration" />
-    </LinearLayout>
+    <ImageButton
+        android:id="@+id/saveButton"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginStart="16dp"
+        android:background="@android:color/transparent"
+        android:src="@drawable/ic_save"
+        android:contentDescription="Sauvegarder la configuration" />
+</LinearLayout>
+-->
 
 </androidx.constraintlayout.widget.ConstraintLayout>
