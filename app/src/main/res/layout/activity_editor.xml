@@ -21,11 +21,11 @@
             android:id="@+id/adventureNameTextView"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Nom de l'aventure"
+            android:text="@string/nom_aventure"
             android:textSize="20sp"
             android:textStyle="bold"
             android:fontFamily="sans-serif-condensed"
-            android:gravity="left" />
+            android:gravity="start" />
 
         <EditText
             android:id="@+id/adventureTitleEdit"
@@ -36,7 +36,7 @@
             android:visibility="gone"
             android:singleLine="true"
             android:imeOptions="actionDone"
-            android:gravity="left" />
+            android:gravity="start" />
     </FrameLayout>
 
     <!-- 🟦 Sidebar -->

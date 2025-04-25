@@ -2,7 +2,6 @@ package com.example.imagenavigator.utils
 
 import android.graphics.Bitmap
 import android.util.Log
-import com.example.imagenavigator.utils.ImageGroupNode
 
 object ImageGroupTreeBuilder {
     fun buildImageGroupTree(imagePaths: List<Pair<Bitmap, String>>): ImageGroupNode {

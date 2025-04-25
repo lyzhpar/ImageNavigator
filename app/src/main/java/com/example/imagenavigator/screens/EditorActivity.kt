@@ -4,8 +4,6 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
 import android.view.View
-import android.widget.EditText
-import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -30,7 +28,6 @@ class EditorActivity : AppCompatActivity() {
     private val imageDataMap = mutableMapOf<String, MutableList<com.example.imagenavigator.model.Zone>>()
     private val imageBitmapMap = mutableMapOf<String, Bitmap>()
     private var currentImageName: String? = null
-    private var adventureName = "Nom de l'aventure"
     private val groupedImages = mutableListOf<ImageGroup>()
     private lateinit var imageAdapter: ImageAdapter
     private lateinit var imageRootNode: ImageGroupNode
