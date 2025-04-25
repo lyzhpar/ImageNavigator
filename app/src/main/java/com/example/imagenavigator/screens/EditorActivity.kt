@@ -4,8 +4,6 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
 import android.view.View
-import android.widget.EditText
-import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -22,13 +20,14 @@ import java.io.InputStream
 import android.graphics.BitmapFactory
 import android.util.Log
 import android.view.inputmethod.EditorInfo
+import android.widget.Button
+import com.example.imagenavigator.R
 
 class EditorActivity : AppCompatActivity() {
     private lateinit var binding: ActivityEditorBinding
     private val imageDataMap = mutableMapOf<String, MutableList<com.example.imagenavigator.model.Zone>>()
     private val imageBitmapMap = mutableMapOf<String, Bitmap>()
     private var currentImageName: String? = null
-    private var adventureName = "Nom de l'aventure"
     private val groupedImages = mutableListOf<ImageGroup>()
     private lateinit var imageAdapter: ImageAdapter
     private lateinit var imageRootNode: ImageGroupNode
@@ -42,6 +41,8 @@ class EditorActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityEditorBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        folderPickerLauncher.launch(null)
 
         binding.adventureNameTextView.setOnLongClickListener {
             binding.adventureNameTextView.visibility = View.GONE
@@ -139,24 +140,29 @@ class EditorActivity : AppCompatActivity() {
         binding.recyclerViewThumbnails.setHasFixedSize(true)
         binding.recyclerViewThumbnails.adapter = imageAdapter
 
-        binding.saveButton.setOnClickListener {
-            // Ajoutez ici la logique de sauvegarde si besoin
-        }
+        // Liaison des nouveaux boutons
+        val bottomBarView = binding.bottomBar.root
+        val buttonImportFolder = bottomBarView.findViewById<Button>(R.id.buttonImportFolder)
+        val buttonImportImage = bottomBarView.findViewById<Button>(R.id.buttonImportImage)
+        val buttonSave = bottomBarView.findViewById<Button>(R.id.buttonSave)
 
-        binding.resetButton.setOnClickListener {
-            binding.drawingView.zones.clear()
-            binding.drawingView.invalidate()
-        }
-
-        binding.buttonImportFolder.setOnClickListener {
+        buttonImportFolder.setOnClickListener {
             folderPickerLauncher.launch(null)
+        }
+
+        buttonImportImage.setOnClickListener {
+            // À compléter : code pour importer une seule image
+        }
+
+        buttonSave.setOnClickListener {
+            // À compléter : code pour sauvegarder les données
         }
 
         // Réinitialiser uniquement au premier chargement
         groupedImages.clear()
         imageBitmapMap.clear()
         imageDataMap.clear()
-        folderPickerLauncher.launch(null)
+        // folderPickerLauncher.launch(null)
     }
 
     private fun hideSystemUI() {

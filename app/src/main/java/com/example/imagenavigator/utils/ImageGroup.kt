@@ -2,7 +2,6 @@ package com.example.imagenavigator.utils
 
 import android.graphics.Bitmap
 import android.util.Log
-import com.example.imagenavigator.utils.ImageGroupNode
 
 data class ImageGroup(
     val name: String,

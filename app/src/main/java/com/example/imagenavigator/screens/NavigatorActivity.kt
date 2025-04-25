@@ -3,11 +3,9 @@ package com.example.imagenavigator.screens
 import android.content.pm.ActivityInfo
 import android.graphics.BitmapFactory
 import android.os.Bundle
-import android.widget.ImageButton
 import androidx.appcompat.app.AppCompatActivity
 import com.example.imagenavigator.R
 import com.example.imagenavigator.databinding.ActivityNavigatorBinding
-import com.example.imagenavigator.model.ImageData
 import com.example.imagenavigator.model.Zone
 import android.content.res.Configuration
 import android.util.Log

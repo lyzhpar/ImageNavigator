@@ -5,4 +5,5 @@
     <string name="back_button_description">Bouton de retour en arrière</string>
     <string name="delete_zone_button_text">Supprimer la zone</string>
     <string name="expand_collapse_icon">Déplier ou replier</string>
+    <string name="nom_aventure">Nom de l\'aventure</string>
 </resources>
