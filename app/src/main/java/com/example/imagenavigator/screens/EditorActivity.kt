@@ -3,10 +3,7 @@ package com.example.imagenavigator.screens
 import com.bumptech.glide.Glide
 import com.bumptech.glide.request.RequestOptions
 import com.bumptech.glide.load.engine.DiskCacheStrategy
-import com.bumptech.glide.request.target.CustomTarget
 import android.graphics.Bitmap
-import android.graphics.drawable.Drawable
-import com.bumptech.glide.request.transition.Transition
 import android.net.Uri
 import android.os.Bundle
 import android.view.View
@@ -22,52 +19,18 @@ import com.example.imagenavigator.utils.ImageGroup
 import com.example.imagenavigator.utils.ImageGroupTreeBuilder
 import com.example.imagenavigator.utils.ImageGroupNode
 import kotlinx.coroutines.*
-import java.io.InputStream
 import android.graphics.BitmapFactory
-import android.widget.ImageView
 import android.util.Log
 import android.view.inputmethod.EditorInfo
 import android.widget.Button
 import com.example.imagenavigator.R
-import android.content.Context
 
-// Fonction utilitaire pour charger une miniature avec Glide
-private fun loadThumbnail(imageView: ImageView, imageUri: Uri) {
-    Log.d("ImageLoading", "Chargement de la miniature pour l'image $imageUri")
-    Glide.with(imageView.context)
-        .load(imageUri)
-        .apply(RequestOptions().override(200, 200))
-        .placeholder(R.drawable.placeholder)
-        .error(R.drawable.error_image)
-        .into(object : CustomTarget<Drawable>() {
-            override fun onResourceReady(resource: Drawable, transition: Transition<in Drawable>?) {
-                imageView.setImageDrawable(resource)
-                Log.d("ImageLoading", "Miniature chargée avec succès pour : $imageUri")
-            }
-            override fun onLoadCleared(placeholder: Drawable?) {
-                // Rien à faire ici
-            }
-            override fun onLoadFailed(errorDrawable: Drawable?) {
-                super.onLoadFailed(errorDrawable)
-                Log.w("ImageLoading", "Échec du chargement de la miniature pour : $imageUri")
-            }
-        })
-}
 
 
 class EditorActivity : AppCompatActivity() {
     private lateinit var binding: ActivityEditorBinding
     private val imageDataMap = mutableMapOf<String, MutableList<com.example.imagenavigator.model.Zone>>()
     private val imageBitmapMap = mutableMapOf<String, Bitmap>()
-    // Getter pour imageBitmapMap
-    fun getImageBitmapMap(): MutableMap<String, Bitmap> {
-        return imageBitmapMap
-    }
-
-    // Getter pour imageDataMap
-    fun getImageDataMap(): MutableMap<String, MutableList<com.example.imagenavigator.model.Zone>> {
-        return imageDataMap
-    }
     private var currentImageName: String? = null
     private val groupedImages = mutableListOf<ImageGroup>()
     private lateinit var imageAdapter: ImageAdapter
@@ -193,6 +156,13 @@ class EditorActivity : AppCompatActivity() {
 
         buttonImportImage.setOnClickListener {
             // À compléter : code pour importer une seule image
+            // Suggestion : ouvrir un sélecteur de document pour choisir une image
+            // (À compléter) : lancer un ActivityResultContracts.OpenDocument
+            AlertDialog.Builder(this)
+                .setTitle("Import d'image")
+                .setMessage("Fonction d'import d'une seule image à compléter.")
+                .setPositiveButton("OK", null)
+                .show()
         }
 
         buttonSave.setOnClickListener {
@@ -228,10 +198,13 @@ class EditorActivity : AppCompatActivity() {
     }
 
 
+    // Fonction centralisée pour valider qu'un DocumentFile est une image (MIME type ET extension), version concise et optimale
     private fun isValidImage(file: DocumentFile): Boolean {
+        val name = file.name?.lowercase() ?: return false
+        val validExtensions = setOf("jpg", "jpeg", "png", "webp", "bmp", "gif")
+        val ext = name.substringAfterLast('.', "").lowercase()
         val mimeType = contentResolver.getType(file.uri)
-        return mimeType?.startsWith("image/") == true &&
-                file.name?.lowercase()?.matches(Regex(".*\\.(jpg|jpeg|png|webp|bmp|gif)$")) == true
+        return (mimeType?.startsWith("image/") == true) && ext in validExtensions
     }
 
     // Fonction principale pour charger les images depuis un dossier avec lazy loading et Glide asynchrone
@@ -239,6 +212,7 @@ class EditorActivity : AppCompatActivity() {
     private var loadedImagesCount = 0
     private val imagesPerBatch = 10 // Nombre d'images à charger à la fois pour lazy loading
 
+    // Nouvelle version de la fonction loadImagesFromFolder avec gestion des doublons et batch optimisé
     private fun loadImagesFromFolder(uri: Uri) {
         Log.d("DEBUG", "Chargement du dossier : $uri")
 
@@ -247,74 +221,87 @@ class EditorActivity : AppCompatActivity() {
 
         imageLoadingScope.launch {
             val folder = DocumentFile.fromTreeUri(this@EditorActivity, uri) ?: return@launch
-            val allImageFiles = mutableListOf<Triple<DocumentFile, String, String>>() // (file, currentPath, fullPath)
+            val allImageFiles = mutableListOf<Pair<DocumentFile, String>>() // (file, fullPath)
+            val seenFullPaths = mutableSetOf<String>()
 
-            // Parcours récursif pour récupérer tous les fichiers images valides
+            // Parcours récursif pour collecter tous les fichiers images valides sans doublons
             fun traverse(file: DocumentFile, currentPath: String = "") {
                 if (file.isDirectory) {
                     val newPath = if (currentPath.isEmpty()) file.name ?: "" else "$currentPath/${file.name}"
                     file.listFiles().forEach { traverse(it, newPath) }
                 } else {
-                    val mimeType = contentResolver.getType(file.uri)
                     val name = file.name ?: return
-                    if (mimeType?.startsWith("image/") == true &&
-                        name.lowercase().matches(Regex(".*\\.(jpg|jpeg|png|webp|bmp|gif)$"))) {
-                        val fullPath = if (currentPath.isEmpty()) name else "$currentPath/$name"
-                        allImageFiles.add(Triple(file, currentPath, fullPath))
+                    val fullPath = if (currentPath.isEmpty()) name else "$currentPath/$name"
+                    if (isValidImage(file)) {
+                        if (!seenFullPaths.contains(fullPath)) {
+                            allImageFiles.add(Pair(file, fullPath))
+                            seenFullPaths.add(fullPath)
+                        } else {
+                            skippedFiles.add("$fullPath : ignorée (doublon de chemin)")
+                            Log.d("DEBUG", "Image ignorée (doublon de chemin): $fullPath")
+                        }
                     } else {
-                        skippedFiles.add("$name : type MIME non image ou extension incorrecte")
+                        skippedFiles.add("$fullPath : type MIME non image ou extension incorrecte")
+                        Log.d("DEBUG", "Fichier ignoré (type MIME non image ou extension incorrecte): $fullPath")
                     }
                 }
             }
             folder.listFiles().forEach { traverse(it) }
 
-            // Trier pour avoir un ordre stable
-            allImageFiles.sortBy { it.third }
+            allImageFiles.sortBy { it.second }
 
-            // Chargement des premières images immédiatement (batch initial)
             val initialBatch = allImageFiles.take(imagesPerBatch)
             val remainingBatches = allImageFiles.drop(imagesPerBatch)
 
             loadedImagesCount = 0
-            imageBitmapMap.clear()
-            imageDataMap.clear()
+            // Suppression des clear() pour conserver les images déjà chargées
+            // imageBitmapMap.clear()
+            // imageDataMap.clear()
 
-            suspend fun loadImageFile(triple: Triple<DocumentFile, String, String>) {
-                val (file, currentPath, fullPath) = triple
+            // Fonction refactorisée et claire pour charger une image, avec gestion d'erreur explicite
+            suspend fun loadImageFile(pair: Pair<DocumentFile, String>) {
+                val (file, fullPath) = pair
+                if (imageBitmapMap.containsKey(fullPath)) {
+                    skippedFiles.add("$fullPath : déjà chargée, ignorée")
+                    Log.d("DEBUG", "Image ignorée (déjà chargée dans map): $fullPath")
+                    return
+                }
                 try {
-                    val inputStreamCheck: InputStream? = contentResolver.openInputStream(file.uri)
-                    val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                    BitmapFactory.decodeStream(inputStreamCheck, null, options)
-                    inputStreamCheck?.close()
-                    if (options.outWidth > 0 && options.outHeight > 0) {
-                        // Charger le bitmap complet (en arrière-plan)
-                        val bitmap = withContext(Dispatchers.IO) {
-                            Glide.with(this@EditorActivity)
-                                .asBitmap()
-                                .load(file.uri)
-                                .apply(RequestOptions().override(800, 600))
-                                .diskCacheStrategy(DiskCacheStrategy.ALL)
-                                .submit()
-                                .get()
+                    val inputStreamCheck = contentResolver.openInputStream(file.uri)
+                    inputStreamCheck.use { stream ->
+                        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                        BitmapFactory.decodeStream(stream, null, options)
+                        if (options.outWidth <= 0 || options.outHeight <= 0) {
+                            skippedFiles.add("$fullPath : dimensions invalides")
+                            Log.d("DEBUG", "Image ignorée (dimensions invalides): $fullPath")
+                            return
                         }
-                        imageBitmapMap[fullPath] = bitmap
-                        imageDataMap[fullPath] = mutableListOf()
-                    } else {
-                        skippedFiles.add("$fullPath : dimensions invalides")
                     }
+                    val bitmap = withContext(Dispatchers.IO) {
+                        Glide.with(this@EditorActivity)
+                            .asBitmap()
+                            .load(file.uri)
+                            .apply(RequestOptions().override(800, 600))
+                            .diskCacheStrategy(DiskCacheStrategy.ALL)
+                            .submit()
+                            .get()
+                    }
+                    imageBitmapMap[fullPath] = bitmap
+                    imageDataMap[fullPath] = mutableListOf()
+                    Log.d("DEBUG", "Image ajoutée : $fullPath")
                 } catch (e: Exception) {
                     Log.e("ImageLoading", "Erreur lors du traitement de l'image : $fullPath", e)
                     skippedFiles.add("$fullPath : erreur lors du chargement")
+                    Log.d("DEBUG", "Image ignorée (erreur lors du chargement): $fullPath")
                 }
             }
 
-            // Charger la première batch et mettre à jour l'affichage dès qu'une image est prête
-            val initialJobs = initialBatch.map { triple ->
+            // Chargement batch initial
+            val initialJobs = initialBatch.map { pair ->
                 async {
-                    loadImageFile(triple)
+                    loadImageFile(pair)
                     withContext(Dispatchers.Main) {
                         loadedImagesCount++
-                        // Mettre à jour la liste à chaque image chargée (pour effet immédiat)
                         val allImages = imageBitmapMap.map { (path, bitmap) -> bitmap to path }
                         imageRootNode = ImageGroupTreeBuilder.buildImageGroupTree(allImages)
                         imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
@@ -323,11 +310,11 @@ class EditorActivity : AppCompatActivity() {
             }
             initialJobs.awaitAll()
 
-            // Charger le reste des images en arrière-plan, par batch de imagesPerBatch
+            // Chargement batch par batch du reste
             for (batch in remainingBatches.chunked(imagesPerBatch)) {
-                val jobs = batch.map { triple ->
+                val jobs = batch.map { pair ->
                     async {
-                        loadImageFile(triple)
+                        loadImageFile(pair)
                     }
                 }
                 jobs.awaitAll()
@@ -343,7 +330,7 @@ class EditorActivity : AppCompatActivity() {
                 binding.loadingOverlay.isVisible = false
                 if (skippedFiles.isNotEmpty()) {
                     AlertDialog.Builder(this@EditorActivity)
-                        .setTitle("Images ignorées")
+                        .setTitle("Fichiers ignorés")
                         .setMessage(skippedFiles.joinToString("\n"))
                         .setPositiveButton("OK", null)
                         .show()
@@ -354,7 +341,7 @@ class EditorActivity : AppCompatActivity() {
         setupRecyclerViewLazyLoading()
     }
 
-    // Ajoute un OnScrollListener pour charger plus d'images quand on atteint la fin de la liste
+    // Ajoute un OnScrollListener pour charger plus d'images quand on atteint la fin de la liste (lazy loading)
     private fun setupRecyclerViewLazyLoading() {
         binding.recyclerViewThumbnails.clearOnScrollListeners()
         binding.recyclerViewThumbnails.addOnScrollListener(object : androidx.recyclerview.widget.RecyclerView.OnScrollListener() {
@@ -364,7 +351,6 @@ class EditorActivity : AppCompatActivity() {
                 val lastVisibleItemPosition = layoutManager.findLastVisibleItemPosition()
                 // Si on approche de la fin, charger le prochain batch
                 if (totalItemCount - lastVisibleItemPosition <= 3) {
-                    // On relance le chargement d'un batch si possible
                     loadNextImageBatchIfNeeded()
                 }
             }
@@ -376,80 +362,7 @@ class EditorActivity : AppCompatActivity() {
     private fun loadNextImageBatchIfNeeded() {
         if (isLoadingBatch) return
         isLoadingBatch = true
-        // On ne relance un batch que si toutes les images n'ont pas été chargées
-        // (Ici, l'implémentation est simplifiée car tout est chargé dans loadImagesFromFolder, mais on pourrait étendre)
-        // Pour une vraie implémentation, il faudrait garder la liste des fichiers à charger et avancer le curseur.
-        // Cette fonction est un hook pour le futur si on veut du lazy loading plus fin.
+        // Ici, l'implémentation est un hook pour extension future si lazy loading plus fin.
         isLoadingBatch = false
-    }
-}
-
-// Classe CustomTarget pour corriger l'implémentation de onLoadCleared
-open class BitmapFullCustomTarget(
-    private val context: Context,
-    private val file: DocumentFile,
-    private val currentPath: String,
-    private val validImages: MutableList<Pair<Bitmap, String>>,
-    private val imagePaths: MutableList<String>,
-    private val skippedFiles: MutableList<String>
-) : CustomTarget<Bitmap>() {
-    override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
-        try {
-            val fullBitmap = resource
-            Log.d("ImageLoading", "Génération de la miniature pour l'image ${file.uri}")
-            val name = file.name!!
-            val fullPath = if (currentPath.isEmpty()) name else "$currentPath/$name"
-            val activity = context as? EditorActivity
-            if (activity != null) {
-                if (!activity.getImageBitmapMap().containsKey(fullPath)) {
-                    activity.getImageBitmapMap()[fullPath] = fullBitmap
-                    activity.getImageDataMap()[fullPath] = mutableListOf()
-                    // Générer la miniature en arrière-plan
-                    activity.generateThumbnailInBackground(file, fullPath, validImages, imagePaths)
-                } else {
-                    skippedFiles.add("$fullPath : image déjà chargée")
-                }
-            }
-        } catch (e: Exception) {
-            Log.w("ImageLoading", "Échec de la génération de la miniature pour ${file.uri}", e)
-            skippedFiles.add("${file.name} : erreur lors de la génération de la miniature")
-        }
-    }
-
-    override fun onLoadCleared(placeholder: Drawable?) {
-        // Nothing to do here
-    }
-}
-
-// Fonction pour générer des miniatures en arrière-plan
-fun EditorActivity.generateThumbnailInBackground(
-    file: DocumentFile,
-    fullPath: String,
-    validImages: MutableList<Pair<Bitmap, String>>,
-    imagePaths: MutableList<String>
-) {
-    CoroutineScope(Dispatchers.IO).launch {
-        try {
-            // Charger l'image dans un thread en arrière-plan
-            val thumbnail = Glide.with(this@generateThumbnailInBackground)
-                .asBitmap()
-                .load(file.uri)
-                .submit(200, 200)
-                .get()  // Appelé sur un thread en arrière-plan
-
-            // Une fois la miniature chargée, revenir au thread principal pour l'ajouter à la map
-            withContext(Dispatchers.Main) {
-                if (!getImageBitmapMap().containsKey(fullPath)) {
-                    // Normalement la map contient déjà l'image pleine, on ajoute la miniature à la liste pour affichage
-                    validImages.add(Pair(thumbnail, fullPath))
-                    imagePaths.add(fullPath)
-                    Log.d("ImageLoading", "Miniature générée avec succès pour $fullPath")
-                } else {
-                    Log.w("ImageLoading", "$fullPath déjà chargée")
-                }
-            }
-        } catch (e: Exception) {
-            Log.e("ImageLoading", "Erreur lors de la génération de la miniature pour $fullPath", e)
-        }
     }
 }
