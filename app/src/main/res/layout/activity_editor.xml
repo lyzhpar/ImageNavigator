@@ -78,7 +78,7 @@
                 android:id="@+id/buttonSave"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:src="@drawable/ic_save"
+                android:src="@drawable/ic_reset"
                 android:contentDescription="Sauvegarder"
                 android:background="@android:color/transparent" />
 

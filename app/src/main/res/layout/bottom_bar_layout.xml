@@ -25,21 +25,32 @@
         android:padding="5dp"
         />
 
-    <!--   android:text="📂 Dossier"-->
-
     <!-- Importer une image -->
     <Button
         android:id="@+id/buttonImportImage"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="🖼️ Image" />
+        android:background="#DDDDDD"
+        android:drawableStart="@drawable/ic_image"
+        android:text=" Image "
+        android:contentDescription="Image"
+        android:minWidth="50dp"
+        android:minHeight="30dp"
+        android:layout_margin="8dp"
+        android:padding="5dp" />
 
     <!-- Sauvegarder -->
     <Button
         android:id="@+id/buttonSave"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="💾 Sauvegarder" />
+        android:background="#DDDDDD"
+        android:text=" Sauvegarder "
+        android:contentDescription="Image"
+        android:minWidth="50dp"
+        android:minHeight="30dp"
+        android:layout_margin="8dp"
+        android:padding="5dp" />
 
     <!-- Texte dynamique -->
     <TextView
