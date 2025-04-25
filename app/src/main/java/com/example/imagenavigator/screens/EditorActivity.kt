@@ -14,6 +14,7 @@ import androidx.core.view.isVisible
 import androidx.documentfile.provider.DocumentFile
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.imagenavigator.adapters.ImageAdapter
+import com.example.imagenavigator.model.DisplayItem
 import com.example.imagenavigator.databinding.ActivityEditorBinding
 import com.example.imagenavigator.utils.ImageGroup
 import com.example.imagenavigator.utils.ImageGroupTreeBuilder
@@ -28,6 +29,9 @@ import com.example.imagenavigator.R
 
 
 class EditorActivity : AppCompatActivity() {
+    // Liste des éléments sélectionnés (images et dossiers)
+    private val selectedItems = mutableSetOf<String>() // Utilise le fullPath comme identifiant unique
+    private var isSelectionMode = false
     private lateinit var binding: ActivityEditorBinding
     private val imageDataMap = mutableMapOf<String, MutableList<com.example.imagenavigator.model.Zone>>()
     private val imageBitmapMap = mutableMapOf<String, Bitmap>()
@@ -36,17 +40,127 @@ class EditorActivity : AppCompatActivity() {
     private lateinit var imageAdapter: ImageAdapter
     private lateinit var imageRootNode: ImageGroupNode
 
+
     private val folderPickerLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         uri?.let { loadImagesFromFolder(it) }
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
+    // --- Les fonctions ci-dessous ont été déplacées hors de onCreate ---
 
+
+
+    // Ajoute ou enlève un élément de la sélection (utilise le set local)
+    private fun toggleSelection(fullPath: String) {
+        if (selectedItems.contains(fullPath)) {
+            selectedItems.remove(fullPath)
+            Log.d("EditorActivity", "Désélectionné : $fullPath")
+        } else {
+            selectedItems.add(fullPath)
+            Log.d("EditorActivity", "Sélectionné : $fullPath")
+        }
+        imageAdapter.setSelectionMode(isSelectionMode, selectedItems)
+    }
+
+    // Affiche ou masque le bouton "Supprimer" selon la sélection
+    private fun updateDeleteButtonVisibility(deleteButton: View) {
+        Log.d("EditorActivity", "updateDeleteButtonVisibility: selectedItems=${selectedItems}")
+        deleteButton.visibility = if (selectedItems.isNotEmpty()) View.VISIBLE else View.GONE
+    }
+
+    // Supprime tous les éléments sélectionnés (dossiers et images)
+    private fun handleDeleteSelectedItems(deleteButton: View? = null) {
+        val itemsToDelete: List<String> = selectedItems.toList()
+        Log.d("EditorActivity", "handleDeleteSelectedItems: $itemsToDelete")
+        for (fullPath in itemsToDelete) {
+            if (isGroupPath(fullPath)) {
+                Log.d("EditorActivity", "Suppression d'un groupe: $fullPath")
+                removeGroupAndImages(fullPath)
+            } else {
+                Log.d("EditorActivity", "Suppression d'une image: $fullPath")
+                removeImage(fullPath)
+            }
+        }
+        selectedItems.clear()
+        exitSelectionMode()
+        imageAdapter.notifyDataSetChanged()
+        if (deleteButton != null) updateDeleteButtonVisibility(deleteButton)
+    }
+    // Sort du mode sélection multiple et réinitialise la sélection
+    fun exitSelectionMode() {
+        isSelectionMode = false
+        selectedItems.clear()
+        imageAdapter.setSelectionMode(false, selectedItems)
+    }
+
+    // Retourne true si le fullPath correspond à un dossier dans l'arbre
+    private fun isGroupPath(fullPath: String): Boolean {
+        fun findNode(node: ImageGroupNode): Boolean {
+            if (node.fullPath == fullPath) return true
+            return node.children.any { findNode(it) }
+        }
+        return findNode(imageRootNode)
+    }
+
+    // Supprime un groupe (dossier) et ses images/sous-dossiers
+    private fun removeGroupAndImages(fullPath: String) {
+        Log.d("EditorActivity", "removeGroupAndImages appelé avec fullPath=$fullPath")
+        fun removeGroupRecursively(parent: ImageGroupNode): Boolean {
+            val iterator = parent.children.iterator()
+            while (iterator.hasNext()) {
+                val child = iterator.next()
+                if (child.fullPath == fullPath) {
+                    fun removeImagesAndSubgroups(node: ImageGroupNode) {
+                        node.images.forEach { (_, path) ->
+                            imageBitmapMap.remove(path)
+                            imageDataMap.remove(path)
+                        }
+                        node.children.forEach { removeImagesAndSubgroups(it) }
+                    }
+
+                    iterator.remove()
+                    return true
+                } else if (removeGroupRecursively(child)) {
+                    return true
+                }
+            }
+            return false
+        }
+        removeGroupRecursively(imageRootNode)
+    }
+
+    // Supprime une image unique
+    private fun removeImage(fullPath: String) {
+        Log.d("EditorActivity", "removeImage appelé avec fullPath=$fullPath")
+        imageBitmapMap.remove(fullPath)
+        imageDataMap.remove(fullPath)
+        removeImageFromNode(imageRootNode, fullPath)
+    }
+
+    // Déplacée hors de removeImage pour usage global
+    private fun removeImageFromNode(node: ImageGroupNode, fullPath: String) {
+        node.images.removeAll { it.second == fullPath }
+        node.children.forEach { removeImageFromNode(it, fullPath) }
+    }
+
+    // (Suppression de la version dupliquée de loadImagesFromFolder)
+
+
+    override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityEditorBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        folderPickerLauncher.launch(null)
+        // Bouton dynamique "Supprimer" (créé ici, caché par défaut)
+        val deleteButton = Button(this).apply {
+            text = "Supprimer"
+            visibility = View.GONE
+            isEnabled = false
+            setOnClickListener {
+                handleDeleteSelectedItems(this)
+            }
+        }
+        // Ajoute le bouton à la bottom bar (ou autre layout approprié)
+        binding.bottomBar.root.addView(deleteButton)
 
         binding.adventureNameTextView.setOnLongClickListener {
             binding.adventureNameTextView.visibility = View.GONE
@@ -80,18 +194,26 @@ class EditorActivity : AppCompatActivity() {
 
         imageAdapter = ImageAdapter(
             rootGroups = groupedImages,
-            onImageSelected = { bitmap, name ->
-                Log.d("EditorActivity", "Nom reçu dans callback : $name")
-                currentImageName = name
-                Log.d("DrawingView", "Image demandée: $currentImageName")
-                Log.d("DrawingView", "Bitmap trouvé ? ${imageBitmapMap.containsKey(currentImageName)}")
-                binding.drawingView.imageBitmap = imageBitmapMap[name]
-                val zones = imageDataMap[name] ?: mutableListOf()
-                binding.drawingView.zones.clear()
-                binding.drawingView.zones.addAll(zones)
-                binding.drawingView.invalidate()
+            onImageSelected = { bitmap: Bitmap, fullPath: String ->
+                if (isSelectionMode) {
+                    // Sélection/désélection en mode sélection multiple
+                    toggleSelection(fullPath)
+                    updateDeleteButtonVisibility(deleteButton)
+                    deleteButton.isEnabled = selectedItems.isNotEmpty()
+                } else {
+                    // Sélection individuelle
+                    Log.d("EditorActivity", "Nom reçu dans callback : $fullPath")
+                    currentImageName = fullPath
+                    Log.d("DrawingView", "Image demandée: $currentImageName")
+                    Log.d("DrawingView", "Bitmap trouvé ? ${imageBitmapMap.containsKey(currentImageName)}")
+                    binding.drawingView.imageBitmap = bitmap // Assigner le bitmap directement ici
+                    val zones = imageDataMap[fullPath] ?: mutableListOf()
+                    binding.drawingView.zones.clear()
+                    binding.drawingView.zones.addAll(zones)
+                    binding.drawingView.invalidate()
+                }
             },
-            onGroupRenameRequested = { updatedItem ->
+            onGroupRenameRequested = { updatedItem: ImageAdapter.DisplayItem.GroupItem ->
                 fun updateGroupName(node: ImageGroupNode) {
                     if (node.fullPath == updatedItem.fullPath) {
                         node.name = updatedItem.name
@@ -99,52 +221,61 @@ class EditorActivity : AppCompatActivity() {
                         node.children.forEach { updateGroupName(it) }
                     }
                 }
-
                 fun sortNodeRecursively(node: ImageGroupNode) {
                     node.children.sortBy { it.name }
                     node.children.forEach { sortNodeRecursively(it) }
                     node.images.sortBy { it.second }
                 }
-
                 updateGroupName(imageRootNode)
                 sortNodeRecursively(imageRootNode)
                 imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
             },
-            onGroupDeleteRequested = { itemToDelete ->
-                // Supprime le groupe (dossier) et toutes ses images et sous-dossiers de la hiérarchie et des maps
-                fun removeGroupRecursively(parent: ImageGroupNode): Boolean {
-                    val iterator = parent.children.iterator()
-                    while (iterator.hasNext()) {
-                        val child = iterator.next()
-                        if (child.fullPath == itemToDelete.fullPath) {
-                            // Supprimer récursivement tous les sous-groupes et images
-                            fun removeImagesAndSubgroups(node: ImageGroupNode) {
-                                // Supprimer les images de ce groupe
-                                node.images.forEach { (_, path) ->
-                                    Log.d("DELETE", "Supprime image $path")
-                                    if (imageBitmapMap.remove(path) != null) {
-                                        Log.d("DELETE", "$path supprimée de imageBitmapMap")
-                                    }
-                                    if (imageDataMap.remove(path) != null) {
-                                        Log.d("DELETE", "$path supprimée de imageDataMap")
-                                    }
-                                }
-                                // Supprimer récursivement les sous-groupes
-                                node.children.forEach { removeImagesAndSubgroups(it) }
-                            }
-                            removeImagesAndSubgroups(child)
-                            iterator.remove() // Retirer le dossier parent.children
-                            return true
-                        } else if (removeGroupRecursively(child)) {
-                            return true
-                        }
-                    }
-                    return false
-                }
-                removeGroupRecursively(imageRootNode)
+            onGroupDeleteRequested = { itemToDelete: ImageAdapter.DisplayItem.GroupItem ->
+                if (isSelectionMode) return@ImageAdapter
+                removeGroupAndImages(itemToDelete.fullPath)
                 imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
-            }
+            },
+            onItemLongPress = { item: ImageAdapter.DisplayItem ->
+                val fullPath = item.fullPath
+                if (item is ImageAdapter.DisplayItem.ImageItem) {
+                    // Logique pour ImageItem
+                    Log.d("EditorActivity", "onItemLongPress: Image sélectionnée: $fullPath")
+                    if (!isSelectionMode) {
+                        isSelectionMode = true
+                        selectedItems.clear()
+                        selectedItems.add(fullPath)
+                        imageAdapter.setSelectionMode(isSelectionMode, selectedItems)
+                        updateDeleteButtonVisibility(deleteButton)
+                    }
+                } else if (item is ImageAdapter.DisplayItem.GroupItem) {
+                    // Logique pour GroupItem
+                    Log.d("EditorActivity", "onItemLongPress: Dossier sélectionné: $fullPath")
+                    if (!isSelectionMode) {
+                        isSelectionMode = true
+                        selectedItems.clear()
+                        selectedItems.add(fullPath)
+                        imageAdapter.setSelectionMode(isSelectionMode, selectedItems)
+                        updateDeleteButtonVisibility(deleteButton)
+                    }
+                } else {
+                    // Autres types (si jamais ajoutés)
+                    Log.d("EditorActivity", "onItemLongPress: Élément inconnu: $fullPath")
+                }
+            },
+            getSelectedItems = { imageAdapter.getSelectedItems() },
+            exitSelectionMode = { imageAdapter.exitSelectionMode() }
         )
+
+        // Désactive le mode sélection multiple si clic en dehors (exemple : sur la DrawingView)
+        binding.drawingView.setOnClickListener {
+            if (isSelectionMode) {
+                exitSelectionMode()
+                updateDeleteButtonVisibility(deleteButton)
+                deleteButton.isEnabled = false
+            }
+        }
+
+
 
         binding.recyclerViewThumbnails.layoutManager = LinearLayoutManager(this)
         binding.recyclerViewThumbnails.setHasFixedSize(true)
@@ -155,6 +286,18 @@ class EditorActivity : AppCompatActivity() {
         val buttonImportFolder = bottomBarView.findViewById<Button>(R.id.buttonImportFolder)
         val buttonImportImage = bottomBarView.findViewById<Button>(R.id.buttonImportImage)
         val buttonSave = bottomBarView.findViewById<Button>(R.id.buttonSave)
+
+
+        // Ajout du listener d'appui long dans le RecyclerView
+        binding.recyclerViewThumbnails.setOnLongClickListener {
+            Log.d("EditorActivity", "Appui long détecté sur RecyclerView")
+            true
+        }
+
+
+
+
+
 
         buttonImportFolder.setOnClickListener {
             folderPickerLauncher.launch(null)
@@ -373,3 +516,4 @@ class EditorActivity : AppCompatActivity() {
         isLoadingBatch = false
     }
 }
+

@@ -11,27 +11,39 @@ import com.example.imagenavigator.R
 import com.example.imagenavigator.utils.ImageGroup
 import android.util.Log
 import com.bumptech.glide.Glide
+import android.graphics.Color
 
 class ImageAdapter(
     private var rootGroups: List<ImageGroup>,
     private val onImageSelected: (Bitmap, String) -> Unit,
-    private val onGroupRenameRequested: (DisplayItem) -> Unit,
-    private val onGroupDeleteRequested: (DisplayItem) -> Unit
+    private val onGroupRenameRequested: (DisplayItem.GroupItem) -> Unit,
+    private val onGroupDeleteRequested: (DisplayItem.GroupItem) -> Unit,
+    private val onItemLongPress: (DisplayItem) -> Unit,
+    private val getSelectedItems: () -> Set<String>,
+    private val exitSelectionMode: () -> Unit
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     private val expandedGroups = mutableSetOf<String>()
     private var displayItems = flattenGroups(rootGroups)
 
-    enum class ItemType { GROUP, IMAGE }
+    private var isSelectionMode = false
+    private val selectedItems = mutableSetOf<String>()
 
-    data class DisplayItem(
-        val type: ItemType,
-        val name: String,
-        val bitmap: Bitmap? = null,
-        val imagePath: String? = null,
-        val level: Int = 0,
-        val fullPath: String = name
-    )
+    sealed class DisplayItem {
+        abstract val fullPath: String
+        data class ImageItem(val bitmap: Bitmap, override val fullPath: String) : DisplayItem()
+        data class GroupItem(val name: String, override val fullPath: String) : DisplayItem()
+    }
+
+    fun getSelectedItems(): Set<String> {
+        return selectedItems
+    }
+
+    fun exitSelectionMode() {
+        isSelectionMode = false
+        selectedItems.clear()
+        notifyDataSetChanged()
+    }
 
     fun updateData(newGroups: List<ImageGroup>) {
         rootGroups = newGroups
@@ -51,14 +63,14 @@ class ImageAdapter(
         val sortedGroups = groups.sortedWith(compareBy({ it.name != "Racine" }, { it.name }))
         for (group in sortedGroups) {            Log.d("Adapter", "Ajout de groupe: ${group.name} | fullPath=${group.fullPath}")
             val safeGroupName = group.name.ifBlank { "[nom inconnu]" }
-            result.add(DisplayItem(ItemType.GROUP, safeGroupName, level = level, fullPath = group.fullPath ?: safeGroupName))
+            result.add(DisplayItem.GroupItem(safeGroupName, group.fullPath ?: safeGroupName))
             val key = group.fullPath ?: safeGroupName
             val shouldExpand = key.isBlank() || expandedGroups.contains(key)
             if (shouldExpand) {
                 result.addAll(group.images.map { (bitmap, name) ->
                     Log.d("Adapter", "Ajout image: $name dans ${group.fullPath}")
                     val safeName = name.ifBlank { "[image]" }
-                    DisplayItem(ItemType.IMAGE, safeName, bitmap, safeName, level + 1, fullPath = safeName)
+                    DisplayItem.ImageItem(bitmap, safeName)
                 })
                 result.addAll(flattenGroups(group.children, level + 1))
             }
@@ -66,9 +78,16 @@ class ImageAdapter(
         return result
     }
 
-    override fun getItemViewType(position: Int): Int = when (displayItems[position].type) {
-        ItemType.GROUP -> 0
-        ItemType.IMAGE -> 1
+    fun setSelectionMode(isSelectionMode: Boolean, selectedItems: Set<String>) {
+        this.isSelectionMode = isSelectionMode
+        this.selectedItems.clear()
+        this.selectedItems.addAll(selectedItems)
+        notifyDataSetChanged()
+    }
+
+    override fun getItemViewType(position: Int): Int = when (displayItems[position]) {
+        is DisplayItem.GroupItem -> 0
+        is DisplayItem.ImageItem -> 1
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
@@ -86,11 +105,33 @@ class ImageAdapter(
 
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         val item = displayItems[position]
-        Log.d("onBind", "Bind type: ${item.type} | name: ${item.name} | fullPath: ${item.fullPath}")
         when (holder) {
-            is GroupViewHolder -> holder.bind(item)
-            is ImageViewHolder -> holder.bind(item)
+            is GroupViewHolder -> {
+                holder.bind(item as DisplayItem.GroupItem)
+                holder.itemView.setOnLongClickListener {
+                    Log.d("ImageAdapter", "Long press sur : ${item.fullPath}")
+                    onItemLongPress(item as DisplayItem.GroupItem) // Assure-toi que l'élément long-pressé est passé à cette fonction
+                    true // Pour marquer que l'événement long click est consommé
+                }
+            }
+            is ImageViewHolder -> {
+                holder.bind(item as DisplayItem.ImageItem)
+                holder.itemView.setOnLongClickListener {
+                    Log.d("ImageAdapter", "Long press sur : ${item.fullPath}")
+                    onItemLongPress(item as DisplayItem.ImageItem) // Assure-toi que l'élément long-pressé est passé à cette fonction
+                    true // Pour marquer que l'événement long click est consommé
+                }
+            }
         }
+    }
+
+    private fun toggleSelection(fullPath: String) {
+        if (selectedItems.contains(fullPath)) {
+            selectedItems.remove(fullPath)
+        } else {
+            selectedItems.add(fullPath)
+        }
+        notifyDataSetChanged()
     }
 
     inner class GroupViewHolder(view: View) : RecyclerView.ViewHolder(view) {
@@ -98,16 +139,22 @@ class ImageAdapter(
         private val editText: android.widget.EditText = view.findViewById(R.id.worldNameEditText)
         private val deleteIcon: ImageView = view.findViewById(R.id.deleteGroupIcon)
 
-        fun bind(item: DisplayItem) {
+
+        fun bind(item: DisplayItem.GroupItem) {
             val key = item.fullPath
-            textView.text = "${"  ".repeat(item.level)}📁 ${item.name}"
+            textView.text = "📁 ${item.name}"
             textView.setTypeface(null, if (item.name == "Racine") android.graphics.Typeface.ITALIC else android.graphics.Typeface.NORMAL)
             editText.setText(item.name)
             textView.visibility = View.VISIBLE
             editText.visibility = View.GONE
             deleteIcon.visibility = View.GONE
 
+            textView.setBackgroundColor(
+                if (selectedItems.contains(item.fullPath)) Color.GRAY else Color.TRANSPARENT
+            )
+
             itemView.setOnClickListener {
+
                 val key = item.fullPath
                 if (expandedGroups.contains(key)) {
                     expandedGroups.remove(key)
@@ -152,23 +199,44 @@ class ImageAdapter(
             }
 
             deleteIcon.setOnClickListener {
-                onGroupDeleteRequested(item)
+                onGroupDeleteRequested(item) // Appel avec GroupItem
             }
         }
     }
 
+    // Dans l'adaptateur
     inner class ImageViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         private val imageView: ImageView = view.findViewById(R.id.image_view)
 
         fun bind(item: DisplayItem) {
-            Glide.with(imageView.context)
-                .load(item.bitmap)
-                .override(400, 250)
-                .centerCrop()
-                .thumbnail(Glide.with(imageView.context).load(item.bitmap).override(40, 25))
-                .into(imageView)
-                itemView.setOnClickListener {
-                item.bitmap?.let { onImageSelected(it, item.fullPath) }
+            // Affichage des images pour ImageItem
+            when (item) {
+                is DisplayItem.ImageItem -> {
+                    Glide.with(imageView.context)
+                        .load(item.bitmap)
+                        .override(400, 250)
+                        .centerCrop()
+                        .thumbnail(Glide.with(imageView.context).load(item.bitmap).override(40, 25))
+                        .into(imageView)
+                }
+                is DisplayItem.GroupItem -> {
+                    // Affichage de groupe pour GroupItem
+                    imageView.setImageResource(R.drawable.folder_icon) // Exemple d'icône pour les dossiers
+                }
+            }
+
+            // Lors de l'appui long, on traite les items
+            itemView.setOnLongClickListener {
+                Log.d("ImageAdapter", "Long press sur : ${item.fullPath}")
+                onItemLongPress(item)  // Appel à onItemLongPress avec l'élément
+                true // Signifie que l'événement est consommé
+            }
+
+            // Clic simple
+            itemView.setOnClickListener {
+                if (item is DisplayItem.ImageItem) {
+                    onImageSelected(item.bitmap, item.fullPath)
+                }
             }
         }
     }
