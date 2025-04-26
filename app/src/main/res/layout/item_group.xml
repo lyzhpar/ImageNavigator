@@ -2,6 +2,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:orientation="horizontal"
     android:padding="16dp"
     android:gravity="center_vertical"
@@ -12,7 +13,10 @@
         android:layout_width="24dp"
         android:layout_height="24dp"
         android:src="@drawable/ic_checkmark"
-        android:visibility="gone" />
+        app:tint="#FFFFFF"
+        android:layout_gravity="end"
+        android:visibility="gone"
+ />
 
     <TextView
         android:id="@+id/worldNameTextView"

@@ -163,15 +163,18 @@ class ImageAdapter(
             }
 
             itemView.setOnClickListener {
-
                 val key = item.fullPath
-                if (expandedGroups.contains(key)) {
-                    expandedGroups.remove(key)
+                if (isSelectionMode) {
+                    onItemLongPress(item) // Si en mode sélection, on sélectionne/désélectionne
                 } else {
-                    expandedGroups.add(key)
+                    if (expandedGroups.contains(key)) {
+                        expandedGroups.remove(key)
+                    } else {
+                        expandedGroups.add(key)
+                    }
+                    displayItems = flattenGroups(rootGroups)
+                    notifyDataSetChanged()
                 }
-                displayItems = flattenGroups(rootGroups)
-                notifyDataSetChanged()
             }
 
             itemView.setOnLongClickListener {

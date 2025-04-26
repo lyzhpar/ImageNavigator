@@ -39,15 +39,12 @@ class EditorActivity : AppCompatActivity() {
     private val groupedImages = mutableListOf<ImageGroup>()
     private lateinit var imageAdapter: ImageAdapter
     private lateinit var imageRootNode: ImageGroupNode
+    private lateinit var deleteButton: Button
 
 
     private val folderPickerLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         uri?.let { loadImagesFromFolder(it) }
     }
-
-    // --- Les fonctions ci-dessous ont été déplacées hors de onCreate ---
-
-
 
     // Ajoute ou enlève un élément de la sélection (utilise le set local)
     private fun toggleSelection(fullPath: String) {
@@ -85,6 +82,8 @@ class EditorActivity : AppCompatActivity() {
         imageAdapter.notifyDataSetChanged()
         if (deleteButton != null) updateDeleteButtonVisibility(deleteButton)
     }
+
+
     // Sort du mode sélection multiple et réinitialise la sélection
     fun exitSelectionMode() {
         isSelectionMode = false
@@ -150,8 +149,11 @@ class EditorActivity : AppCompatActivity() {
         binding = ActivityEditorBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        // Rendre la DrawingView cliquable pour capter les long press
+        binding.drawingView.isClickable = true
+
         // Bouton dynamique "Supprimer" (créé ici, caché par défaut)
-        val deleteButton = Button(this).apply {
+        deleteButton = Button(this).apply {
             text = "Supprimer"
             visibility = View.GONE
             isEnabled = false
@@ -159,6 +161,7 @@ class EditorActivity : AppCompatActivity() {
                 handleDeleteSelectedItems(this)
             }
         }
+
         // Ajoute le bouton à la bottom bar (ou autre layout approprié)
         binding.bottomBar.root.addView(deleteButton)
 
@@ -242,6 +245,7 @@ class EditorActivity : AppCompatActivity() {
                     isSelectionMode = true
                     selectedItems.clear()  // On vide les précédentes sélections
                     selectedItems.add(fullPath)
+
                 } else {
                     // Si le mode sélection est déjà activé, on sélectionne ou désélectionne l'élément
                     if (selectedItems.contains(fullPath)) {
@@ -249,21 +253,26 @@ class EditorActivity : AppCompatActivity() {
                     } else {
                         selectedItems.add(fullPath)  // Sélectionner l'élément
                     }
+                    if (selectedItems.isEmpty()) {
+                        isSelectionMode = false
+                    }
                 }
                 imageAdapter.setSelectionMode(isSelectionMode, selectedItems)
                 updateDeleteButtonVisibility(deleteButton)
             },
             getSelectedItems = { imageAdapter.getSelectedItems() },
-            exitSelectionMode = { imageAdapter.exitSelectionMode() }
+            exitSelectionMode = { exitSelectionMode() }
         )
 
         // Désactive le mode sélection multiple si clic en dehors (exemple : sur la DrawingView)
-        binding.drawingView.setOnClickListener {
+        binding.drawingView.setOnLongClickListener {
+            Log.d("EditorActivity", "Long click capté sur DrawingView")
             if (isSelectionMode) {
                 exitSelectionMode()
                 updateDeleteButtonVisibility(deleteButton)
                 deleteButton.isEnabled = false
             }
+            true
         }
 
         binding.recyclerViewThumbnails.layoutManager = LinearLayoutManager(this)

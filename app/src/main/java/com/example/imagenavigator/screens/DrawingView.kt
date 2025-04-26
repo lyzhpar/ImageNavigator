@@ -8,6 +8,7 @@ import android.view.View
 import com.example.imagenavigator.model.Zone
 import android.R.attr.bitmap
 import android.util.Log
+import android.view.GestureDetector
 
 /**
  * Vue personnalisée qui permet d'afficher une image et de dessiner des zones rectangulaires
@@ -17,6 +18,10 @@ class DrawingView @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null
 ) : View(context, attrs) {
 
+    init {
+        isClickable = true
+        isLongClickable = true
+    }
     var imageBitmap: Bitmap? = null
         set(value) {
             field = value
@@ -28,6 +33,13 @@ class DrawingView @JvmOverloads constructor(
 
     // Callback appelée quand une nouvelle zone est créée
     var onZoneCreated: ((Zone) -> Unit)? = null
+
+    private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+        override fun onLongPress(e: MotionEvent) {
+            Log.d("DrawingView", "onLongPress détecté - appel performLongClick()")
+            performLongClick()
+        }
+    })
 
     private val paintZone = Paint().apply {
         color = Color.argb(128, 0, 255, 0)
@@ -77,6 +89,9 @@ class DrawingView @JvmOverloads constructor(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        Log.d("DrawingView", "onTouchEvent: ${event.action}")
+        Log.d("DrawingView", "gestureDetector.onTouchEvent(event) appelé")
+        gestureDetector.onTouchEvent(event)
         val bitmap = imageBitmap ?: return false
         val dstRect = getImageDisplayRect(bitmap)
 
