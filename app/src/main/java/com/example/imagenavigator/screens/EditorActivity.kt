@@ -14,7 +14,6 @@ import androidx.core.view.isVisible
 import androidx.documentfile.provider.DocumentFile
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.imagenavigator.adapters.ImageAdapter
-import com.example.imagenavigator.model.DisplayItem
 import com.example.imagenavigator.databinding.ActivityEditorBinding
 import com.example.imagenavigator.utils.ImageGroup
 import com.example.imagenavigator.utils.ImageGroupTreeBuilder
@@ -26,6 +25,11 @@ import android.view.inputmethod.EditorInfo
 import android.widget.Button
 import com.example.imagenavigator.R
 import android.widget.TextView
+import com.example.imagenavigator.model.AdventureData
+import com.example.imagenavigator.model.ImageData
+import com.google.gson.Gson
+import com.google.gson.GsonBuilder
+import java.io.File
 
 
 
@@ -56,6 +60,11 @@ class EditorActivity : AppCompatActivity() {
 
     // Ajoute ou enlève un élément de la sélection (utilise le set local)
     private fun toggleSelection(fullPath: String) {
+        if (!isSelectionMode) {
+            isSelectionMode = true
+            selectedItems.clear()  // Quand on entre en sélection, on vide l’ancienne
+        }
+
         if (selectedItems.contains(fullPath)) {
             selectedItems.remove(fullPath)
             Log.d("EditorActivity", "Désélectionné : $fullPath")
@@ -63,6 +72,7 @@ class EditorActivity : AppCompatActivity() {
             selectedItems.add(fullPath)
             Log.d("EditorActivity", "Sélectionné : $fullPath")
         }
+
         imageAdapter.setSelectionMode(isSelectionMode, selectedItems)
         updateDeleteButtonVisibility(deleteButton)
         deleteButton.isEnabled = selectedItems.isNotEmpty()
@@ -142,7 +152,7 @@ class EditorActivity : AppCompatActivity() {
                 count += countTotalGroups(child, isRoot = false)
             }
         }
-        return if (isRoot) count else count
+        return count
     }
 
     // Retourne true si le fullPath correspond à un dossier dans l'arbre
@@ -198,6 +208,40 @@ class EditorActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityEditorBinding.inflate(layoutInflater)
+
+
+// 1. Liaison directe via binding
+        val buttonSave = binding.bottomBar.buttonSave
+
+        buttonSave?.setOnClickListener {
+            Log.d("DEBUG_SAVE", "👉 Bouton Sauvegarder cliqué")
+
+            updateAdventureTitleIfNeeded() // ⚡ Ajout immédiat ici
+
+            if (imageBitmapMap.isEmpty()) {
+                Log.d("DEBUG_SAVE", "❌ Aucun dossier/image chargé, affichage d'une alerte")
+                AlertDialog.Builder(this)
+                    .setTitle("Impossible de sauvegarder")
+                    .setMessage("Veuillez importer un dossier ou une image avant de sauvegarder.")
+                    .setPositiveButton("OK", null)
+                    .show()
+                return@setOnClickListener
+            }
+
+            updateAdventureTitleIfNeeded()
+
+            if (binding.adventureNameTextView.text.isNullOrBlank()) {
+                binding.adventureNameTextView.text = "adventure_save"
+                binding.adventureTitleEdit.setText("adventure_save")
+            }
+
+            val adventureData = generateAdventureData()
+            Log.d("DEBUG_SAVE", "✅ AdventureData généré avec titre = ${adventureData.adventureTitle}")
+
+            saveAdventureToFileWithCheck(adventureData)
+        } ?: Log.e("DEBUG_SAVE", "❌ Le bouton Save est null, impossible de le binder correctement.")
+
+
         setContentView(binding.root)
 
         // Rendre la DrawingView cliquable pour capter les long press
@@ -308,21 +352,7 @@ class EditorActivity : AppCompatActivity() {
             },
             onItemLongPress = { item: ImageAdapter.DisplayItem ->
                 val fullPath = item.fullPath
-                if (!isSelectionMode) {
-                    // Si le mode sélection n'est pas encore activé, l'activer
-                    isSelectionMode = true
-                    selectedItems.clear()  // On vide les précédentes sélections
-                    selectedItems.add(fullPath)
-                } else {
-                    // Si le mode sélection est déjà activé, on sélectionne ou désélectionne l'élément
-                    if (selectedItems.contains(fullPath)) {
-                        selectedItems.remove(fullPath)  // Désélectionner l'élément
-                    } else {
-                        selectedItems.add(fullPath)  // Sélectionner l'élément
-                    }
-                }
-                imageAdapter.setSelectionMode(isSelectionMode, selectedItems)
-                updateDeleteButtonVisibility(deleteButton)
+                toggleSelection(fullPath)
             },
             getSelectedItems = { imageAdapter.getSelectedItems() },
             exitSelectionMode = { exitSelectionMode() }
@@ -347,7 +377,6 @@ class EditorActivity : AppCompatActivity() {
         val bottomBarView = binding.bottomBar.root
         val buttonImportFolder = bottomBarView.findViewById<Button>(R.id.buttonImportFolder)
         val buttonImportImage = bottomBarView.findViewById<Button>(R.id.buttonImportImage)
-        val buttonSave = bottomBarView.findViewById<Button>(R.id.buttonSave)
 
         // --- Liaison des vues info bottom bar
         imagesInfoText = bottomBarView.findViewById(R.id.textImageCount)
@@ -387,7 +416,31 @@ class EditorActivity : AppCompatActivity() {
         }
 
         buttonSave.setOnClickListener {
-            // À compléter : code pour sauvegarder les données
+            Log.d("DEBUG_SAVE", "👉 Bouton Sauvegarder cliqué")
+
+            if (imageBitmapMap.isEmpty()) {
+                Log.d("DEBUG_SAVE", "❌ Aucun dossier/image chargé, affichage d'une alerte")
+                AlertDialog.Builder(this)
+                    .setTitle("Impossible de sauvegarder")
+                    .setMessage("Veuillez importer un dossier ou une image avant de sauvegarder.")
+                    .setPositiveButton("OK", null)
+                    .show()
+                return@setOnClickListener
+            }
+
+            // Important : forcer la mise à jour du titre si l'utilisateur était en train de l'éditer
+            updateAdventureTitleIfNeeded()
+
+            // Sécuriser : si le titre est vide après édition, utiliser "adventure_save"
+            if (binding.adventureNameTextView.text.isNullOrBlank()) {
+                binding.adventureNameTextView.text = "adventure_save"
+                binding.adventureTitleEdit.setText("adventure_save")
+            }
+
+            val adventureData = generateAdventureData()
+            Log.d("DEBUG_SAVE", "✅ AdventureData généré avec titre = ${adventureData.adventureTitle}")
+
+            saveAdventureToFileWithCheck(adventureData)
         }
 
         // Réinitialiser uniquement au premier chargement
@@ -395,6 +448,16 @@ class EditorActivity : AppCompatActivity() {
         imageBitmapMap.clear()
         imageDataMap.clear()
         // folderPickerLauncher.launch(null)
+    }
+
+    // Fonction pour forcer la mise à jour du titre d'aventure si l'utilisateur est en train d'éditer
+    private fun updateAdventureTitleIfNeeded() {
+        if (binding.adventureTitleEdit.visibility == View.VISIBLE) {
+            val newTitle = binding.adventureTitleEdit.text.toString().trim()
+            binding.adventureNameTextView.text = newTitle
+            binding.adventureNameTextView.visibility = View.VISIBLE
+            binding.adventureTitleEdit.visibility = View.GONE
+        }
     }
 
     private fun hideSystemUI() {
@@ -589,5 +652,155 @@ class EditorActivity : AppCompatActivity() {
         // Ici, l'implémentation est un hook pour extension future si lazy loading plus fin.
         isLoadingBatch = false
     }
-}
 
+
+
+    // 1. Génère l'objet AdventureData à partir des données existantes
+// 1. Génère l'objet AdventureData à partir des données existantes
+    private fun generateAdventureData(): AdventureData {
+        val imagesList = imageDataMap.map { (fullPath: String, zones: MutableList<com.example.imagenavigator.model.Zone>) ->
+            ImageData(
+                imageName = fullPath,
+                zones = zones
+            )
+        }
+        return AdventureData(
+            adventureTitle = binding.adventureNameTextView.text.toString().trim(),
+            images = imagesList
+        )
+    }
+
+    // 2. Sauvegarde l'AdventureData en JSON dans un fichier local
+    private fun saveAdventureToFile(adventureData: AdventureData) {
+        try {
+            val gson = GsonBuilder().setPrettyPrinting().create()
+            val jsonString = gson.toJson(adventureData)
+            val file = File(filesDir, "adventure_save.json")
+            file.writeText(jsonString)
+            Log.d("EditorActivity", "Aventure sauvegardée dans : ${file.absolutePath}")
+
+            runOnUiThread {
+                AlertDialog.Builder(this)
+                    .setTitle("Sauvegarde réussie")
+                    .setMessage("Votre aventure a été sauvegardée dans :\n${file.absolutePath}")
+                    .setPositiveButton("OK", null)
+                    .show()
+            }
+        } catch (e: Exception) {
+            Log.e("EditorActivity", "Erreur lors de la sauvegarde", e)
+            runOnUiThread {
+                AlertDialog.Builder(this)
+                    .setTitle("Erreur")
+                    .setMessage("Erreur lors de la sauvegarde : ${e.localizedMessage}")
+                    .setPositiveButton("OK", null)
+                    .show()
+            }
+        }
+    }
+
+    // Fonction pour sauvegarder l'aventure en JSON, en proposant un nouveau nom si besoin (version corrigée)
+    private fun saveAdventureToFileWithCheck(adventureData: AdventureData) {
+        Log.d("DEBUG_SAVE", "saveAdventureToFileWithCheck lancé avec titre : ${adventureData.adventureTitle}")
+        try {
+            val gson = GsonBuilder().setPrettyPrinting().create()
+            val baseName = adventureData.adventureTitle.ifEmpty { "adventure_save" }
+            val safeBaseName = baseName.replace("[^a-zA-Z0-9_-]".toRegex(), "_")
+            Log.d("DEBUG_SAVE", "Nom sécurisé pour sauvegarde : $safeBaseName")
+            var file = File(filesDir, "$safeBaseName.json")
+            Log.d("DEBUG_SAVE", "Chemin du fichier à vérifier : ${file.absolutePath}")
+/*
+            if (file.exists()) {
+                Log.d("DEBUG_SAVE", "Le fichier existe déjà, ouverture boîte de dialogue.")
+                // Le fichier existe déjà -> proposer changer nom ou écraser
+                runOnUiThread {
+                    val input = android.widget.EditText(this)
+                    input.setText(baseName)
+
+                    AlertDialog.Builder(this)
+                        .setTitle("Fichier déjà existant")
+                        .setMessage("Le fichier \"$safeBaseName.json\" existe déjà. Voulez-vous choisir un nouveau nom ?")
+                        .setView(input)
+                        .setPositiveButton("Changer le nom") { _, _ ->
+                            val newName = input.text.toString().trim().ifEmpty { "adventure_save_new" }
+                            val safeNewName = newName.replace("[^a-zA-Z0-9_-]".toRegex(), "_")
+                            val newFile = File(filesDir, "$safeNewName.json")
+                            val updatedAdventureData = adventureData.copy(adventureTitle = newName)
+
+                            val newJsonString = gson.toJson(updatedAdventureData)
+                            newFile.writeText(newJsonString)
+                            Log.d("DEBUG_SAVE", "Sauvegarde réussie pour : ${newFile.absolutePath}")
+
+                            binding.adventureNameTextView.text = newName
+                            binding.adventureTitleEdit.setText(newName)
+
+                            AlertDialog.Builder(this)
+                                .setTitle("Sauvegarde réussie")
+                                .setMessage("Votre aventure a été sauvegardée sous :\n${newFile.absolutePath}")
+                                .setPositiveButton("OK", null)
+                                .show()
+                        }
+                        .setNegativeButton("Écraser") { _, _ ->
+                            val jsonString = gson.toJson(adventureData)
+                            file.writeText(jsonString)
+                            Log.d("DEBUG_SAVE", "Fichier écrasé : ${file.absolutePath}")
+
+                            AlertDialog.Builder(this)
+                                .setTitle("Fichier écrasé")
+                                .setMessage("Le fichier existant \"$safeBaseName.json\" a été écrasé.")
+                                .setPositiveButton("OK", null)
+                                .show()
+                        }
+                        .show()
+                }
+            } else {
+                Log.d("DEBUG_SAVE", "Le fichier n'existe pas, tentative d'écriture directe.")
+                // Le fichier n'existe pas -> on écrit directement
+                val jsonString = gson.toJson(adventureData)
+                file.writeText(jsonString)
+                Log.d("DEBUG_SAVE", "Fichier écrit avec succès dans ${file.absolutePath}")
+
+                runOnUiThread {
+                    AlertDialog.Builder(this)
+                        .setTitle("Sauvegarde réussie")
+                        .setMessage("Votre aventure a été sauvegardée dans :\n${file.absolutePath}")
+                        .setPositiveButton("OK", null)
+                        .show()
+                }
+            }*/
+        } catch (e: Exception) {
+            Log.e("EditorActivity", "Erreur lors de la sauvegarde", e)
+            runOnUiThread {
+                AlertDialog.Builder(this)
+                    .setTitle("Erreur")
+                    .setMessage("Erreur lors de la sauvegarde : ${e.localizedMessage}")
+                    .setPositiveButton("OK", null)
+                    .show()
+            }
+        }
+
+        // Version simplifiée :
+        Log.d("DEBUG_SAVE", "Tentative simple de sauvegarde avec titre : ${adventureData.adventureTitle}")
+        try {
+            val gson = GsonBuilder().setPrettyPrinting().create()
+            val baseName = adventureData.adventureTitle.ifEmpty { "adventure_save" }
+            val safeBaseName = baseName.replace("[^a-zA-Z0-9_-]".toRegex(), "_")
+            val file = File(filesDir, "$safeBaseName.json")
+
+            val jsonString = gson.toJson(adventureData)
+            file.writeText(jsonString)
+
+            Log.d("DEBUG_SAVE", "✅ Fichier JSON écrit avec succès : ${file.absolutePath}")
+
+            runOnUiThread {
+                AlertDialog.Builder(this)
+                    .setTitle("Succès")
+                    .setMessage("Fichier sauvegardé :\n${file.absolutePath}")
+                    .setPositiveButton("OK", null)
+                    .show()
+            }
+        } catch (e: Exception) {
+            Log.e("DEBUG_SAVE", "Erreur simple de sauvegarde", e)
+        }
+    }
+
+    }

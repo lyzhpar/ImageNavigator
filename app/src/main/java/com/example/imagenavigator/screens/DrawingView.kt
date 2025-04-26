@@ -100,9 +100,17 @@ class DrawingView @JvmOverloads constructor(
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         Log.d("DrawingView", "onTouchEvent: ${event.action}")
-        Log.d("DrawingView", "gestureDetector.onTouchEvent(event) appelé")
         gestureDetector.onTouchEvent(event)
-        val bitmap = imageBitmap ?: return false
+
+        val bitmap = imageBitmap
+        if (bitmap == null) {
+            if (event.action == MotionEvent.ACTION_UP) {
+                Log.d("DrawingView", "Clic détecté sans image affichée")
+                onTapListener?.invoke()
+            }
+            return true
+        }
+
         val dstRect = getImageDisplayRect(bitmap)
 
         val x = event.x.coerceIn(dstRect.left, dstRect.right)
@@ -132,11 +140,13 @@ class DrawingView @JvmOverloads constructor(
                         (rect.bottom - dstRect.top) / dstRect.height()
                     )
 
-                    // Empêche les zones trop petites
                     if (relative.width() > 0.01f && relative.height() > 0.01f) {
                         val zone = Zone(relative, null, null)
                         zones.add(zone)
                         onZoneCreated?.invoke(zone)
+                    } else {
+                        Log.d("DrawingView", "Clic simple détecté sur DrawingView avec image")
+                        onTapListener?.invoke()
                     }
                 }
                 drawingRect = null
