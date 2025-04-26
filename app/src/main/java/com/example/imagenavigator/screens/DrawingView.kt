@@ -34,7 +34,17 @@ class DrawingView @JvmOverloads constructor(
     // Callback appelée quand une nouvelle zone est créée
     var onZoneCreated: ((Zone) -> Unit)? = null
 
+    var onTapListener: (() -> Unit)? = null
+
+
+
     private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+        override fun onSingleTapUp(e: MotionEvent): Boolean {
+            Log.d("DrawingView", "onSingleTapUp détecté")
+            onTapListener?.invoke()
+            return true
+        }
+
         override fun onLongPress(e: MotionEvent) {
             Log.d("DrawingView", "onLongPress détecté - appel performLongClick()")
             performLongClick()

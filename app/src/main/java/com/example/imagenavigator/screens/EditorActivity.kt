@@ -118,8 +118,8 @@ class EditorActivity : AppCompatActivity() {
             val imageCount = selectedItems.count { !isGroupPath(it) }
             val folderCount = selectedItems.count { isGroupPath(it) }
             selectionInfoContainer.visibility = View.VISIBLE
-            selectedImagesCount.text = "Images sélectionnées : $imageCount"
-            selectedWorldsCount.text = "Dossiers sélectionnés : $folderCount"
+            selectedImagesCount.text = if (imageCount == 1) "Image sélectionnée : 1" else "Images sélectionnées : $imageCount"
+            selectedWorldsCount.text = if (folderCount == 1) "Dossier sélectionné : 1" else "Dossiers sélectionnés : $folderCount"
             imagesInfoText.visibility = View.GONE
             worldsInfoText.visibility = View.GONE
         } else {
@@ -134,12 +134,15 @@ class EditorActivity : AppCompatActivity() {
     }
 
     // Helper pour compter les groupes (mondes)
-    private fun countTotalGroups(node: ImageGroupNode): Int {
-        var count = 1 // compte ce groupe
+    private fun countTotalGroups(node: ImageGroupNode, isRoot: Boolean = true): Int {
+        var count = 0
         for (child in node.children) {
-            count += countTotalGroups(child)
+            if (child.images.isNotEmpty() || child.children.isNotEmpty()) {
+                count += 1
+                count += countTotalGroups(child, isRoot = false)
+            }
         }
-        return count
+        return if (isRoot) count else count
     }
 
     // Retourne true si le fullPath correspond à un dossier dans l'arbre
@@ -191,9 +194,6 @@ class EditorActivity : AppCompatActivity() {
         node.images.removeAll { it.second == fullPath }
         node.children.forEach { removeImageFromNode(it, fullPath) }
     }
-
-    // (Suppression de la version dupliquée de loadImagesFromFolder)
-
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -328,15 +328,14 @@ class EditorActivity : AppCompatActivity() {
             exitSelectionMode = { exitSelectionMode() }
         )
 
-        // Désactive le mode sélection multiple si clic en dehors (exemple : sur la DrawingView)
-        binding.drawingView.setOnLongClickListener {
-            Log.d("EditorActivity", "Long click capté sur DrawingView")
+        // Ajoute un onTapListener pour désactiver le mode sélection si tap sur la DrawingView
+        binding.drawingView.onTapListener = {
             if (isSelectionMode) {
                 exitSelectionMode()
                 updateDeleteButtonVisibility(deleteButton)
+                updateBottomBarInfo()
                 deleteButton.isEnabled = false
             }
-            true
         }
 
         binding.recyclerViewThumbnails.layoutManager = LinearLayoutManager(this)
