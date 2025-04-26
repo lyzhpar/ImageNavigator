@@ -25,6 +25,7 @@ import android.util.Log
 import android.view.inputmethod.EditorInfo
 import android.widget.Button
 import com.example.imagenavigator.R
+import android.widget.TextView
 
 
 
@@ -40,6 +41,7 @@ class EditorActivity : AppCompatActivity() {
     private lateinit var imageAdapter: ImageAdapter
     private lateinit var imageRootNode: ImageGroupNode
     private lateinit var deleteButton: Button
+    private lateinit var selectionModeIndicator: TextView
 
 
     private val folderPickerLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
@@ -56,6 +58,8 @@ class EditorActivity : AppCompatActivity() {
             Log.d("EditorActivity", "Sélectionné : $fullPath")
         }
         imageAdapter.setSelectionMode(isSelectionMode, selectedItems)
+        updateDeleteButtonVisibility(deleteButton)
+        deleteButton.isEnabled = selectedItems.isNotEmpty()
     }
 
     // Affiche ou masque le bouton "Supprimer" selon la sélection
@@ -63,6 +67,10 @@ class EditorActivity : AppCompatActivity() {
         Log.d("EditorActivity", "updateDeleteButtonVisibility: selectedItems=${selectedItems}")
         deleteButton.visibility = if (selectedItems.isNotEmpty()) View.VISIBLE else View.GONE
         deleteButton.isEnabled = selectedItems.isNotEmpty()
+
+
+        // MAJ du texte "Mode sélection"
+        selectionModeIndicator.visibility = if (isSelectionMode) View.VISIBLE else View.GONE
     }
 
     // Supprime tous les éléments sélectionnés (dossiers et images)
@@ -166,6 +174,23 @@ class EditorActivity : AppCompatActivity() {
         // Ajoute le bouton à la bottom bar (ou autre layout approprié)
         binding.bottomBar.root.addView(deleteButton)
 
+        selectionModeIndicator = TextView(this).apply {
+            text = "Mode sélection"
+            visibility = View.GONE
+            textSize = 16f
+            setPadding(16, 0, 16, 0)
+            setOnClickListener {
+                exitSelectionMode()
+                updateDeleteButtonVisibility(deleteButton)
+                visibility = View.GONE
+            }
+        }
+
+// Ajoute le texte à la bottom bar
+        binding.bottomBar.root.addView(selectionModeIndicator)
+
+
+
         binding.adventureNameTextView.setOnLongClickListener {
             binding.adventureNameTextView.visibility = View.GONE
             binding.adventureTitleEdit.visibility = View.VISIBLE
@@ -246,16 +271,12 @@ class EditorActivity : AppCompatActivity() {
                     isSelectionMode = true
                     selectedItems.clear()  // On vide les précédentes sélections
                     selectedItems.add(fullPath)
-
                 } else {
                     // Si le mode sélection est déjà activé, on sélectionne ou désélectionne l'élément
                     if (selectedItems.contains(fullPath)) {
                         selectedItems.remove(fullPath)  // Désélectionner l'élément
                     } else {
                         selectedItems.add(fullPath)  // Sélectionner l'élément
-                    }
-                    if (selectedItems.isEmpty()) {
-                        isSelectionMode = false
                     }
                 }
                 imageAdapter.setSelectionMode(isSelectionMode, selectedItems)
