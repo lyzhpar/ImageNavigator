@@ -237,30 +237,21 @@ class EditorActivity : AppCompatActivity() {
             },
             onItemLongPress = { item: ImageAdapter.DisplayItem ->
                 val fullPath = item.fullPath
-                if (item is ImageAdapter.DisplayItem.ImageItem) {
-                    // Logique pour ImageItem
-                    Log.d("EditorActivity", "onItemLongPress: Image sélectionnée: $fullPath")
-                    if (!isSelectionMode) {
-                        isSelectionMode = true
-                        selectedItems.clear()
-                        selectedItems.add(fullPath)
-                        imageAdapter.setSelectionMode(isSelectionMode, selectedItems)
-                        updateDeleteButtonVisibility(deleteButton)
-                    }
-                } else if (item is ImageAdapter.DisplayItem.GroupItem) {
-                    // Logique pour GroupItem
-                    Log.d("EditorActivity", "onItemLongPress: Dossier sélectionné: $fullPath")
-                    if (!isSelectionMode) {
-                        isSelectionMode = true
-                        selectedItems.clear()
-                        selectedItems.add(fullPath)
-                        imageAdapter.setSelectionMode(isSelectionMode, selectedItems)
-                        updateDeleteButtonVisibility(deleteButton)
-                    }
+                if (!isSelectionMode) {
+                    // Si le mode sélection n'est pas encore activé, l'activer
+                    isSelectionMode = true
+                    selectedItems.clear()  // On vide les précédentes sélections
+                    selectedItems.add(fullPath)
                 } else {
-                    // Autres types (si jamais ajoutés)
-                    Log.d("EditorActivity", "onItemLongPress: Élément inconnu: $fullPath")
+                    // Si le mode sélection est déjà activé, on sélectionne ou désélectionne l'élément
+                    if (selectedItems.contains(fullPath)) {
+                        selectedItems.remove(fullPath)  // Désélectionner l'élément
+                    } else {
+                        selectedItems.add(fullPath)  // Sélectionner l'élément
+                    }
                 }
+                imageAdapter.setSelectionMode(isSelectionMode, selectedItems)
+                updateDeleteButtonVisibility(deleteButton)
             },
             getSelectedItems = { imageAdapter.getSelectedItems() },
             exitSelectionMode = { imageAdapter.exitSelectionMode() }
@@ -275,11 +266,10 @@ class EditorActivity : AppCompatActivity() {
             }
         }
 
-
-
         binding.recyclerViewThumbnails.layoutManager = LinearLayoutManager(this)
         binding.recyclerViewThumbnails.setHasFixedSize(true)
         binding.recyclerViewThumbnails.adapter = imageAdapter
+
 
         // Liaison des nouveaux boutons
         val bottomBarView = binding.bottomBar.root

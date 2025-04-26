@@ -138,6 +138,8 @@ class ImageAdapter(
         private val textView: TextView = view.findViewById(R.id.worldNameTextView)
         private val editText: android.widget.EditText = view.findViewById(R.id.worldNameEditText)
         private val deleteIcon: ImageView = view.findViewById(R.id.deleteGroupIcon)
+        private val checkbox: ImageView = view.findViewById(R.id.checkbox)  // La coche pour le groupe
+
 
 
         fun bind(item: DisplayItem.GroupItem) {
@@ -149,9 +151,16 @@ class ImageAdapter(
             editText.visibility = View.GONE
             deleteIcon.visibility = View.GONE
 
-            textView.setBackgroundColor(
-                if (selectedItems.contains(item.fullPath)) Color.GRAY else Color.TRANSPARENT
-            )
+            // Appliquer un fond gris si sélectionné
+            if (selectedItems.contains(item.fullPath)) {
+                itemView.setBackgroundColor(Color.GRAY)  // Griser tout le groupe
+                itemView.alpha = 1f  // Pas de transparence
+                checkbox.visibility = View.VISIBLE  // Afficher la coche
+            } else {
+                itemView.setBackgroundColor(Color.TRANSPARENT)
+                itemView.alpha = 1f  // Pas de transparence
+                checkbox.visibility = View.GONE  // Masquer la coche
+            }
 
             itemView.setOnClickListener {
 
@@ -166,12 +175,7 @@ class ImageAdapter(
             }
 
             itemView.setOnLongClickListener {
-                if (item.name == "Racine") return@setOnLongClickListener true
-                textView.visibility = View.GONE
-                editText.visibility = View.VISIBLE
-                deleteIcon.visibility = View.VISIBLE
-                editText.requestFocus()
-                editText.setSelection(editText.text.length)
+                onItemLongPress(item)  // Gérer la sélection longue pression
                 true
             }
 
@@ -203,10 +207,9 @@ class ImageAdapter(
             }
         }
     }
-
-    // Dans l'adaptateur
     inner class ImageViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         private val imageView: ImageView = view.findViewById(R.id.image_view)
+        private val checkbox: ImageView = view.findViewById(R.id.checkbox)  // La coche pour l'image
 
         fun bind(item: DisplayItem) {
             // Affichage des images pour ImageItem
@@ -220,23 +223,28 @@ class ImageAdapter(
                         .into(imageView)
                 }
                 is DisplayItem.GroupItem -> {
-                    // Affichage de groupe pour GroupItem
-                    imageView.setImageResource(R.drawable.folder_icon) // Exemple d'icône pour les dossiers
+                    imageView.setImageResource(R.drawable.folder_icon) // Icône pour les dossiers
                 }
             }
 
-            // Lors de l'appui long, on traite les items
-            itemView.setOnLongClickListener {
-                Log.d("ImageAdapter", "Long press sur : ${item.fullPath}")
-                onItemLongPress(item)  // Appel à onItemLongPress avec l'élément
-                true // Signifie que l'événement est consommé
+            // Appliquer un filtre gris sur l'image si sélectionnée
+            if (selectedItems.contains(item.fullPath)) {
+                imageView.setColorFilter(Color.argb(150, 128, 128, 128))  // Gris sur l'image
+                checkbox.visibility = View.VISIBLE  // Afficher la coche
+            } else {
+                imageView.clearColorFilter()  // Retirer le filtre gris
+                checkbox.visibility = View.GONE  // Masquer la coche
             }
 
-            // Clic simple
             itemView.setOnClickListener {
                 if (item is DisplayItem.ImageItem) {
-                    onImageSelected(item.bitmap, item.fullPath)
+                    onImageSelected(item.bitmap, item.fullPath)  // Sélectionner l'image
                 }
+            }
+
+            itemView.setOnLongClickListener {
+                onItemLongPress(item)  // Gérer le long press pour sélectionner
+                true
             }
         }
     }

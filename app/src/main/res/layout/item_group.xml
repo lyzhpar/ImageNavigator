@@ -7,19 +7,26 @@
     android:gravity="center_vertical"
     android:background="?attr/selectableItemBackground">
 
-<TextView
-    android:id="@+id/worldNameTextView"
-    android:layout_width="0dp"
-    android:layout_height="wrap_content"
-    android:layout_weight="1"
-    android:text="Nom du monde"
-    android:textSize="14sp"
-    android:textStyle=""
-    android:ellipsize="end"
-    android:maxLines="3"
-    android:breakStrategy="simple"
-    android:layout_marginEnd="8dp"
-    android:textColor="#000000" />
+    <ImageView
+        android:id="@+id/checkbox"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:src="@drawable/ic_checkmark"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/worldNameTextView"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:text="Nom du monde"
+        android:textSize="14sp"
+        android:textStyle=""
+        android:ellipsize="end"
+        android:maxLines="3"
+        android:breakStrategy="simple"
+        android:layout_marginEnd="8dp"
+        android:textColor="#000000" />
 
     <EditText
         android:id="@+id/worldNameEditText"
