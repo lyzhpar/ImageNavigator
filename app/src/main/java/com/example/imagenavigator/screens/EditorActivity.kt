@@ -42,6 +42,12 @@ class EditorActivity : AppCompatActivity() {
     private lateinit var imageRootNode: ImageGroupNode
     private lateinit var deleteButton: Button
     private lateinit var selectionModeIndicator: TextView
+    // --- Bottom bar info views
+    private lateinit var imagesInfoText: TextView
+    private lateinit var worldsInfoText: TextView
+    private lateinit var selectedImagesCount: TextView
+    private lateinit var selectedWorldsCount: TextView
+    private lateinit var selectionInfoContainer: View
 
 
     private val folderPickerLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
@@ -60,6 +66,7 @@ class EditorActivity : AppCompatActivity() {
         imageAdapter.setSelectionMode(isSelectionMode, selectedItems)
         updateDeleteButtonVisibility(deleteButton)
         deleteButton.isEnabled = selectedItems.isNotEmpty()
+        updateBottomBarInfo()
     }
 
     // Affiche ou masque le bouton "Supprimer" selon la sélection
@@ -90,6 +97,7 @@ class EditorActivity : AppCompatActivity() {
         exitSelectionMode()
         imageAdapter.notifyDataSetChanged()
         if (deleteButton != null) updateDeleteButtonVisibility(deleteButton)
+        updateBottomBarInfo()
     }
 
 
@@ -98,6 +106,40 @@ class EditorActivity : AppCompatActivity() {
         isSelectionMode = false
         selectedItems.clear()
         imageAdapter.setSelectionMode(false, selectedItems)
+        updateBottomBarInfo()
+    }
+    // --- Bottom bar info update logic
+    private fun updateBottomBarInfo() {
+        if (!::imagesInfoText.isInitialized || !::worldsInfoText.isInitialized ||
+            !::selectedImagesCount.isInitialized || !::selectedWorldsCount.isInitialized ||
+            !::selectionInfoContainer.isInitialized
+        ) return
+        if (isSelectionMode) {
+            val imageCount = selectedItems.count { !isGroupPath(it) }
+            val folderCount = selectedItems.count { isGroupPath(it) }
+            selectionInfoContainer.visibility = View.VISIBLE
+            selectedImagesCount.text = "Images sélectionnées : $imageCount"
+            selectedWorldsCount.text = "Dossiers sélectionnés : $folderCount"
+            imagesInfoText.visibility = View.GONE
+            worldsInfoText.visibility = View.GONE
+        } else {
+            selectionInfoContainer.visibility = View.GONE
+            val totalImages = imageBitmapMap.size
+            val totalWorlds = countTotalGroups(imageRootNode)
+            imagesInfoText.visibility = View.VISIBLE
+            worldsInfoText.visibility = View.VISIBLE
+            imagesInfoText.text = "Images : $totalImages"
+            worldsInfoText.text = "Mondes : $totalWorlds"
+        }
+    }
+
+    // Helper pour compter les groupes (mondes)
+    private fun countTotalGroups(node: ImageGroupNode): Int {
+        var count = 1 // compte ce groupe
+        for (child in node.children) {
+            count += countTotalGroups(child)
+        }
+        return count
     }
 
     // Retourne true si le fullPath correspond à un dossier dans l'arbre
@@ -308,6 +350,16 @@ class EditorActivity : AppCompatActivity() {
         val buttonImportImage = bottomBarView.findViewById<Button>(R.id.buttonImportImage)
         val buttonSave = bottomBarView.findViewById<Button>(R.id.buttonSave)
 
+        // --- Liaison des vues info bottom bar
+        imagesInfoText = bottomBarView.findViewById(R.id.textImageCount)
+        worldsInfoText = bottomBarView.findViewById(R.id.textWorldCount)
+        selectedImagesCount = bottomBarView.findViewById(R.id.selectedImagesCount)
+        selectedWorldsCount = bottomBarView.findViewById(R.id.selectedWorldsCount)
+        selectionInfoContainer = bottomBarView.findViewById(R.id.selectionInfoContainer)
+
+        // Afficher le nombre d'images et de mondes dès le début
+        // (Suppression de l'appel direct à updateBottomBarInfo ici pour éviter le crash si imageRootNode n'est pas encore initialisé)
+
 
         // Ajout du listener d'appui long dans le RecyclerView
         binding.recyclerViewThumbnails.setOnLongClickListener {
@@ -476,6 +528,7 @@ class EditorActivity : AppCompatActivity() {
                         val allImages = imageBitmapMap.map { (path, bitmap) -> bitmap to path }
                         imageRootNode = ImageGroupTreeBuilder.buildImageGroupTree(allImages)
                         imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
+                        updateBottomBarInfo()
                     }
                 }
             }
@@ -494,6 +547,7 @@ class EditorActivity : AppCompatActivity() {
                     val allImages = imageBitmapMap.map { (path, bitmap) -> bitmap to path }
                     imageRootNode = ImageGroupTreeBuilder.buildImageGroupTree(allImages)
                     imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
+                    updateBottomBarInfo()
                 }
             }
 
