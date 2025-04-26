@@ -62,6 +62,7 @@ class EditorActivity : AppCompatActivity() {
     private fun updateDeleteButtonVisibility(deleteButton: View) {
         Log.d("EditorActivity", "updateDeleteButtonVisibility: selectedItems=${selectedItems}")
         deleteButton.visibility = if (selectedItems.isNotEmpty()) View.VISIBLE else View.GONE
+        deleteButton.isEnabled = selectedItems.isNotEmpty()
     }
 
     // Supprime tous les éléments sélectionnés (dossiers et images)
