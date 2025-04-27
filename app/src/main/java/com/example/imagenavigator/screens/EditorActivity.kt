@@ -507,10 +507,12 @@ class EditorActivity : AppCompatActivity() {
         val skippedFiles = mutableListOf<String>()
         binding.loadingOverlay.isVisible = true
         imageLoadingScope.launch(Dispatchers.Main) {
+            // Accéder au dossier via l'URI
             val folder = DocumentFile.fromTreeUri(this@EditorActivity, uri) ?: return@launch
             val allImageFiles = mutableListOf<Pair<DocumentFile, String>>()
             val seenPaths = mutableSetOf<String>()
 
+            // Fonction pour traverser récursivement les fichiers du dossier
             fun traverse(file: DocumentFile, path: String = "") {
                 if (file.isDirectory) {
                     val newPath = if (path.isEmpty()) file.name ?: "" else "$path/${file.name}"
@@ -525,37 +527,49 @@ class EditorActivity : AppCompatActivity() {
                 }
             }
 
+            // Traverser les fichiers du dossier
             folder.listFiles().forEach { traverse(it) }
             allImageFiles.sortBy { it.second }
 
+            // Initialisation des variables
             loadedImagesCount = 0
             totalImagesToLoad = allImageFiles.size
 
+            // Effacer les précédentes images
             imageBitmapMap.clear()
             imageDataMap.clear()
 
+            // Charger les images et les zones associées
             for ((file, fullPath) in allImageFiles) {
                 val bitmap = loadBitmapFromUri(file.uri)
                 if (bitmap != null) {
                     imageBitmapMap[fullPath] = bitmap
-                    imageDataMap[fullPath] = mutableListOf()
+                    imageDataMap[fullPath] = mutableListOf()  // Ajouter les zones vides pour l'instant
                 } else {
-                    skippedFiles.add(fullPath)
+                    skippedFiles.add(fullPath)  // Ajouter les fichiers non chargés
                 }
 
+                // Mettre à jour le nombre d'images chargées
                 loadedImagesCount++
                 updateLoadingProgress()
 
+                // Recréer l'arbre d'images après chaque ajout
                 val allImages = imageBitmapMap.map { (path, bitmap) -> bitmap to path }
                 imageRootNode = ImageGroupTreeBuilder.buildImageGroupTree(allImages)
+
+                // Mettre à jour l'adaptateur avec les nouvelles images
                 imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
             }
 
+            // Cacher l'overlay de chargement une fois terminé
             binding.loadingOverlay.isVisible = false
 
+            // Alerter l'utilisateur si des images n'ont pas pu être chargées
             if (skippedFiles.isNotEmpty()) {
                 Toast.makeText(this@EditorActivity, "Certaines images n'ont pas été chargées.", Toast.LENGTH_SHORT).show()
             }
+
+            // Mettre à jour la barre inférieure avec le statut de chargement
             updateBottomBarInfo(isLoading = false)
         }
     }
