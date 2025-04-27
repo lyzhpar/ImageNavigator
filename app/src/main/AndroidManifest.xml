@@ -24,7 +24,7 @@
 
         <!-- ✏️ Éditeur en paysage uniquement -->
         <activity
-            android:name=".screens.EditorActivity_OLD"
+            android:name=".screens.EditorActivity"
             android:screenOrientation="landscape"
             android:exported="false"
             android:theme="@style/Theme.AppCompat.Light.NoActionBar"

@@ -25,7 +25,7 @@ class MainActivity : AppCompatActivity() {
 
         // Clique sur "éditeur"
         binding.editorButton.setOnClickListener {
-            val intent = Intent(this, EditorActivity_OLD::class.java)
+            val intent = Intent(this, EditorActivity::class.java)
             startActivity(intent)
         }
 

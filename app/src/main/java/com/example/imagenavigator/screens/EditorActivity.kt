@@ -31,7 +31,6 @@ import com.google.gson.GsonBuilder
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.*
 import java.io.File
-import com.bumptech.glide.request.target.Target
 
 class EditorActivity : AppCompatActivity() {
 
@@ -63,7 +62,6 @@ class EditorActivity : AppCompatActivity() {
     private lateinit var selectionInfoContainer: View
 
     private val imageLoadingScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private var loadedImagesCount = 0
     private val imagesPerBatch = 10
     private var isLoadingBatch = false
 
@@ -77,11 +75,11 @@ class EditorActivity : AppCompatActivity() {
     private fun onImageSelected(bitmap: Bitmap, fullPath: String) {
         // Action à faire quand l'utilisateur clique sur une image
         currentImageName = fullPath
-        binding.drawingView.setImageBitmap(bitmap)
+        binding.drawingView.imageBitmap = bitmap
     }
 
     // Quand l'utilisateur demande de renommer un groupe
-    private fun onGroupRenameRequested(updatedItem: ImageGroup) {
+    private fun onGroupRenameRequested(updatedItem: ImageAdapter.DisplayItem.GroupItem) {
         // Tu peux afficher une boîte de dialogue pour demander un nouveau nom
         AlertDialog.Builder(this)
             .setTitle("Renommer le groupe")
@@ -91,7 +89,7 @@ class EditorActivity : AppCompatActivity() {
     }
 
     // Quand l'utilisateur demande de supprimer un groupe
-    private fun onGroupDeleteRequested(itemToDelete: ImageGroup) {
+    private fun onGroupDeleteRequested(itemToDelete: ImageAdapter.DisplayItem.GroupItem) {
         // Tu peux supprimer le groupe directement ou demander confirmation
         AlertDialog.Builder(this)
             .setTitle("Supprimer le groupe ?")
@@ -297,7 +295,7 @@ class EditorActivity : AppCompatActivity() {
         updateBottomBarInfo()
     }
 
-    private fun updateBottomBarInfo() {
+    private fun updateBottomBarInfo(isLoading: Boolean = false) {
         if (!::imagesInfoText.isInitialized) return
         if (isSelectionMode) {
             val images = selectedItems.count { !isGroupPath(it) }
@@ -311,8 +309,11 @@ class EditorActivity : AppCompatActivity() {
             selectionInfoContainer.isVisible = false
             imagesInfoText.visibility = View.VISIBLE
             worldsInfoText.visibility = View.VISIBLE
-            imagesInfoText.text = "Images : ${imageBitmapMap.size}"
-            worldsInfoText.text = "Mondes : ${countTotalGroups(imageRootNode)}"
+            if (isLoading) {
+                imagesInfoText.text = "Chargement : ${imageBitmapMap.size} images"
+            } else {
+                imagesInfoText.text = "Images : ${imageBitmapMap.size}"
+            }
         }
     }
 
@@ -407,7 +408,7 @@ class EditorActivity : AppCompatActivity() {
                     val allImages = imageBitmapMap.map { (path, bitmap) -> bitmap to path }
                     imageRootNode = ImageGroupTreeBuilder.buildImageGroupTree(allImages)
                     imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
-                    updateBottomBarInfo()
+                    updateBottomBarInfo(isLoading = true) // <- 🆕 on indique qu'on est en chargement
                 }
             }
 
@@ -416,6 +417,7 @@ class EditorActivity : AppCompatActivity() {
                 if (skippedFiles.isNotEmpty()) {
                     Toast.makeText(this@EditorActivity, "Certaines images n'ont pas été chargées.", Toast.LENGTH_SHORT).show()
                 }
+                updateBottomBarInfo(isLoading = false) // <- 🆕 une dernière mise à jour propre
             }
         }
     }
