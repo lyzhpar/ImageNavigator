@@ -21,7 +21,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var adventureAdapter: AdventureAdapter
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)

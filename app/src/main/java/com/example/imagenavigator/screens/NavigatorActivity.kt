@@ -19,7 +19,6 @@ class NavigatorActivity : AppCompatActivity() {
     private lateinit var binding: ActivityNavigatorBinding
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         super.onCreate(savedInstanceState)
         binding = ActivityNavigatorBinding.inflate(layoutInflater)
         setContentView(binding.root)

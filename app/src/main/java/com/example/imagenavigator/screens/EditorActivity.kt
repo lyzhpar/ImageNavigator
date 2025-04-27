@@ -1,5 +1,6 @@
 package com.example.imagenavigator.screens
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
@@ -31,6 +32,7 @@ import com.google.gson.GsonBuilder
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.*
 import java.io.File
+import android.view.inputmethod.InputMethodManager
 
 class EditorActivity : AppCompatActivity() {
 
@@ -195,6 +197,9 @@ class EditorActivity : AppCompatActivity() {
         builder.setTitle("Nouvelle aventure")
         val input = EditText(this)
         input.hint = "Nom de l'aventure"
+
+        input.requestFocus() // 🆕 Met le focus sur le champ
+
         builder.setView(input)
         builder.setCancelable(false)
         builder.setPositiveButton("Valider") { _, _ ->
@@ -208,7 +213,15 @@ class EditorActivity : AppCompatActivity() {
                 folderPickerLauncher.launch(null)
             }
         }
-        builder.show()
+
+        val dialog = builder.create()
+        dialog.setOnShowListener {
+            // 🆕 Force aussi l'ouverture du clavier au bon moment
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
+        }
+
+        dialog.show()
     }
 
     private fun adventureFileExists(name: String): Boolean {

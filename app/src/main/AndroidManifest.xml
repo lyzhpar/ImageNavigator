@@ -13,7 +13,7 @@
         <!-- 🧭 Menu en paysage uniquement -->
         <activity
             android:name=".screens.MainActivity"
-            android:screenOrientation="landscape"
+            android:screenOrientation="sensorLandscape"
             android:exported="true"
             android:configChanges="keyboardHidden|orientation|screenSize">
             <intent-filter>
@@ -25,7 +25,7 @@
         <!-- ✏️ Éditeur en paysage uniquement -->
         <activity
             android:name=".screens.EditorActivity"
-            android:screenOrientation="landscape"
+            android:screenOrientation="sensorLandscape"
             android:exported="false"
             android:theme="@style/Theme.AppCompat.Light.NoActionBar"
             android:configChanges="keyboardHidden|orientation|screenSize" />
@@ -33,7 +33,7 @@
         <!-- 🌌 Navigateur en paysage uniquement -->
         <activity
             android:name=".screens.NavigatorActivity"
-            android:screenOrientation="landscape"
+            android:screenOrientation="sensorLandscape"
             android:exported="false"
             android:configChanges="keyboardHidden|orientation|screenSize" />
 
