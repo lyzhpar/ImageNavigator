@@ -64,6 +64,8 @@ class EditorActivity : AppCompatActivity() {
     private val imageLoadingScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val imagesPerBatch = 10
     private var isLoadingBatch = false
+    private var totalImagesToLoad = 0
+    private var loadedImagesCount = 0
 
 
     // Sélecteur de dossier
@@ -360,7 +362,7 @@ class EditorActivity : AppCompatActivity() {
     fun loadImagesFromFolder(uri: Uri) {
         val skippedFiles = mutableListOf<String>()
         binding.loadingOverlay.isVisible = true
-        imageLoadingScope.launch {
+        imageLoadingScope.launch(Dispatchers.Main) {
             val folder = DocumentFile.fromTreeUri(this@EditorActivity, uri) ?: return@launch
             val allImageFiles = mutableListOf<Pair<DocumentFile, String>>()
             val seenPaths = mutableSetOf<String>()
@@ -372,56 +374,67 @@ class EditorActivity : AppCompatActivity() {
                 } else {
                     val name = file.name ?: return
                     val fullPath = if (path.isEmpty()) name else "$path/$name"
-                    if (isValidImage(file)) {
-                        if (fullPath !in seenPaths) {
-                            allImageFiles.add(file to fullPath)
-                            seenPaths.add(fullPath)
-                        }
+                    if (isValidImage(file) && fullPath !in seenPaths) {
+                        allImageFiles.add(file to fullPath)
+                        seenPaths.add(fullPath)
                     }
                 }
             }
 
             folder.listFiles().forEach { traverse(it) }
-
             allImageFiles.sortBy { it.second }
 
-            val batches = allImageFiles.chunked(imagesPerBatch)
+            // 🆕 Préparer les compteurs
+            loadedImagesCount = 0
+            totalImagesToLoad = allImageFiles.size
 
-            for (batch in batches) {
-                batch.forEach { (file, fullPath) ->
-                    try {
-                        val bitmap = withContext(Dispatchers.IO) {
-                            Glide.with(this@EditorActivity)
-                                .asBitmap()
-                                .load(file.uri)
-                                .apply(RequestOptions().diskCacheStrategy(DiskCacheStrategy.ALL))
-                                .submit()
-                                .get()
-                        }
-                        imageBitmapMap[fullPath] = bitmap
-                        imageDataMap[fullPath] = mutableListOf()
-                    } catch (e: Exception) {
-                        skippedFiles.add(fullPath)
+            imageBitmapMap.clear()
+            imageDataMap.clear()
+
+            val screenSize = resources.displayMetrics.widthPixels.coerceAtLeast(resources.displayMetrics.heightPixels)
+
+            for ((file, fullPath) in allImageFiles) {
+                try {
+                    val bitmap = withContext(Dispatchers.IO) {
+                        Glide.with(this@EditorActivity)
+                            .asBitmap()
+                            .load(file.uri)
+                            .apply(
+                                RequestOptions()
+                                    .override(screenSize / 2)
+                                    .diskCacheStrategy(DiskCacheStrategy.ALL)
+                            )
+                            .submit()
+                            .get()
                     }
+                    imageBitmapMap[fullPath] = bitmap
+                    imageDataMap[fullPath] = mutableListOf()
+                } catch (e: Exception) {
+                    skippedFiles.add(fullPath)
                 }
-                withContext(Dispatchers.Main) {
-                    val allImages = imageBitmapMap.map { (path, bitmap) -> bitmap to path }
-                    imageRootNode = ImageGroupTreeBuilder.buildImageGroupTree(allImages)
-                    imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
-                    updateBottomBarInfo(isLoading = true) // <- 🆕 on indique qu'on est en chargement
-                }
+
+                loadedImagesCount++
+                updateLoadingProgress()
+
+                // 🆕 Reconstruction progressive du groupe d'images
+                val allImages = imageBitmapMap.map { (path, bitmap) -> bitmap to path }
+                imageRootNode = ImageGroupTreeBuilder.buildImageGroupTree(allImages)
+                imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
             }
 
-            withContext(Dispatchers.Main) {
-                binding.loadingOverlay.isVisible = false
-                if (skippedFiles.isNotEmpty()) {
-                    Toast.makeText(this@EditorActivity, "Certaines images n'ont pas été chargées.", Toast.LENGTH_SHORT).show()
-                }
-                updateBottomBarInfo(isLoading = false) // <- 🆕 une dernière mise à jour propre
+            binding.loadingOverlay.isVisible = false
+
+            if (skippedFiles.isNotEmpty()) {
+                Toast.makeText(this@EditorActivity, "Certaines images n'ont pas été chargées.", Toast.LENGTH_SHORT).show()
             }
+            updateBottomBarInfo(isLoading = false)
         }
     }
 
+    // 🆕 Nouvelle fonction :
+    private fun updateLoadingProgress() {
+        imagesInfoText.text = "Chargement : $loadedImagesCount/$totalImagesToLoad images"
+    }
     private fun isValidImage(file: DocumentFile): Boolean {
         val name = file.name?.lowercase() ?: return false
         val validExtensions = setOf("jpg", "jpeg", "png", "webp", "bmp", "gif")
