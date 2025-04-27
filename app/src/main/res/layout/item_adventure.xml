@@ -7,12 +7,61 @@
     card_view:cardCornerRadius="8dp"
     card_view:cardElevation="4dp">
 
-    <TextView
-        android:id="@+id/adventureName"
+    <FrameLayout
+        android:id="@+id/adventureCard"
+        android:clickable="false"
+        android:focusable="false"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:padding="16dp"
-        android:textSize="18sp"
-        android:textColor="@android:color/black"
-        android:textStyle="bold" />
+        android:layout_margin="8dp"
+        android:background="@drawable/adventure_card_background">
+
+
+        <!-- Nom de l'aventure -->
+        <TextView
+            android:id="@+id/adventureName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:padding="16dp"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:text="Nom aventure" />
+
+        <!-- Overlay avec les 3 boutons -->
+        <LinearLayout
+            android:id="@+id/overlayContainer"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="#AA000000"
+            android:visibility="gone"
+            android:padding="16dp">
+
+            <Button
+                android:id="@+id/buttonEdit"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Modifier"
+                android:layout_margin="4dp"/>
+
+            <Button
+                android:id="@+id/buttonPlay"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Lancer"
+                android:layout_margin="4dp"/>
+
+            <Button
+                android:id="@+id/buttonDelete"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Supprimer"
+                android:backgroundTint="@color/red"
+                android:textColor="@android:color/white"
+                android:layout_margin="4dp"/>
+        </LinearLayout>
+
+    </FrameLayout>
 </androidx.cardview.widget.CardView>

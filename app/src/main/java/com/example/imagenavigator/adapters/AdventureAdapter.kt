@@ -1,17 +1,27 @@
 package com.example.imagenavigator.adapters
 
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
+import android.widget.FrameLayout
 import android.widget.TextView
+import android.widget.Toast
 import androidx.recyclerview.widget.RecyclerView
 import com.example.imagenavigator.R
+import android.content.Context
 
 class AdventureAdapter(
-    private val onAdventureClick: (String) -> Unit
+    private val onAdventureClick: (String) -> Unit,
+    private val onAdventureEdit: (String) -> Unit,
+    private val onAdventureDelete: (String) -> Unit
 ) : RecyclerView.Adapter<AdventureAdapter.AdventureViewHolder>() {
 
     private val adventures = mutableListOf<String>()
+    private var selectedPosition: Int? = null
+
+    private val DEBUG_MODE = true // 🆕 Active ou désactive les Toasts pour debug
 
     fun submitList(newList: List<String>) {
         adventures.clear()
@@ -31,12 +41,58 @@ class AdventureAdapter(
         holder.bind(adventures[position])
     }
 
-    inner class AdventureViewHolder(view: View) : RecyclerView.ViewHolder(view) {
-        private val adventureNameTextView: TextView = view.findViewById(R.id.adventureName)
+    inner class AdventureViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        private val adventureName: TextView = itemView.findViewById(R.id.adventureName)
+        private val overlayContainer: View = itemView.findViewById(R.id.overlayContainer)
+        private val buttonEdit: Button = itemView.findViewById(R.id.buttonEdit)
+        private val buttonPlay: Button = itemView.findViewById(R.id.buttonPlay)
+        private val buttonDelete: Button = itemView.findViewById(R.id.buttonDelete)
 
         fun bind(name: String) {
-            adventureNameTextView.text = name
-            itemView.setOnClickListener { onAdventureClick(name) }
+            adventureName.text = name
+            overlayContainer.visibility = View.GONE
+
+            itemView.setOnClickListener {
+                logAndToast(itemView.context, "Adventure clicked: $name")
+                onAdventureClick(name)
+            }
+
+            itemView.setOnLongClickListener {
+                logAndToast(itemView.context, "Adventure long-pressed: $name")
+                overlayContainer.visibility = View.VISIBLE
+                true
+            }
+
+            buttonEdit.setOnClickListener {
+                logAndToast(itemView.context, "Edit adventure: $name")
+                overlayContainer.visibility = View.GONE
+                onAdventureEdit(name)
+            }
+
+            buttonPlay.setOnClickListener {
+                logAndToast(itemView.context, "Launch adventure: $name")
+                overlayContainer.visibility = View.GONE
+                onAdventureClick(name)
+            }
+
+            buttonDelete.setOnClickListener {
+                logAndToast(itemView.context, "Delete adventure: $name")
+                overlayContainer.visibility = View.GONE
+                onAdventureDelete(name)
+            }
+
+            overlayContainer.setOnClickListener {
+                logAndToast(itemView.context, "Overlay closed for: $name")
+                overlayContainer.visibility = View.GONE
+            }
+
+        }
+
+        private fun logAndToast(context: Context, message: String) {
+            Log.d("AdventureAdapter", message)
+            if (DEBUG_MODE) {
+                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            }
         }
     }
 }

@@ -1,9 +1,13 @@
 package com.example.imagenavigator.screens
 
+import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
+import android.provider.DocumentsContract
+import android.util.Log
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
@@ -67,10 +71,27 @@ class EditorActivity : AppCompatActivity() {
     private var totalImagesToLoad = 0
     private var loadedImagesCount = 0
 
+    private var currentFolderUri: Uri? = null
+
+
+    // Demander l'accès au dossier
+    private fun requestFolderAccess(uri: Uri) {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+        intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, uri)
+        folderPickerLauncher.launch(intent)
+    }
 
     // Sélecteur de dossier
-    private val folderPickerLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-        uri?.let { loadImagesFromFolder(it) }
+    private val folderPickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val uri = result.data?.data
+            if (uri != null) {
+                // On a l'URI du dossier, on peut maintenant l'utiliser
+                currentFolderUri = uri
+                // Charger les images avec cette URI
+                loadImagesFromFolder(uri)
+            }
+        }
     }
 
     // Quand une image est sélectionnée
@@ -103,6 +124,91 @@ class EditorActivity : AppCompatActivity() {
             .show()
     }
 
+    private fun getUriForImage(path: String): Uri? {
+        val adventureFolder = File(filesDir, "adventures") // Assurez-vous que ce dossier existe et contient les images
+        val imageFile = File(adventureFolder, path)
+        return if (imageFile.exists()) {
+            Uri.fromFile(imageFile)
+        } else {
+            null
+        }
+    }
+
+    private suspend fun loadBitmapFromUri(uri: Uri): Bitmap? {
+        val screenSize = resources.displayMetrics.widthPixels.coerceAtLeast(resources.displayMetrics.heightPixels)
+        return try {
+            withContext(Dispatchers.IO) {
+                Glide.with(this@EditorActivity)
+                    .asBitmap()
+                    .load(uri)
+                    .apply(
+                        RequestOptions()
+                            .override(screenSize / 2)
+                            .diskCacheStrategy(DiskCacheStrategy.ALL)
+                    )
+                    .submit()
+                    .get()
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun loadAdventureData(name: String) {
+        // Lire le fichier d'aventure
+        val file = File(filesDir, "${name}_zones.json")
+        if (file.exists()) {
+            val json = file.readText()
+            val adventureData = GsonBuilder().create().fromJson(json, AdventureData::class.java)
+
+            // Mettre à jour le titre de l'aventure
+            currentAdventureName = adventureData.adventureTitle
+            adventureNameTextView.text = currentAdventureName
+
+            // Charger l'URI du dossier à partir des données d'aventure
+            val folderUriString = adventureData.folderUri
+            if (folderUriString != null) {
+                currentFolderUri = Uri.parse(folderUriString)
+                // Charger les images depuis le dossier
+                requestFolderAccess(currentFolderUri!!)  // Demander l'accès si l'URI est valide
+            } else {
+                Toast.makeText(this, "Dossier d'images non sauvegardé.", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            // Charger les images depuis le fichier JSON
+            val allImageFiles = adventureData.images.map { it.imageName }
+
+            // Initialiser les maps pour les images et les zones
+            imageBitmapMap.clear()
+            imageDataMap.clear()
+
+            // Charger les images dans l'interface
+            imageLoadingScope.launch(Dispatchers.Main) {
+                for (path in allImageFiles) {
+                    val uri = getUriForImage(path)  // Fonction qui retourne l'URI de chaque image
+                    if (uri != null) {
+                        val bitmap = loadBitmapFromUri(uri)  // Charger l'image en bitmap
+                        if (bitmap != null) {
+                            imageBitmapMap[path] = bitmap
+                            imageDataMap[path] = mutableListOf()  // Ajouter les zones après
+                        }
+                    }
+                }
+
+                // Recréer l'arbre d'images et mettre à jour l'adapter
+                val allImages = imageBitmapMap.map { (path, bitmap) -> bitmap to path }
+                imageRootNode = ImageGroupTreeBuilder.buildImageGroupTree(allImages)
+                imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
+                updateBottomBarInfo()  // Mettre à jour les informations de la barre inférieure
+            }
+        } else {
+            // Fichier d'aventure non trouvé, demander à l'utilisateur de créer un nom
+            Toast.makeText(this, "Fichier d'aventure introuvable.", Toast.LENGTH_SHORT).show()
+            promptAdventureName()
+        }
+    }
+
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -110,8 +216,33 @@ class EditorActivity : AppCompatActivity() {
         binding = ActivityEditorBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        // Adapter images
+        imageAdapter = ImageAdapter(
+            rootGroups = groupedImages,
+            onImageSelected = { bitmap, fullPath -> onImageSelected(bitmap, fullPath) },
+            onGroupRenameRequested = { updatedItem -> onGroupRenameRequested(updatedItem) },
+            onGroupDeleteRequested = { itemToDelete -> onGroupDeleteRequested(itemToDelete) },
+            onItemLongPress = { item -> toggleSelection(item.fullPath) },
+            getSelectedItems = { imageAdapter.getSelectedItems() },
+            exitSelectionMode = { exitSelectionMode() }
+        )
+
+        binding.recyclerViewThumbnails.apply {
+            layoutManager = LinearLayoutManager(this@EditorActivity)
+            setHasFixedSize(true)
+            adapter = imageAdapter
+        }
+
         // 🛠 Accès propre aux éléments du header
         adventureNameTextView = binding.headerAdventure.adventureNameTextView
+
+        val adventureFromIntent = intent.getStringExtra("adventureName")
+        if (adventureFromIntent != null) {
+            currentAdventureName = adventureFromIntent
+            binding.headerAdventure.adventureNameTextView.text = currentAdventureName
+            loadAdventureData(adventureFromIntent) // 🆕 nouvelle fonction à créer juste en dessous
+            return
+        }
 
         // Accès aux boutons dans la BottomBar
         val buttonSaveAdventure = binding.bottomBar.buttonSaveAdventure
@@ -133,23 +264,6 @@ class EditorActivity : AppCompatActivity() {
                 updateBottomBarInfo()
                 deleteButton.isEnabled = false
             }
-        }
-
-        // Adapter images
-        imageAdapter = ImageAdapter(
-            rootGroups = groupedImages,
-            onImageSelected = { bitmap, fullPath -> onImageSelected(bitmap, fullPath) },
-            onGroupRenameRequested = { updatedItem -> onGroupRenameRequested(updatedItem) },
-            onGroupDeleteRequested = { itemToDelete -> onGroupDeleteRequested(itemToDelete) },
-            onItemLongPress = { item -> toggleSelection(item.fullPath) },
-            getSelectedItems = { imageAdapter.getSelectedItems() },
-            exitSelectionMode = { exitSelectionMode() }
-        )
-
-        binding.recyclerViewThumbnails.apply {
-            layoutManager = LinearLayoutManager(this@EditorActivity)
-            setHasFixedSize(true)
-            adapter = imageAdapter
         }
 
         // Bottom bar
@@ -233,6 +347,7 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun saveZones() {
+
         val adventureData = generateAdventureData()
         val gson = GsonBuilder().setPrettyPrinting().create()
         val json = gson.toJson(adventureData)
@@ -388,6 +503,7 @@ class EditorActivity : AppCompatActivity() {
     }
 
     fun loadImagesFromFolder(uri: Uri) {
+        Log.d("EditorActivity", "Loading images from folder: $uri")  // Log ajoutée ici
         val skippedFiles = mutableListOf<String>()
         binding.loadingOverlay.isVisible = true
         imageLoadingScope.launch(Dispatchers.Main) {
@@ -412,39 +528,24 @@ class EditorActivity : AppCompatActivity() {
             folder.listFiles().forEach { traverse(it) }
             allImageFiles.sortBy { it.second }
 
-            // 🆕 Préparer les compteurs
             loadedImagesCount = 0
             totalImagesToLoad = allImageFiles.size
 
             imageBitmapMap.clear()
             imageDataMap.clear()
 
-            val screenSize = resources.displayMetrics.widthPixels.coerceAtLeast(resources.displayMetrics.heightPixels)
-
             for ((file, fullPath) in allImageFiles) {
-                try {
-                    val bitmap = withContext(Dispatchers.IO) {
-                        Glide.with(this@EditorActivity)
-                            .asBitmap()
-                            .load(file.uri)
-                            .apply(
-                                RequestOptions()
-                                    .override(screenSize / 2)
-                                    .diskCacheStrategy(DiskCacheStrategy.ALL)
-                            )
-                            .submit()
-                            .get()
-                    }
+                val bitmap = loadBitmapFromUri(file.uri)
+                if (bitmap != null) {
                     imageBitmapMap[fullPath] = bitmap
                     imageDataMap[fullPath] = mutableListOf()
-                } catch (e: Exception) {
+                } else {
                     skippedFiles.add(fullPath)
                 }
 
                 loadedImagesCount++
                 updateLoadingProgress()
 
-                // 🆕 Reconstruction progressive du groupe d'images
                 val allImages = imageBitmapMap.map { (path, bitmap) -> bitmap to path }
                 imageRootNode = ImageGroupTreeBuilder.buildImageGroupTree(allImages)
                 imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
@@ -496,7 +597,11 @@ class EditorActivity : AppCompatActivity() {
         val imagesList = imageDataMap.map { (path, zones) ->
             ImageData(imageName = path, zones = zones)
         }
-        return AdventureData(adventureTitle = currentAdventureName, images = imagesList)
+        return AdventureData(
+            adventureTitle = currentAdventureName,
+            images = imagesList,
+            folderUri = currentFolderUri?.toString()
+         )
     }
 
     private fun countTotalGroups(node: ImageGroupNode): Int {

@@ -26,11 +26,23 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         // Initialiser l'adapter (onAdventureClick)
-        adventureAdapter = AdventureAdapter { adventureName ->
-            val intent = Intent(this, NavigatorActivity::class.java)
-            intent.putExtra("adventureName", adventureName)
-            startActivity(intent)
-        }
+        adventureAdapter = AdventureAdapter(
+            onAdventureClick = { adventureName ->
+                val intent = Intent(this, NavigatorActivity::class.java)
+                intent.putExtra("adventureName", adventureName)
+                startActivity(intent)
+            },
+            onAdventureEdit = { adventureName ->
+                val intent = Intent(this, EditorActivity::class.java)
+                intent.putExtra("adventureName", adventureName)
+                startActivity(intent)
+            },
+            onAdventureDelete = { adventureName ->
+                deleteAdventureFile(adventureName)
+            }
+        )
+
+
 
         // Configurer le RecyclerView
         binding.recyclerViewAdventures.apply {
@@ -44,6 +56,15 @@ class MainActivity : AppCompatActivity() {
         binding.editorButton.setOnClickListener {
             val intent = Intent(this, EditorActivity::class.java)
             startActivity(intent)
+        }
+    }
+
+    private fun deleteAdventureFile(adventureName: String) {
+        val file = File(filesDir, "${adventureName}_zones.json")
+        if (file.exists()) {
+            file.delete()
+            Toast.makeText(this, "Aventure supprimée : $adventureName", Toast.LENGTH_SHORT).show()
+            loadAdventureList() // Recharger la liste !
         }
     }
 
