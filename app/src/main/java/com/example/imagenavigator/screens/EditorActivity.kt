@@ -216,7 +216,7 @@ class EditorActivity : AppCompatActivity() {
         buttonSave?.setOnClickListener {
             Log.d("DEBUG_SAVE", "👉 Bouton Sauvegarder cliqué")
 
-            updateAdventureTitleIfNeeded() // ⚡ Ajout immédiat ici
+            //updateAdventureTitleIfNeeded() // ⚡ Ajout immédiat ici
 
             if (imageBitmapMap.isEmpty()) {
                 Log.d("DEBUG_SAVE", "❌ Aucun dossier/image chargé, affichage d'une alerte")
@@ -228,11 +228,11 @@ class EditorActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            updateAdventureTitleIfNeeded()
+            //updateAdventureTitleIfNeeded()
 
             if (binding.adventureNameTextView.text.isNullOrBlank()) {
                 binding.adventureNameTextView.text = "adventure_save"
-                binding.adventureTitleEdit.setText("adventure_save")
+                //binding.adventureTitleEdit.setText("adventure_save")
             }
 
             val adventureData = generateAdventureData()
@@ -279,14 +279,14 @@ class EditorActivity : AppCompatActivity() {
 
         binding.adventureNameTextView.setOnLongClickListener {
             binding.adventureNameTextView.visibility = View.GONE
-            binding.adventureTitleEdit.visibility = View.VISIBLE
-            binding.adventureTitleEdit.setText(binding.adventureNameTextView.text)
-            binding.adventureTitleEdit.requestFocus()
-            binding.adventureTitleEdit.setSelection(binding.adventureTitleEdit.text.length)
+            //binding.adventureTitleEdit.visibility = View.VISIBLE
+            //binding.adventureTitleEdit.setText(binding.adventureNameTextView.text)
+            //binding.adventureTitleEdit.requestFocus()
+            //binding.adventureTitleEdit.setSelection(binding.adventureTitleEdit.text.length)
             true
         }
 
-        binding.adventureTitleEdit.setOnEditorActionListener { _, actionId, _ ->
+        /*binding.adventureTitleEdit.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_DONE) {
                 binding.adventureNameTextView.text = binding.adventureTitleEdit.text.toString().trim()
                 binding.adventureNameTextView.visibility = View.VISIBLE
@@ -296,14 +296,16 @@ class EditorActivity : AppCompatActivity() {
                 false
             }
         }
+         */
 
-        binding.adventureTitleEdit.setOnFocusChangeListener { _, hasFocus ->
+        /*binding.adventureTitleEdit.setOnFocusChangeListener { _, hasFocus ->
             if (!hasFocus) {
                 binding.adventureNameTextView.text = binding.adventureTitleEdit.text.toString().trim()
                 binding.adventureNameTextView.visibility = View.VISIBLE
                 binding.adventureTitleEdit.visibility = View.GONE
             }
         }
+         */
 
         hideSystemUI()
 
@@ -429,12 +431,12 @@ class EditorActivity : AppCompatActivity() {
             }
 
             // Important : forcer la mise à jour du titre si l'utilisateur était en train de l'éditer
-            updateAdventureTitleIfNeeded()
+            //updateAdventureTitleIfNeeded()
 
             // Sécuriser : si le titre est vide après édition, utiliser "adventure_save"
             if (binding.adventureNameTextView.text.isNullOrBlank()) {
                 binding.adventureNameTextView.text = "adventure_save"
-                binding.adventureTitleEdit.setText("adventure_save")
+               // binding.adventureTitleEdit.setText("adventure_save")
             }
 
             val adventureData = generateAdventureData()
@@ -450,7 +452,7 @@ class EditorActivity : AppCompatActivity() {
         // folderPickerLauncher.launch(null)
     }
 
-    // Fonction pour forcer la mise à jour du titre d'aventure si l'utilisateur est en train d'éditer
+    /*// Fonction pour forcer la mise à jour du titre d'aventure si l'utilisateur est en train d'éditer
     private fun updateAdventureTitleIfNeeded() {
         if (binding.adventureTitleEdit.visibility == View.VISIBLE) {
             val newTitle = binding.adventureTitleEdit.text.toString().trim()
@@ -458,7 +460,7 @@ class EditorActivity : AppCompatActivity() {
             binding.adventureNameTextView.visibility = View.VISIBLE
             binding.adventureTitleEdit.visibility = View.GONE
         }
-    }
+    }*/
 
     private fun hideSystemUI() {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
