@@ -3,37 +3,67 @@ package com.example.imagenavigator.screens
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.os.Bundle
-import androidx.appcompat.app.AppCompatActivity
-import com.example.imagenavigator.databinding.ActivityMenuBinding
 import android.content.res.Configuration
 import android.util.Log
 import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.example.imagenavigator.adapters.AdventureAdapter
+import com.example.imagenavigator.databinding.ActivityMainBinding
+import java.io.File
 
 /**
- * Menu principal avec deux boutons : Éditeur et Navigateur.
- * Utilise ViewBinding pour gérer les clics.
+ * Menu principal : créer une nouvelle aventure ou explorer les aventures existantes.
  */
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var binding: ActivityMenuBinding
+    private lateinit var binding: ActivityMainBinding
+    private lateinit var adventureAdapter: AdventureAdapter
 
     override fun onCreate(savedInstanceState: Bundle?) {
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         super.onCreate(savedInstanceState)
-        binding = ActivityMenuBinding.inflate(layoutInflater)
+        binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Clique sur "éditeur"
+        // Initialiser l'adapter (onAdventureClick)
+        adventureAdapter = AdventureAdapter { adventureName ->
+            val intent = Intent(this, NavigatorActivity::class.java)
+            intent.putExtra("adventureName", adventureName)
+            startActivity(intent)
+        }
+
+        // Configurer le RecyclerView
+        binding.recyclerViewAdventures.apply {
+            layoutManager = LinearLayoutManager(this@MainActivity)
+            adapter = adventureAdapter
+        }
+
+        loadAdventureList()
+
+        // Clique sur "Créer une aventure"
         binding.editorButton.setOnClickListener {
             val intent = Intent(this, EditorActivity::class.java)
             startActivity(intent)
         }
+    }
 
-        // Clique sur "navigateur"
-        binding.navigatorButton.setOnClickListener {
-            val intent = Intent(this, NavigatorActivity::class.java)
-            startActivity(intent)
+    override fun onResume() {
+        super.onResume()
+        // Recharger la liste quand on revient sur MainActivity
+        loadAdventureList()
+    }
+
+    private fun loadAdventureList() {
+        val adventureFiles = filesDir.listFiles { file ->
+            file.extension == "json" && file.name.endsWith("_zones.json")
+        } ?: emptyArray()
+
+        val adventureNames = adventureFiles.map { file ->
+            file.name.removeSuffix("_zones.json")
         }
+
+        adventureAdapter.submitList(adventureNames)
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
