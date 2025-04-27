@@ -17,48 +17,14 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent">
 
-        <!-- En-tête aventure -->
-        <LinearLayout
+        <include
             android:id="@+id/headerAdventure"
+            layout="@layout/adventure_header_layout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:padding="8dp">
-
-            <TextView
-                android:id="@+id/adventureNameTextView"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/nom_aventure"
-                android:textSize="16sp"
-                android:textStyle="bold"
-                android:maxLines="1"
-                android:ellipsize="end" />
-
-            <ImageButton
-                android:id="@+id/buttonSaveAdventure"
-                android:layout_width="80dp"
-                android:layout_height="80dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:src="@drawable/ic_save"
-                android:contentDescription="@string/save_adventure"
-                app:tint="@color/black"
-                android:scaleType="centerInside"
-                android:adjustViewBounds="true" />
-
-            <ImageButton
-                android:id="@+id/buttonRenameAdventure"
-                android:layout_width="80dp"
-                android:layout_height="80dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:src="@drawable/ic_edit_save"
-                app:tint="@color/black"
-                android:contentDescription="@string/rename_adventure"
-                android:scaleType="centerInside"
-                android:adjustViewBounds="true" />
-        </LinearLayout>
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
 
         <!-- Miniatures -->
         <androidx.recyclerview.widget.RecyclerView
@@ -108,5 +74,7 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
+
+
 
 </androidx.constraintlayout.widget.ConstraintLayout>

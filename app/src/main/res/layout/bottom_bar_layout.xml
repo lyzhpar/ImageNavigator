@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/bottomBar"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -109,5 +110,36 @@
         android:text="Non liées : 0"
         android:layout_marginStart="8dp"
         android:textColor="#0000FF" />
+
+    <LinearLayout
+        android:id="@+id/rightButtonContainer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="end"
+        android:layout_weight="1">
+
+        <ImageButton
+            android:id="@+id/buttonSaveAdventure"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_save"
+            android:contentDescription="@string/save_adventure"
+            app:tint="@color/black"
+            android:scaleType="centerInside"
+            android:adjustViewBounds="true" />
+
+        <ImageButton
+            android:id="@+id/buttonRenameAdventure"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_edit_save"
+            android:contentDescription="@string/rename_adventure"
+            app:tint="@color/black"
+            android:scaleType="centerInside"
+            android:adjustViewBounds="true" />
+    </LinearLayout>
 
 </LinearLayout>

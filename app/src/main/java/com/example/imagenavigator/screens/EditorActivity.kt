@@ -48,8 +48,6 @@ class EditorActivity : AppCompatActivity() {
     private var currentImageName: String? = null
 
     private lateinit var adventureNameTextView: TextView
-    private lateinit var buttonSaveAdventure: ImageButton
-    private lateinit var buttonRenameAdventure: ImageButton
     private var currentAdventureName: String = ""
 
     private val selectedItems = mutableSetOf<String>()
@@ -112,14 +110,18 @@ class EditorActivity : AppCompatActivity() {
         binding = ActivityEditorBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Header aventure
-        adventureNameTextView = binding.adventureNameTextView
-        buttonSaveAdventure = binding.buttonSaveAdventure
-        buttonRenameAdventure = binding.buttonRenameAdventure
+        // 🛠 Accès propre aux éléments du header
+        adventureNameTextView = binding.headerAdventure.adventureNameTextView
 
+        // Accès aux boutons dans la BottomBar
+        val buttonSaveAdventure = binding.bottomBar.buttonSaveAdventure
+        val buttonRenameAdventure = binding.bottomBar.buttonRenameAdventure
+
+        // Listeners sur les boutons
         buttonSaveAdventure.setOnClickListener { saveZones() }
         buttonRenameAdventure.setOnClickListener { showRenameAdventureDialog() }
 
+        // Initialisation : on attend que l'utilisateur donne un nom
         promptAdventureName()
 
         // DrawingView cliquable
@@ -150,6 +152,7 @@ class EditorActivity : AppCompatActivity() {
             adapter = imageAdapter
         }
 
+        // Bottom bar
         val bottomBarView = binding.bottomBar.root
         imagesInfoText = bottomBarView.findViewById(R.id.textImageCount)
         worldsInfoText = bottomBarView.findViewById(R.id.textWorldCount)
@@ -164,7 +167,7 @@ class EditorActivity : AppCompatActivity() {
             Toast.makeText(this, "Import d'une seule image à compléter", Toast.LENGTH_SHORT).show()
         }
 
-        // Bouton Supprimer (créé dynamiquement)
+        // Bouton Supprimer
         deleteButton = Button(this).apply {
             text = "Supprimer"
             visibility = View.GONE
@@ -247,6 +250,9 @@ class EditorActivity : AppCompatActivity() {
         builder.setTitle("Renommer l'aventure")
         val input = EditText(this)
         input.hint = "Nouveau nom"
+
+        input.requestFocus() // 🆕 Focus automatique sur le champ
+
         builder.setView(input)
         builder.setPositiveButton("Renommer") { _, _ ->
             val newName = input.text.toString().trim()
@@ -257,12 +263,21 @@ class EditorActivity : AppCompatActivity() {
             }
         }
         builder.setNegativeButton("Annuler", null)
-        builder.show()
+
+        val dialog = builder.create()
+
+        dialog.setOnShowListener {
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
+        }
+
+        dialog.show()
     }
 
     private fun renameAdventure(newName: String) {
         val oldFile = File(filesDir, "${currentAdventureName}_zones.json")
         val newFile = File(filesDir, "${newName}_zones.json")
+
         if (oldFile.exists()) oldFile.renameTo(newFile)
         currentAdventureName = newName
         adventureNameTextView.text = newName
