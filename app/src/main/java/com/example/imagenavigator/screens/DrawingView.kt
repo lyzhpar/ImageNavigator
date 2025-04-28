@@ -9,6 +9,8 @@ import com.example.imagenavigator.model.Zone
 import android.R.attr.bitmap
 import android.util.Log
 import android.view.GestureDetector
+import kotlin.collections.addAll
+import kotlin.text.clear
 
 /**
  * Vue personnalisée qui permet d'afficher une image et de dessiner des zones rectangulaires
@@ -36,7 +38,15 @@ class DrawingView @JvmOverloads constructor(
 
     var onTapListener: (() -> Unit)? = null
 
-
+    /**
+     * Charge une nouvelle liste de zones à afficher pour l'image courante.
+     * Cela remplace toutes les zones actuellement affichées.
+     */
+    fun setZonesForCurrentImage(newZones: List<Zone>) {
+        zones.clear()
+        zones.addAll(newZones)
+        invalidate()
+    }
 
     private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
         override fun onSingleTapUp(e: MotionEvent): Boolean {
@@ -143,6 +153,7 @@ class DrawingView @JvmOverloads constructor(
                     if (relative.width() > 0.01f && relative.height() > 0.01f) {
                         val zone = Zone(relative, null, null)
                         zones.add(zone)
+                        // onZoneCreated doit mettre à jour l'objet ImageData en dehors du DrawingView.
                         onZoneCreated?.invoke(zone)
                     } else {
                         Log.d("DrawingView", "Clic simple détecté sur DrawingView avec image")
