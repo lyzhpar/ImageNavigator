@@ -21,6 +21,9 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.isVisible
 import androidx.documentfile.provider.DocumentFile
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.engine.DiskCacheStrategy
+import com.bumptech.glide.request.RequestOptions
 import com.example.imagenavigator.R
 import com.example.imagenavigator.adapters.ImageAdapter
 import com.example.imagenavigator.databinding.ActivityEditorBinding
@@ -150,15 +153,20 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private suspend fun loadBitmapFromUri(uri: Uri): Bitmap? {
+        val screenSize = resources.displayMetrics.widthPixels.coerceAtLeast(resources.displayMetrics.heightPixels)
         return try {
-            val inputStream = contentResolver.openInputStream(uri)
-            val bitmap = BitmapFactory.decodeStream(inputStream)
-            if (bitmap != null) {
-                // Ajouter au cache
-                imageBitmapMap[uri.toString()] = bitmap
-                Log.d("EditorActivity", "Image ajoutée au cache : ${uri.toString()}")
+            withContext(Dispatchers.IO) {
+                Glide.with(this@EditorActivity)
+                    .asBitmap()
+                    .load(uri)
+                    .apply(
+                        RequestOptions()
+                            .override(screenSize / 2)
+                            .diskCacheStrategy(DiskCacheStrategy.ALL)
+                    )
+                    .submit()
+                    .get()
             }
-            bitmap
         } catch (e: Exception) {
             Log.e("EditorActivity", "Erreur lors du chargement de l'image à partir de l'URI : $uri", e)
             null
@@ -565,13 +573,20 @@ class EditorActivity : AppCompatActivity() {
             for (batch in batches) {
                 batch.forEach { (file, fullPath) ->
                     try {
-                        val bitmap = loadBitmapFromUri(file.uri)
-                        if (bitmap != null) {
-                            imageBitmapMap[fullPath] = bitmap
-                            Log.d("DrawingView", "Image ajoutée au cache : $fullPath")
-                            imageDataMap[fullPath] = mutableListOf()  // Initialiser les zones vides
-                            Log.d("EditorActivity", "Image loaded successfully: $fullPath")
+                        val bitmap = withContext(Dispatchers.IO) {
+                            Glide.with(this@EditorActivity)
+                                .asBitmap()
+                                .load(file.uri)
+                                .apply(RequestOptions().diskCacheStrategy(DiskCacheStrategy.ALL))
+                                .submit()
+                                .get()
                         }
+                        imageBitmapMap[fullPath] = bitmap
+                        Log.d("DrawingView", "Image ajoutée au cache : $fullPath")
+                        imageDataMap[fullPath] = mutableListOf()  // Initialiser les zones vides
+
+                        // Log de succès pour chaque image chargée
+                        Log.d("EditorActivity", "Image loaded successfully: $fullPath")
                     } catch (e: Exception) {
                         skippedFiles.add(fullPath)
                         Log.e("EditorActivity", "Failed to load image: $fullPath", e)  // Log d'erreur en cas d'échec
