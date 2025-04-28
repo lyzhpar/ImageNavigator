@@ -20,8 +20,7 @@ class ImageAdapter(
     private val onGroupDeleteRequested: (DisplayItem.GroupItem) -> Unit,
     private val onItemLongPress: (DisplayItem) -> Unit,
     private val getSelectedItems: () -> Set<String>,
-    private val exitSelectionMode: () -> Unit,
-    private val linkedImagePaths: Set<String> = emptySet()  // Ajouté pour la gestion des images liées
+    private val exitSelectionMode: () -> Unit
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     private val expandedGroups = mutableSetOf<String>()
@@ -236,12 +235,7 @@ class ImageAdapter(
                 imageView.setColorFilter(Color.argb(150, 128, 128, 128))  // Gris sur l'image
                 checkbox.visibility = View.VISIBLE  // Afficher la coche
             } else {
-                // Appliquer un filtre vert si l'image est liée, sinon retirer le filtre
-                if (linkedImagePaths.contains(item.fullPath)) {
-                    imageView.setColorFilter(Color.parseColor("#8000FF00"))  // Appliquer un filtre vert
-                } else {
-                    imageView.clearColorFilter()  // Retirer le filtre si l'image n'est pas liée
-                }
+                imageView.clearColorFilter()  // Retirer le filtre gris
                 checkbox.visibility = View.GONE  // Masquer la coche
             }
 

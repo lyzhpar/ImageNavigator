@@ -11,6 +11,10 @@ import android.view.GestureDetector
 import android.os.Handler
 import android.os.Looper
 
+/**
+ * Vue personnalisée qui permet d'afficher une image et de dessiner des zones rectangulaires
+ * avec le doigt (drag & drop).
+ */
 class DrawingView @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null
 ) : View(context, attrs) {
@@ -19,29 +23,47 @@ class DrawingView @JvmOverloads constructor(
         isClickable = true
         isLongClickable = true
     }
-
     var imageBitmap: Bitmap? = null
         set(value) {
             field = value
             invalidate()
         }
 
+    // Liste des zones visibles pour cette image
     val zones: MutableList<Zone> = mutableListOf()
-    var selectedZone: Zone? = null
-    private var drawingRect: RectF? = null
-    private var startX = 0f
-    private var startY = 0f
 
-    // Déclarer spotlightActive pour gérer la sélection des zones
-    private var spotlightActive: Boolean = false
+    // Callback appelée quand une nouvelle zone est créée
+    var onZoneCreated: ((Zone) -> Unit)? = null
 
-    // Ajout de la variable onTapListener pour permettre l'appel après un tap
     var onTapListener: (() -> Unit)? = null
+
+    var selectedZone: Zone? = null
+    private var spotlightActive = false
+    private var overlayAlpha = 255
+    private val fadeHandler = Handler(Looper.getMainLooper())
+    // Map pour associer les chemins d'images aux bitmaps
+    private val imageBitmapMap = mutableMapOf<String, Bitmap>()
+
+    /**
+     * Charge une nouvelle liste de zones à afficher pour l'image courante.
+     * Cela remplace toutes les zones actuellement affichées.
+     */
+    fun setZonesForCurrentImage(newZones: List<Zone>) {
+        zones.clear()
+        zones.addAll(newZones)
+        invalidate()
+    }
 
     private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
         override fun onSingleTapUp(e: MotionEvent): Boolean {
             Log.d("DrawingView", "onSingleTapUp détecté")
-            onTapListener?.invoke()  // Appel de onTapListener lorsque le tap est détecté
+            Log.d("DrawingView", "Chemin de l'image dans le cache : ${imageBitmapMap.keys}")
+            // Si spotlight actif, désactiver au tap simple
+            if (spotlightActive) {
+                clearSpotlight()
+                return true
+            }
+            onTapListener?.invoke()
             return true
         }
 
@@ -62,15 +84,25 @@ class DrawingView @JvmOverloads constructor(
         style = Paint.Style.STROKE
     }
 
-    // Suppression de la logique spotlight et gestion d'image liée
-    // Redessiner les zones et détecter les clics pour les zones
-    override fun onDraw(canvas: Canvas) {
+    private var drawingRect: RectF? = null
+    private var startX = 0f
+    private var startY = 0f
+
+   override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
+
+        Log.d("DrawingView", "onDraw avec bitmap = ${imageBitmap != null}")
+
+       // Log des images dans le cache
+       Log.d("DrawingView", "Images dans le cache : ${imageBitmapMap.keys}, Cache: $imageBitmapMap")
+
         val bitmap = imageBitmap ?: return
         val dstRect = getImageDisplayRect(bitmap)
 
+        // Dessiner l’image
         canvas.drawBitmap(bitmap, null, dstRect, null)
 
+        // Dessiner les zones enregistrées
         for (zone in zones) {
             val r = zone.rect
             val absLeft = dstRect.left + r.left * dstRect.width()
@@ -83,10 +115,76 @@ class DrawingView @JvmOverloads constructor(
             canvas.drawRect(absRect, paintBorder)
         }
 
+        // Dessiner temporairement le rectangle qu'on est en train de tracer
         drawingRect?.let {
             canvas.drawRect(it, paintZone)
             canvas.drawRect(it, paintBorder)
         }
+
+       if (spotlightActive && selectedZone != null) {
+           Log.d("DrawingView", "Image liée : ${selectedZone?.linkedImagePath}") // Log du chemin de l'image liée
+
+           // Overlay pour spotlight
+           val paintOverlay = Paint().apply {
+               color = Color.argb(128, 255, 255, 255) // Blanc semi-transparent
+           }
+           canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), paintOverlay)
+
+           val r = selectedZone!!.rect
+           val absLeft = dstRect.left + r.left * dstRect.width()
+           val absTop = dstRect.top + r.top * dstRect.height()
+           val absRight = dstRect.left + r.right * dstRect.width()
+           val absBottom = dstRect.top + r.bottom * dstRect.height()
+           val absRect = RectF(absLeft, absTop, absRight, absBottom)
+
+           // Découper un "trou" sur la zone sélectionnée
+           val clearPaint = Paint().apply {
+               xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
+           }
+           canvas.drawRect(absRect, clearPaint)
+
+           // Vérification de l'image liée dans le cache (imageBitmapMap)
+           selectedZone?.linkedImagePath?.let { linkedPath ->
+               Log.d("DrawingView", "Chemin de l'image liée : $linkedPath") // Log du chemin de l'image liée
+               val previewBitmap = imageBitmapMap[linkedPath]
+               if (previewBitmap == null) {
+                   Log.d("DrawingView", "Image liée introuvable dans le cache pour le chemin : $linkedPath")
+               } else {
+                   Log.d("DrawingView", "Image liée trouvée dans le cache pour le chemin : $linkedPath")
+               }
+
+               if (previewBitmap == null) {
+                   Log.d("DrawingView", "Image liée introuvable dans le cache.") // Log si l'image n'est pas dans le cache
+
+                   val paintText = Paint().apply {
+                       color = Color.WHITE
+                       textSize = 30f
+                       textAlign = Paint.Align.CENTER
+                   }
+                   canvas.drawText("Pas d'image liée", absRect.centerX(), absRect.centerY(), paintText)
+               } else {
+                   Log.d("DrawingView", "Affichage de l'aperçu de l'image liée.") // Log si l'image est dans le cache
+
+                   // Affichage de l'aperçu de l'image liée au centre du spotlight
+                   val previewSize = 150f // Taille fixe de l'aperçu
+                   val centerX = absRect.centerX()
+                   val centerY = absRect.centerY()
+                   val left = centerX - previewSize / 2
+                   val top = centerY - previewSize / 2
+                   val right = centerX + previewSize / 2
+                   val bottom = centerY + previewSize / 2
+
+                   val previewRect = RectF(left, top, right, bottom)
+
+                   val paintPreview = Paint().apply {
+                       alpha = 128 // 50% d'opacité
+                   }
+
+                   // Dessiner la vignette de l'image liée
+                   canvas.drawBitmap(previewBitmap, null, previewRect, paintPreview)
+               }
+           }
+       }
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -95,6 +193,11 @@ class DrawingView @JvmOverloads constructor(
 
         val bitmap = imageBitmap
         if (bitmap == null) {
+            if (event.action == MotionEvent.ACTION_UP) {
+                if (spotlightActive) {
+                    clearSpotlight()
+                }
+            }
             return true
         }
 
@@ -136,23 +239,44 @@ class DrawingView @JvmOverloads constructor(
 
                             if (absRect.contains(touchX, touchY)) {
                                 selectedZone = zone
-                                spotlightActive = true  // Activer le spotlight
+                                spotlightActive = true
+                                overlayAlpha = 192
+                                Log.d("DrawingView", "Spotlight activé sur zone : ${zone.rect.left}, ${zone.rect.top}, ${zone.rect.right}, ${zone.rect.bottom}")
                                 invalidate()
                                 foundZone = true
                                 break
                             }
                         }
-                        if (!foundZone) {
+                        if (!foundZone /*&& spotlightActive*/) {
+                            // Tap en dehors des zones désactive le spotlight
                             clearSpotlight()
                         }
+                    } else {
+                        // Grand mouvement : créer une nouvelle zone
+                        val relative = RectF(
+                            (rect.left - dstRect.left) / dstRect.width(),
+                            (rect.top - dstRect.top) / dstRect.height(),
+                            (rect.right - dstRect.left) / dstRect.width(),
+                            (rect.bottom - dstRect.top) / dstRect.height()
+                        )
+                        val zone = Zone(rect = relative)
+                        zones.add(zone)
+                        onZoneCreated?.invoke(zone)
+                        Log.d("DrawingView", "Nouvelle zone créée : ${relative.left}, ${relative.top}, ${relative.right}, ${relative.bottom}")
+                        invalidate()
                     }
                 }
                 drawingRect = null
             }
         }
+
         return true
     }
 
+
+    /**
+     * Calcule la zone de l'écran où l'image est affichée.
+     */
     private fun getImageDisplayRect(bitmap: Bitmap): RectF {
         val viewWidth = width.toFloat()
         val viewHeight = height.toFloat()
@@ -169,14 +293,64 @@ class DrawingView @JvmOverloads constructor(
         return RectF(left, top, left + scaledWidth, top + scaledHeight)
     }
 
+     // Associe une image liée à la zone sélectionnée et force le rafraîchissement.
+     fun assignLinkedImageToSelectedZone(imagePath: String) {
+         selectedZone?.let {
+             it.linkedImagePath = imagePath
+             Log.d("DrawingView", "Image liée : ${it.linkedImagePath}")
+             Log.d("DrawingView", "Image liée au chemin : ${it.linkedImagePath}")
+
+
+             // Ajouter l'image à la carte des images et la redessiner
+             val bitmap = BitmapFactory.decodeFile(imagePath)
+             if (bitmap != null) {
+                 imageBitmapMap[imagePath] = bitmap
+                 Log.d("DrawingView", "Image ajoutée au cache : $imagePath, bitmap: $bitmap")
+             }
+             bitmap?.let {
+                 imageBitmapMap[imagePath] = it
+             }
+
+             // Garder le spotlight ouvert après l'association de l'image
+             spotlightActive = true
+             invalidate()  // Redessiner la vue pour afficher l'image liée
+         } ?: run {
+             Log.d("DrawingView", "Aucune zone sélectionnée pour l'image.")
+         }
+     }
+
+    /**
+     * Vérifie si l'image liée à la zone sélectionnée existe.
+     * Retourne true si l'image est trouvée, false sinon.
+     */
+    fun hasLinkedImage(): Boolean {
+        val path = selectedZone?.linkedImagePath
+        if (path.isNullOrEmpty()) {
+            Log.d("DrawingView", "Aucune image liée à cette zone.")
+            return false
+        }
+        val bitmap = android.graphics.BitmapFactory.decodeFile(path)
+        if (bitmap == null) {
+            Log.d("DrawingView", "Image liée introuvable : $path")
+            return false
+        }
+        return true
+    }
+
+    /**
+     * Indique si le spotlight est actuellement actif (zone sélectionnée en surbrillance).
+     */
+    fun isSpotlightActive(): Boolean {
+        return spotlightActive
+    }
+
+    /**
+     * Désactive le spotlight et désélectionne la zone, puis redessine la vue.
+     */
     fun clearSpotlight() {
+        spotlightActive = false
         selectedZone = null
-        spotlightActive = false  // Désactiver le spotlight
         invalidate()
     }
 
-    fun assignLinkedImageToZone(zone: Zone, imagePath: String) {
-        zone.linkedImagePath = imagePath
-        invalidate()  // Redessiner la vue
-    }
 }
