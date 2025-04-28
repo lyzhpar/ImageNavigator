@@ -91,8 +91,6 @@ class DrawingView @JvmOverloads constructor(
    override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-       Log.d("DrawingView", "Chemins des images dans le cache : ${imageBitmapMap.keys}")
-
         Log.d("DrawingView", "onDraw avec bitmap = ${imageBitmap != null}")
 
        // Log des images dans le cache
@@ -302,12 +300,6 @@ class DrawingView @JvmOverloads constructor(
              Log.d("DrawingView", "Image liée : ${it.linkedImagePath}")
              Log.d("DrawingView", "Image liée au chemin : ${it.linkedImagePath}")
 
-             // Vérifier si l'image est déjà présente dans le cache
-             if (imageBitmapMap.containsKey(imagePath)) {
-                 Log.d("DrawingView", "Image déjà dans le cache : $imagePath")
-             } else {
-                 Log.d("DrawingView", "Image non trouvée dans le cache. Chargement de l'image : $imagePath")
-             }
 
              // Ajouter l'image à la carte des images et la redessiner
              val bitmap = BitmapFactory.decodeFile(imagePath)
