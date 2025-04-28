@@ -5,12 +5,13 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
-import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.recyclerview.widget.RecyclerView
 import com.example.imagenavigator.R
 import android.content.Context
+import android.graphics.Color
 
 class AdventureAdapter(
     private val onAdventureClick: (String) -> Unit,
@@ -20,6 +21,7 @@ class AdventureAdapter(
 
     private val adventures = mutableListOf<String>()
     private var selectedPosition: Int? = null
+    private val linkedImagePaths = mutableSetOf<String>()  // 🆕 Stocke les images liées
 
     private val DEBUG_MODE = true // 🆕 Active ou désactive les Toasts pour debug
 
@@ -27,6 +29,13 @@ class AdventureAdapter(
         adventures.clear()
         adventures.addAll(newList)
         notifyDataSetChanged()
+    }
+
+    // 🆕 Méthode pour définir les chemins des images liées
+    fun setLinkedImagePaths(paths: List<String>) {
+        linkedImagePaths.clear()
+        linkedImagePaths.addAll(paths)
+        notifyDataSetChanged()  // Mettre à jour l'affichage avec les images liées
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): AdventureViewHolder {
@@ -38,11 +47,12 @@ class AdventureAdapter(
     override fun getItemCount(): Int = adventures.size
 
     override fun onBindViewHolder(holder: AdventureViewHolder, position: Int) {
-        holder.bind(adventures[position])
+        val adventure = adventures[position]
+        holder.adventureName.text = adventure // Assuming you just need the name here
     }
 
     inner class AdventureViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        private val adventureName: TextView = itemView.findViewById(R.id.adventureName)
+        val adventureName: TextView = itemView.findViewById(R.id.adventureName)
         private val overlayContainer: View = itemView.findViewById(R.id.overlayContainer)
         private val buttonEdit: Button = itemView.findViewById(R.id.buttonEdit)
         private val buttonPlay: Button = itemView.findViewById(R.id.buttonPlay)
@@ -85,7 +95,6 @@ class AdventureAdapter(
                 logAndToast(itemView.context, "Overlay closed for: $name")
                 overlayContainer.visibility = View.GONE
             }
-
         }
 
         private fun logAndToast(context: Context, message: String) {

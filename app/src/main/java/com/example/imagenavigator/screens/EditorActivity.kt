@@ -100,7 +100,7 @@ class EditorActivity : AppCompatActivity() {
 
     // Quand une image est sélectionnée
     private fun onImageSelected(bitmap: Bitmap, fullPath: String) {
-        if (binding.drawingView.isSpotlightActive()) {
+        if (binding.drawingView.spotlightActive) {
             // Si en mode spotlight, vérifier le cache
             val linkedImagePath = fullPath
             if (imageBitmapMap.containsKey(linkedImagePath)) {
