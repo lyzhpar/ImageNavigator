@@ -11,6 +11,8 @@ import android.util.Log
 import android.view.GestureDetector
 import kotlin.collections.addAll
 import kotlin.text.clear
+import android.os.Handler
+import android.os.Looper
 
 /**
  * Vue personnalisée qui permet d'afficher une image et de dessiner des zones rectangulaires
@@ -37,6 +39,11 @@ class DrawingView @JvmOverloads constructor(
     var onZoneCreated: ((Zone) -> Unit)? = null
 
     var onTapListener: (() -> Unit)? = null
+
+    private var selectedZone: Zone? = null
+    private var spotlightActive = false
+    private var overlayAlpha = 255
+    private val fadeHandler = Handler(Looper.getMainLooper())
 
     /**
      * Charge une nouvelle liste de zones à afficher pour l'image courante.
@@ -106,11 +113,57 @@ class DrawingView @JvmOverloads constructor(
             canvas.drawRect(it, paintZone)
             canvas.drawRect(it, paintBorder)
         }
+
+        if (spotlightActive && selectedZone != null) {
+            val paintOverlay = Paint().apply {
+                color = Color.argb(overlayAlpha, 255, 255, 255)
+            }
+            canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), paintOverlay)
+
+            val r = selectedZone!!.rect
+            val absLeft = dstRect.left + r.left * dstRect.width()
+            val absTop = dstRect.top + r.top * dstRect.height()
+            val absRight = dstRect.left + r.right * dstRect.width()
+            val absBottom = dstRect.top + r.bottom * dstRect.height()
+            val absRect = RectF(absLeft, absTop, absRight, absBottom)
+
+            // Découper un "trou" sur la zone sélectionnée
+            val clearPaint = Paint().apply {
+                xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
+            }
+            canvas.drawRect(absRect, clearPaint)
+        }
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         Log.d("DrawingView", "onTouchEvent: ${event.action}")
         gestureDetector.onTouchEvent(event)
+
+        if (event.action == MotionEvent.ACTION_UP) {
+            selectedZone = null
+            val bitmap = imageBitmap ?: return true
+            val dstRect = getImageDisplayRect(bitmap)
+
+            val touchX = event.x
+            val touchY = event.y
+
+            for (zone in zones) {
+                val absLeft = dstRect.left + zone.rect.left * dstRect.width()
+                val absTop = dstRect.top + zone.rect.top * dstRect.height()
+                val absRight = dstRect.left + zone.rect.right * dstRect.width()
+                val absBottom = dstRect.top + zone.rect.bottom * dstRect.height()
+                val absRect = RectF(absLeft, absTop, absRight, absBottom)
+
+                if (absRect.contains(touchX, touchY)) {
+                    selectedZone = zone
+                    spotlightActive = true
+                    overlayAlpha = 255
+                    startFadeOut()
+                    invalidate()
+                    break
+                }
+            }
+        }
 
         val bitmap = imageBitmap
         if (bitmap == null) {
@@ -166,6 +219,14 @@ class DrawingView @JvmOverloads constructor(
         }
 
         return true
+    }
+
+    private fun startFadeOut() {
+        fadeHandler.postDelayed({
+            spotlightActive = false
+            selectedZone = null
+            invalidate()
+        }, 2000) // 2 secondes
     }
 
     /**

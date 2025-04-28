@@ -96,9 +96,9 @@ class EditorActivity : AppCompatActivity() {
 
     // Quand une image est sélectionnée
     private fun onImageSelected(bitmap: Bitmap, fullPath: String) {
-        // Action à faire quand l'utilisateur clique sur une image
         currentImageName = fullPath
         binding.drawingView.imageBitmap = bitmap
+        binding.drawingView.setZonesForCurrentImage(imageDataMap[fullPath] ?: emptyList())
     }
 
     // Quand l'utilisateur demande de renommer un groupe
@@ -263,6 +263,12 @@ class EditorActivity : AppCompatActivity() {
                 updateDeleteButtonVisibility(deleteButton)
                 updateBottomBarInfo()
                 deleteButton.isEnabled = false
+            }
+        }
+        // Ajout d'une zone nouvellement créée à imageDataMap pour l'image courante
+        binding.drawingView.onZoneCreated = { zone ->
+            currentImageName?.let { imageName ->
+                imageDataMap[imageName]?.add(zone)
             }
         }
 
