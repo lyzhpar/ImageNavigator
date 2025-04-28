@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
 import android.provider.DocumentsContract
@@ -20,9 +21,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.isVisible
 import androidx.documentfile.provider.DocumentFile
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.bumptech.glide.Glide
-import com.bumptech.glide.load.engine.DiskCacheStrategy
-import com.bumptech.glide.request.RequestOptions
 import com.example.imagenavigator.R
 import com.example.imagenavigator.adapters.ImageAdapter
 import com.example.imagenavigator.databinding.ActivityEditorBinding
@@ -37,7 +35,7 @@ import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.*
 import java.io.File
 import android.view.inputmethod.InputMethodManager
-import com.bumptech.glide.load.engine.GlideException
+
 
 
 
@@ -145,21 +143,11 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private suspend fun loadBitmapFromUri(uri: Uri): Bitmap? {
-        val screenSize = resources.displayMetrics.widthPixels.coerceAtLeast(resources.displayMetrics.heightPixels)
         return try {
-            withContext(Dispatchers.IO) {
-                Glide.with(this@EditorActivity)
-                    .asBitmap()
-                    .load(uri)
-                    .apply(
-                        RequestOptions()
-                            .override(screenSize / 2)
-                            .diskCacheStrategy(DiskCacheStrategy.ALL)
-                    )
-                    .submit()
-                    .get()
-            }
+            val inputStream = contentResolver.openInputStream(uri)
+            BitmapFactory.decodeStream(inputStream)
         } catch (e: Exception) {
+            Log.e("EditorActivity", "Erreur lors du chargement de l'image à partir de l'URI : $uri", e)
             null
         }
     }
@@ -526,9 +514,6 @@ class EditorActivity : AppCompatActivity() {
     private fun loadImagesFromFolder(uri: Uri) {
         Log.d("EditorActivity", "Loading images from folder: $uri")
 
-        // Activer les logs de Glide pour observer les détails du cache
-        //Glide.get(this).setLogLevel(Log.DEBUG)
-
         val skippedFiles = mutableListOf<String>()
         binding.loadingOverlay.isVisible = true
         imageLoadingScope.launch {
@@ -567,20 +552,13 @@ class EditorActivity : AppCompatActivity() {
             for (batch in batches) {
                 batch.forEach { (file, fullPath) ->
                     try {
-                        val bitmap = withContext(Dispatchers.IO) {
-                            Glide.with(this@EditorActivity)
-                                .asBitmap()
-                                .load(file.uri)
-                                .apply(RequestOptions().diskCacheStrategy(DiskCacheStrategy.ALL))
-                                .submit()
-                                .get()
+                        val bitmap = loadBitmapFromUri(file.uri)
+                        if (bitmap != null) {
+                            imageBitmapMap[fullPath] = bitmap
+                            Log.d("DrawingView", "Image ajoutée au cache : $fullPath")
+                            imageDataMap[fullPath] = mutableListOf()  // Initialiser les zones vides
+                            Log.d("EditorActivity", "Image loaded successfully: $fullPath")
                         }
-                        imageBitmapMap[fullPath] = bitmap
-                        Log.d("DrawingView", "Image ajoutée au cache : $fullPath")
-                        imageDataMap[fullPath] = mutableListOf()  // Initialiser les zones vides
-
-                        // Log de succès pour chaque image chargée
-                        Log.d("EditorActivity", "Image loaded successfully: $fullPath")
                     } catch (e: Exception) {
                         skippedFiles.add(fullPath)
                         Log.e("EditorActivity", "Failed to load image: $fullPath", e)  // Log d'erreur en cas d'échec
