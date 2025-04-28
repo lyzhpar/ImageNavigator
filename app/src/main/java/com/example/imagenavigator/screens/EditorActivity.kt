@@ -502,21 +502,20 @@ class EditorActivity : AppCompatActivity() {
         node.children.forEach { removeImageFromNode(it, fullPath) }
     }
 
-    fun loadImagesFromFolder(uri: Uri) {
-        Log.d("EditorActivity", "Loading images from folder: $uri")  // Log ajoutée ici
+    private fun loadImagesFromFolder(uri: Uri) {
+        Log.d("EditorActivity", "Loading images from folder: $uri")
         val skippedFiles = mutableListOf<String>()
         binding.loadingOverlay.isVisible = true
-        imageLoadingScope.launch(Dispatchers.Main) {
-            // Accéder au dossier via l'URI
+        imageLoadingScope.launch {
             val folder = DocumentFile.fromTreeUri(this@EditorActivity, uri) ?: return@launch
             val allImageFiles = mutableListOf<Pair<DocumentFile, String>>()
             val seenPaths = mutableSetOf<String>()
 
-            // Fonction pour traverser récursivement les fichiers du dossier
+            // Fonction pour traverser le dossier
             fun traverse(file: DocumentFile, path: String = "") {
                 if (file.isDirectory) {
                     val newPath = if (path.isEmpty()) file.name ?: "" else "$path/${file.name}"
-                    file.listFiles().forEach { traverse(it, newPath) }
+                    file.listFiles()?.forEach { traverse(it, newPath) }
                 } else {
                     val name = file.name ?: return
                     val fullPath = if (path.isEmpty()) name else "$path/$name"
@@ -527,52 +526,53 @@ class EditorActivity : AppCompatActivity() {
                 }
             }
 
-            // Traverser les fichiers du dossier
-            folder.listFiles().forEach { traverse(it) }
+            folder.listFiles()?.forEach { traverse(it) }
             allImageFiles.sortBy { it.second }
 
-            // Initialisation des variables
-            loadedImagesCount = 0
             totalImagesToLoad = allImageFiles.size
+            loadedImagesCount = 0
 
-            // Effacer les précédentes images
+            // Initialiser les maps pour les images et les zones
             imageBitmapMap.clear()
             imageDataMap.clear()
 
-            // Charger les images et les zones associées
-            for ((file, fullPath) in allImageFiles) {
-                val bitmap = loadBitmapFromUri(file.uri)
-                if (bitmap != null) {
-                    imageBitmapMap[fullPath] = bitmap
-                    imageDataMap[fullPath] = mutableListOf()  // Ajouter les zones vides pour l'instant
-                } else {
-                    skippedFiles.add(fullPath)  // Ajouter les fichiers non chargés
+            // Charger les images en batch
+            val batches = allImageFiles.chunked(imagesPerBatch)
+            for (batch in batches) {
+                batch.forEach { (file, fullPath) ->
+                    try {
+                        val bitmap = withContext(Dispatchers.IO) {
+                            Glide.with(this@EditorActivity)
+                                .asBitmap()
+                                .load(file.uri)
+                                .apply(RequestOptions().diskCacheStrategy(DiskCacheStrategy.ALL))
+                                .submit()
+                                .get()
+                        }
+                        imageBitmapMap[fullPath] = bitmap
+                        imageDataMap[fullPath] = mutableListOf()  // Initialiser les zones vides
+                    } catch (e: Exception) {
+                        skippedFiles.add(fullPath)
+                    }
                 }
-
-                // Mettre à jour le nombre d'images chargées
-                loadedImagesCount++
-                updateLoadingProgress()
-
-                // Recréer l'arbre d'images après chaque ajout
-                val allImages = imageBitmapMap.map { (path, bitmap) -> bitmap to path }
-                imageRootNode = ImageGroupTreeBuilder.buildImageGroupTree(allImages)
-
-                // Mettre à jour l'adaptateur avec les nouvelles images
-                imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
+                withContext(Dispatchers.Main) {
+                    val allImages = imageBitmapMap.map { (path, bitmap) -> bitmap to path }
+                    imageRootNode = ImageGroupTreeBuilder.buildImageGroupTree(allImages)
+                    imageAdapter.updateData(ImageGroup.fromTree(imageRootNode)) // Mettre à jour l'adaptateur
+                    updateLoadingProgress() // Mettre à jour le pourcentage de chargement
+                }
             }
 
-            // Cacher l'overlay de chargement une fois terminé
-            binding.loadingOverlay.isVisible = false
-
-            // Alerter l'utilisateur si des images n'ont pas pu être chargées
-            if (skippedFiles.isNotEmpty()) {
-                Toast.makeText(this@EditorActivity, "Certaines images n'ont pas été chargées.", Toast.LENGTH_SHORT).show()
+            withContext(Dispatchers.Main) {
+                binding.loadingOverlay.isVisible = false
+                if (skippedFiles.isNotEmpty()) {
+                    Toast.makeText(this@EditorActivity, "Certaines images n'ont pas été chargées.", Toast.LENGTH_SHORT).show()
+                }
+                updateBottomBarInfo(isLoading = false)  // Mise à jour de la barre inférieure
             }
-
-            // Mettre à jour la barre inférieure avec le statut de chargement
-            updateBottomBarInfo(isLoading = false)
         }
     }
+
 
     // 🆕 Nouvelle fonction :
     private fun updateLoadingProgress() {
