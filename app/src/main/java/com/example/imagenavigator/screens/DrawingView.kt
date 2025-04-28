@@ -41,6 +41,8 @@ class DrawingView @JvmOverloads constructor(
     private var spotlightActive = false
     private var overlayAlpha = 255
     private val fadeHandler = Handler(Looper.getMainLooper())
+    // Map pour associer les chemins d'images aux bitmaps
+    private val imageBitmapMap = mutableMapOf<String, Bitmap>()
 
     /**
      * Charge une nouvelle liste de zones à afficher pour l'image courante.
@@ -115,12 +117,13 @@ class DrawingView @JvmOverloads constructor(
             canvas.drawRect(it, paintBorder)
         }
 
-        // Si le spotlight est actif et qu'une zone est sélectionnée
+
         if (spotlightActive && selectedZone != null) {
             Log.d("DrawingView", "Image liée : ${selectedZone?.linkedImagePath}")
 
+            // Overlay pour spotlight
             val paintOverlay = Paint().apply {
-                color = Color.argb(192, 0, 0, 0) // Noir semi-transparent pour spotlight
+                color = Color.argb(128, 255, 255, 255) // Blanc semi-transparent
             }
             canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), paintOverlay)
 
@@ -137,27 +140,19 @@ class DrawingView @JvmOverloads constructor(
             }
             canvas.drawRect(absRect, clearPaint)
 
-            // Vérification de l'image liée
+            // Affichage de l'image liée ou "Pas d'aperçu" au centre du spotlight
             selectedZone?.linkedImagePath?.let { linkedPath ->
-                // Si l'image liée existe, utilise la vignette
-                val previewBitmap = imageBitmap  // Utilisation de la vignette (bitmap déjà chargé)
+                val previewBitmap = imageBitmapMap[linkedPath]
 
                 if (previewBitmap == null) {
-                    Log.d("DrawingView", "Aucune vignette disponible.")
-                    // Afficher le texte "Pas d’aperçu" si pas de vignette
                     val paintText = Paint().apply {
                         color = Color.WHITE
                         textSize = 30f
                         textAlign = Paint.Align.CENTER
                     }
-                    canvas.drawText(
-                        "Pas d’aperçu",
-                        absRect.centerX(),
-                        absRect.centerY(),
-                        paintText
-                    )
+                    canvas.drawText("Pas d'image liée", absRect.centerX(), absRect.centerY(), paintText)
                 } else {
-                    val previewSize = 150f // Taille fixe pour l'aperçu
+                    val previewSize = 150f // Taille fixe de l'aperçu
                     val centerX = absRect.centerX()
                     val centerY = absRect.centerY()
                     val left = centerX - previewSize / 2
