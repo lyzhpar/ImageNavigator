@@ -98,6 +98,13 @@ class EditorActivity : AppCompatActivity() {
     // Quand une image est sélectionnée
     private fun onImageSelected(bitmap: Bitmap, fullPath: String) {
         if (binding.drawingView.isSpotlightActive()) {
+            // Si en mode spotlight, vérifier le cache
+            val linkedImagePath = fullPath
+            if (imageBitmapMap.containsKey(linkedImagePath)) {
+                binding.drawingView.imageBitmap = imageBitmapMap[linkedImagePath]
+            } else {
+                Log.e("EditorActivity", "Image liée introuvable dans le cache pour le chemin : $linkedImagePath")
+            }
             // Si on est en mode spotlight, on assigne l'image à la zone sélectionnée
             binding.drawingView.assignLinkedImageToSelectedZone(fullPath)
             binding.drawingView.clearSpotlight()
@@ -145,7 +152,13 @@ class EditorActivity : AppCompatActivity() {
     private suspend fun loadBitmapFromUri(uri: Uri): Bitmap? {
         return try {
             val inputStream = contentResolver.openInputStream(uri)
-            BitmapFactory.decodeStream(inputStream)
+            val bitmap = BitmapFactory.decodeStream(inputStream)
+            if (bitmap != null) {
+                // Ajouter au cache
+                imageBitmapMap[uri.toString()] = bitmap
+                Log.d("EditorActivity", "Image ajoutée au cache : ${uri.toString()}")
+            }
+            bitmap
         } catch (e: Exception) {
             Log.e("EditorActivity", "Erreur lors du chargement de l'image à partir de l'URI : $uri", e)
             null
