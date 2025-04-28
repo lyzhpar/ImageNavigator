@@ -275,7 +275,7 @@ class EditorActivity : AppCompatActivity() {
         selectionInfoContainer = bottomBarView.findViewById(R.id.selectionInfoContainer)
 
         bottomBarView.findViewById<Button>(R.id.buttonImportFolder).setOnClickListener {
-            folderPickerLauncher.launch(null)
+            openFolderPicker()
         }
         bottomBarView.findViewById<Button>(R.id.buttonImportImage).setOnClickListener {
             Toast.makeText(this, "Import d'une seule image à compléter", Toast.LENGTH_SHORT).show()
@@ -309,6 +309,11 @@ class EditorActivity : AppCompatActivity() {
 
 // --- FONCTIONS UTILITAIRES ---
 
+    private fun openFolderPicker() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+        folderPickerLauncher.launch(intent)
+    }
+
     private fun promptAdventureName() {
         val builder = AlertDialog.Builder(this)
         builder.setTitle("Nouvelle aventure")
@@ -327,7 +332,7 @@ class EditorActivity : AppCompatActivity() {
             } else {
                 currentAdventureName = name
                 adventureNameTextView.text = currentAdventureName
-                folderPickerLauncher.launch(null)
+                openFolderPicker()
             }
         }
 
