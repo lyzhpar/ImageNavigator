@@ -35,7 +35,7 @@ class NavigatorActivity : AppCompatActivity() {
         // Créer une zone cliquable fictive
         val demoZone = Zone(
             rect = android.graphics.RectF(0.3f, 0.3f, 0.6f, 0.6f), // coordonnées relatives
-            targetImageName = null,
+            linkedImagePath = null,
             audioFileName = null
         )
 

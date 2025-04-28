@@ -96,9 +96,16 @@ class EditorActivity : AppCompatActivity() {
 
     // Quand une image est sélectionnée
     private fun onImageSelected(bitmap: Bitmap, fullPath: String) {
-        currentImageName = fullPath
-        binding.drawingView.imageBitmap = bitmap
-        binding.drawingView.setZonesForCurrentImage(imageDataMap[fullPath] ?: emptyList())
+        if (binding.drawingView.isSpotlightActive()) {
+            // Si on est en mode spotlight, on assigne l'image à la zone sélectionnée
+            binding.drawingView.assignLinkedImageToSelectedZone(fullPath)
+            binding.drawingView.clearSpotlight()
+        } else {
+            // Sinon, on change d'image normalement
+            currentImageName = fullPath
+            binding.drawingView.imageBitmap = bitmap
+            binding.drawingView.setZonesForCurrentImage(imageDataMap[fullPath] ?: emptyList())
+        }
     }
 
     // Quand l'utilisateur demande de renommer un groupe

@@ -9,7 +9,7 @@ import kotlinx.parcelize.Parcelize
  */
 @Parcelize
 data class Zone(
-    val rect: RectF,                 // coordonnées relatives (0f → 1f)
-    val targetImageName: String?,   // image cible (si cliqué)
-    val audioFileName: String?      // son à jouer au clic (optionnel)
+    var rect: RectF,                 // coordonnées relatives (0f → 1f)
+    var linkedImagePath: String? = null,   // image cible (si cliqué)
+    var audioFileName: String?= null      // son à jouer au clic (optionnel)
 ) : Parcelable
