@@ -29,6 +29,9 @@ class ImageAdapter(
     private var isSelectionMode = false
     private val selectedItems = mutableSetOf<String>()
 
+    // Ajout de la variable linkedImagePaths pour les images liées à une zone
+    var linkedImagePaths: Set<String> = emptySet()
+
     sealed class DisplayItem {
         abstract val fullPath: String
         data class ImageItem(val bitmap: Bitmap, override val fullPath: String) : DisplayItem()
@@ -110,16 +113,23 @@ class ImageAdapter(
                 holder.bind(item as DisplayItem.GroupItem)
                 holder.itemView.setOnLongClickListener {
                     Log.d("ImageAdapter", "Long press sur : ${item.fullPath}")
-                    onItemLongPress(item as DisplayItem.GroupItem) // Assure-toi que l'élément long-pressé est passé à cette fonction
-                    true // Pour marquer que l'événement long click est consommé
+                    onItemLongPress(item as DisplayItem.GroupItem)
+                    true
                 }
             }
             is ImageViewHolder -> {
                 holder.bind(item as DisplayItem.ImageItem)
                 holder.itemView.setOnLongClickListener {
                     Log.d("ImageAdapter", "Long press sur : ${item.fullPath}")
-                    onItemLongPress(item as DisplayItem.ImageItem) // Assure-toi que l'élément long-pressé est passé à cette fonction
-                    true // Pour marquer que l'événement long click est consommé
+                    onItemLongPress(item as DisplayItem.ImageItem)
+                    true
+                }
+
+                // Appliquer un filtre vert à la vignette de l'image si elle est liée à une zone
+                if (linkedImagePaths.contains(item.fullPath)) {
+                    holder.imageView.setColorFilter(Color.parseColor("#8000FF00")) // Filtre vert
+                } else {
+                    holder.imageView.clearColorFilter() // Retirer le filtre si non liée
                 }
             }
         }
@@ -211,7 +221,7 @@ class ImageAdapter(
         }
     }
     inner class ImageViewHolder(view: View) : RecyclerView.ViewHolder(view) {
-        private val imageView: ImageView = view.findViewById(R.id.image_view)
+        val imageView: ImageView = view.findViewById(R.id.image_view)
         private val checkbox: ImageView = view.findViewById(R.id.checkbox)  // La coche pour l'image
 
         fun bind(item: DisplayItem) {

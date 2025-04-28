@@ -293,31 +293,20 @@ class DrawingView @JvmOverloads constructor(
         return RectF(left, top, left + scaledWidth, top + scaledHeight)
     }
 
-     // Associe une image liée à la zone sélectionnée et force le rafraîchissement.
-     fun assignLinkedImageToSelectedZone(imagePath: String) {
-         selectedZone?.let {
-             it.linkedImagePath = imagePath
-             Log.d("DrawingView", "Image liée : ${it.linkedImagePath}")
-             Log.d("DrawingView", "Image liée au chemin : ${it.linkedImagePath}")
-
-
-             // Ajouter l'image à la carte des images et la redessiner
-             val bitmap = BitmapFactory.decodeFile(imagePath)
-             if (bitmap != null) {
-                 imageBitmapMap[imagePath] = bitmap
-                 Log.d("DrawingView", "Image ajoutée au cache : $imagePath, bitmap: $bitmap")
-             }
-             bitmap?.let {
-                 imageBitmapMap[imagePath] = it
-             }
-
-             // Garder le spotlight ouvert après l'association de l'image
-             spotlightActive = true
-             invalidate()  // Redessiner la vue pour afficher l'image liée
-         } ?: run {
-             Log.d("DrawingView", "Aucune zone sélectionnée pour l'image.")
-         }
-     }
+    /**
+     * Associe simplement le chemin de l'image liée à la zone sélectionnée.
+     * Ne modifie pas l'affichage dans le DrawingView.
+     * L'affichage (filtre vert sur la vignette) est géré dans l'adapter des images.
+     */
+    fun assignLinkedImageToSelectedZone(imagePath: String) {
+        selectedZone?.let {
+            it.linkedImagePath = imagePath
+            Log.d("DrawingView", "Image liée à la zone : ${it.linkedImagePath}")
+            // Ne rien faire d'autre ici, l'affichage de la zone ne change pas dans le DrawingView.
+        } ?: run {
+            Log.d("DrawingView", "Aucune zone sélectionnée pour lier l'image.")
+        }
+    }
 
     /**
      * Vérifie si l'image liée à la zone sélectionnée existe.
