@@ -37,6 +37,9 @@ import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.*
 import java.io.File
 import android.view.inputmethod.InputMethodManager
+import com.bumptech.glide.load.engine.GlideException
+
+
 
 class EditorActivity : AppCompatActivity() {
 
@@ -522,6 +525,10 @@ class EditorActivity : AppCompatActivity() {
 
     private fun loadImagesFromFolder(uri: Uri) {
         Log.d("EditorActivity", "Loading images from folder: $uri")
+
+        // Activer les logs de Glide pour observer les détails du cache
+        //Glide.get(this).setLogLevel(Log.DEBUG)
+
         val skippedFiles = mutableListOf<String>()
         binding.loadingOverlay.isVisible = true
         imageLoadingScope.launch {
@@ -540,6 +547,7 @@ class EditorActivity : AppCompatActivity() {
                     if (isValidImage(file) && fullPath !in seenPaths) {
                         allImageFiles.add(file to fullPath)
                         seenPaths.add(fullPath)
+                        Log.d("EditorActivity", "Image found: $fullPath")  // Log pour chaque image trouvée
                     }
                 }
             }
@@ -568,9 +576,14 @@ class EditorActivity : AppCompatActivity() {
                                 .get()
                         }
                         imageBitmapMap[fullPath] = bitmap
+                        Log.d("DrawingView", "Image ajoutée au cache : $fullPath")
                         imageDataMap[fullPath] = mutableListOf()  // Initialiser les zones vides
+
+                        // Log de succès pour chaque image chargée
+                        Log.d("EditorActivity", "Image loaded successfully: $fullPath")
                     } catch (e: Exception) {
                         skippedFiles.add(fullPath)
+                        Log.e("EditorActivity", "Failed to load image: $fullPath", e)  // Log d'erreur en cas d'échec
                     }
                 }
                 withContext(Dispatchers.Main) {
