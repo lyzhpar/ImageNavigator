@@ -233,7 +233,6 @@ class DrawingView @JvmOverloads constructor(
                                 spotlightActive = true
                                 overlayAlpha = 192
                                 Log.d("DrawingView", "Spotlight activé sur zone : ${zone.rect.left}, ${zone.rect.top}, ${zone.rect.right}, ${zone.rect.bottom}")
-                                startFadeOut()
                                 invalidate()
                                 foundZone = true
                                 break
@@ -265,13 +264,6 @@ class DrawingView @JvmOverloads constructor(
         return true
     }
 
-    private fun startFadeOut() {
-        fadeHandler.postDelayed({
-            spotlightActive = false
-            selectedZone = null
-            invalidate()
-        }, 2000) // 2 secondes
-    }
 
     /**
      * Calcule la zone de l'écran où l'image est affichée.
