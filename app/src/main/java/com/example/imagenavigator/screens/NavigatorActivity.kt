@@ -1,55 +1,63 @@
-package com.example.imagenavigator.screens
+package com.example.imagenavigator
 
-import android.content.pm.ActivityInfo
-import android.graphics.BitmapFactory
+import android.net.Uri
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
-import com.example.imagenavigator.R
+import com.bumptech.glide.Glide
 import com.example.imagenavigator.databinding.ActivityNavigatorBinding
-import com.example.imagenavigator.model.Zone
-import android.content.res.Configuration
-import android.util.Log
-import android.widget.Toast
+import com.example.imagenavigator.model.Adventure
+import com.google.gson.Gson
+import java.io.InputStreamReader
 
-/**
- * Activité qui affiche une image en plein écran avec des zones cliquables.
- */
 class NavigatorActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityNavigatorBinding
+
+    private lateinit var adventure: Adventure
+    private lateinit var folderUri: Uri
+    private var currentImageName: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityNavigatorBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Afficher un bouton de retour discret
-        binding.backButton.setOnClickListener {
-            finish() // Ferme simplement l'activité
+        // Charger l'aventure (exemple : depuis un Intent avec l'URI du JSON)
+        val jsonUri = intent.getParcelableExtra<Uri>("adventureJsonUri")
+        if (jsonUri != null) {
+            loadAdventure(jsonUri)
+        } else {
+            // TODO: Gérer le cas où aucun fichier JSON n'est fourni
         }
-
-        // Charger une image de test depuis drawable
-        val image = BitmapFactory.decodeResource(resources, R.drawable.test_image)
-        binding.drawingView.imageBitmap = image
-
-        // Créer une zone cliquable fictive
-        val demoZone = Zone(
-            rect = android.graphics.RectF(0.3f, 0.3f, 0.6f, 0.6f), // coordonnées relatives
-            linkedImagePath = null,
-            audioFileName = null
-        )
-
-        // Affecter les zones à dessiner
-        binding.drawingView.zones.clear()
-        binding.drawingView.zones.add(demoZone)
-        binding.drawingView.invalidate()
     }
 
-    override fun onConfigurationChanged(newConfig: Configuration) {
-        super.onConfigurationChanged(newConfig)
-        Log.d("CONFIG_CHANGE", "Orientation changed to: ${newConfig.orientation}")
-        if (newConfig.orientation == Configuration.ORIENTATION_PORTRAIT) {
-            Toast.makeText(this, "L'application fonctionne uniquement en mode paysage.", Toast.LENGTH_SHORT).show()
+    private fun loadAdventure(jsonUri: Uri) {
+        try {
+            val inputStream = contentResolver.openInputStream(jsonUri)
+            val reader = InputStreamReader(inputStream)
+            adventure = Gson().fromJson(reader, Adventure::class.java)
+            reader.close()
+
+            folderUri = Uri.parse(adventure.folderUri)
+            // On démarre sur la première image de la liste
+            currentImageName = adventure.images.firstOrNull()?.imageName
+
+            showCurrentImage()
+
+        } catch (e: Exception) {
+            e.printStackTrace()
+            // TODO: Gérer l'erreur (ex: afficher un message d'erreur)
+        }
+    }
+
+    private fun showCurrentImage() {
+        currentImageName?.let { imageName ->
+            val imageUri = Uri.withAppendedPath(folderUri, Uri.encode(imageName))
+            Glide.with(this)
+                .load(imageUri)
+                .into(binding.imageView)
+
+            // TODO : mettre à jour OverlayView pour afficher les zones cliquables
         }
     }
 }
