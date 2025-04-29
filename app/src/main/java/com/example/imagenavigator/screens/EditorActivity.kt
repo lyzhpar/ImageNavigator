@@ -83,23 +83,23 @@ class EditorActivity : AppCompatActivity() {
 
     // Demander l'accès au dossier
     private fun requestFolderAccess(uri: Uri) {
-        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
-        intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, uri)
-        folderPickerLauncher.launch(intent)
+        // Charger directement les images depuis le dossier sans relancer de sélecteur
+        loadImagesFromFolder(uri)
     }
 
     // Sélecteur de dossier
-    private val folderPickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val uri = result.data?.data
-            if (uri != null) {
-                // On a l'URI du dossier, on peut maintenant l'utiliser
-                currentFolderUri = uri
-                // Charger les images avec cette URI
-                loadImagesFromFolder(uri)
+    private val folderPickerLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == Activity.RESULT_OK) {
+                val uri = result.data?.data
+                if (uri != null) {
+                    // On a l'URI du dossier, on peut maintenant l'utiliser
+                    currentFolderUri = uri
+                    // Charger les images avec cette URI
+                    loadImagesFromFolder(uri)
+                }
             }
         }
-    }
 
     // Quand une image est sélectionnée
     private fun onImageSelected(bitmap: Bitmap, fullPath: String) {
@@ -109,7 +109,10 @@ class EditorActivity : AppCompatActivity() {
             if (imageBitmapMap.containsKey(linkedImagePath)) {
                 binding.drawingView.imageBitmap = imageBitmapMap[linkedImagePath]
             } else {
-                Log.e("EditorActivity", "Image liée introuvable dans le cache pour le chemin : $linkedImagePath")
+                Log.e(
+                    "EditorActivity",
+                    "Image liée introuvable dans le cache pour le chemin : $linkedImagePath"
+                )
             }
             // Si on est en mode spotlight, on assigne l'image à la zone sélectionnée
             binding.drawingView.assignLinkedImageToSelectedZone(fullPath)
@@ -146,7 +149,10 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun getUriForImage(path: String): Uri? {
-        val adventureFolder = File(filesDir, "adventures") // Assurez-vous que ce dossier existe et contient les images
+        val adventureFolder = File(
+            filesDir,
+            "adventures"
+        ) // Assurez-vous que ce dossier existe et contient les images
         val imageFile = File(adventureFolder, path)
         return if (imageFile.exists()) {
             Uri.fromFile(imageFile)
@@ -156,7 +162,8 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private suspend fun loadBitmapFromUri(uri: Uri): Bitmap? {
-        val screenSize = resources.displayMetrics.widthPixels.coerceAtLeast(resources.displayMetrics.heightPixels)
+        val screenSize =
+            resources.displayMetrics.widthPixels.coerceAtLeast(resources.displayMetrics.heightPixels)
         return try {
             withContext(Dispatchers.IO) {
                 Glide.with(this@EditorActivity)
@@ -171,7 +178,11 @@ class EditorActivity : AppCompatActivity() {
                     .get()
             }
         } catch (e: Exception) {
-            Log.e("EditorActivity", "Erreur lors du chargement de l'image à partir de l'URI : $uri", e)
+            Log.e(
+                "EditorActivity",
+                "Erreur lors du chargement de l'image à partir de l'URI : $uri",
+                e
+            )
             null
         }
     }
@@ -198,8 +209,10 @@ class EditorActivity : AppCompatActivity() {
             val folderUriString = adventureData.folderUri
             if (folderUriString != null) {
                 currentFolderUri = Uri.parse(folderUriString)
-                // Charger les images depuis le dossier
-                requestFolderAccess(currentFolderUri!!)  // Demander l'accès si l'URI est valide
+                // Charger les images depuis le dossier si l'URI est valide
+                currentFolderUri?.let {
+                    requestFolderAccess(it)
+                }
             } else {
                 Toast.makeText(this, "Dossier d'images non sauvegardé.", Toast.LENGTH_SHORT).show()
                 return
@@ -210,7 +223,6 @@ class EditorActivity : AppCompatActivity() {
 
             // Initialiser les maps pour les images et les zones
             imageBitmapMap.clear()
-            imageDataMap.clear()
 
             // Charger les images dans l'interface
             imageLoadingScope.launch(Dispatchers.Main) {
@@ -237,7 +249,6 @@ class EditorActivity : AppCompatActivity() {
             promptAdventureName()
         }
     }
-
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -313,7 +324,7 @@ class EditorActivity : AppCompatActivity() {
             openFolderPicker()
         }
         bottomBarView.findViewById<Button>(R.id.buttonImportImage).setOnClickListener {
-            Toast.makeText(this, "Import d'une seule image à compléter", Toast.LENGTH_SHORT).show()
+            TODO("À implémenter")
         }
 
         // Bouton Supprimer
@@ -394,7 +405,8 @@ class EditorActivity : AppCompatActivity() {
         val file = File(filesDir, "${currentAdventureName}_zones.json")
         file.writeText(json)
 
-        Snackbar.make(findViewById(android.R.id.content),
+        Snackbar.make(
+            findViewById(android.R.id.content),
             "Aventure sauvegardée : $currentAdventureName",
             Snackbar.LENGTH_SHORT
         ).show()
@@ -563,7 +575,10 @@ class EditorActivity : AppCompatActivity() {
                     if (isValidImage(file) && fullPath !in seenPaths) {
                         allImageFiles.add(file to fullPath)
                         seenPaths.add(fullPath)
-                        Log.d("EditorActivity", "Image found: $fullPath")  // Log pour chaque image trouvée
+                        Log.d(
+                            "EditorActivity",
+                            "Image found: $fullPath"
+                        )  // Log pour chaque image trouvée
                     }
                 }
             }
@@ -599,8 +614,13 @@ class EditorActivity : AppCompatActivity() {
                         Log.d("EditorActivity", "Image loaded successfully: $fullPath")
                     } catch (e: Exception) {
                         skippedFiles.add(fullPath)
-                        Log.e("EditorActivity", "Failed to load image: $fullPath", e)  // Log d'erreur en cas d'échec
+                        Log.e(
+                            "EditorActivity",
+                            "Failed to load image: $fullPath",
+                            e
+                        )  // Log d'erreur en cas d'échec
                     }
+                    loadedImagesCount++ // Incrémenter pour l'affichage du chargement
                 }
                 withContext(Dispatchers.Main) {
                     val allImages = imageBitmapMap.map { (path, bitmap) -> bitmap to path }
@@ -613,7 +633,11 @@ class EditorActivity : AppCompatActivity() {
             withContext(Dispatchers.Main) {
                 binding.loadingOverlay.isVisible = false
                 if (skippedFiles.isNotEmpty()) {
-                    Toast.makeText(this@EditorActivity, "Certaines images n'ont pas été chargées.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        this@EditorActivity,
+                        "Certaines images n'ont pas été chargées.",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
                 updateBottomBarInfo(isLoading = false)  // Mise à jour de la barre inférieure
             }
@@ -625,6 +649,7 @@ class EditorActivity : AppCompatActivity() {
     private fun updateLoadingProgress() {
         imagesInfoText.text = "Chargement : $loadedImagesCount/$totalImagesToLoad images"
     }
+
     private fun isValidImage(file: DocumentFile): Boolean {
         val name = file.name?.lowercase() ?: return false
         val validExtensions = setOf("jpg", "jpeg", "png", "webp", "bmp", "gif")
@@ -633,26 +658,6 @@ class EditorActivity : AppCompatActivity() {
         return (mimeType?.startsWith("image/") == true) && ext in validExtensions
     }
 
-    private fun setupRecyclerViewLazyLoading() {
-        binding.recyclerViewThumbnails.clearOnScrollListeners()
-        binding.recyclerViewThumbnails.addOnScrollListener(object : androidx.recyclerview.widget.RecyclerView.OnScrollListener() {
-            override fun onScrolled(recyclerView: androidx.recyclerview.widget.RecyclerView, dx: Int, dy: Int) {
-                val layoutManager = recyclerView.layoutManager as? LinearLayoutManager ?: return
-                val totalItemCount = layoutManager.itemCount
-                val lastVisibleItem = layoutManager.findLastVisibleItemPosition()
-                if (totalItemCount - lastVisibleItem <= 3) {
-                    loadNextImageBatchIfNeeded()
-                }
-            }
-        })
-    }
-
-    private fun loadNextImageBatchIfNeeded() {
-        if (isLoadingBatch) return
-        isLoadingBatch = true
-        // Future extension possible
-        isLoadingBatch = false
-    }
 
     private fun generateAdventureData(): Adventure {
         val imagesList = imageDataMap.map { (path, zones) ->
@@ -683,7 +688,8 @@ class EditorActivity : AppCompatActivity() {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
             window.insetsController?.let {
                 it.hide(android.view.WindowInsets.Type.systemBars())
-                it.systemBarsBehavior = android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                it.systemBarsBehavior =
+                    android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             }
         } else {
             @Suppress("DEPRECATION")
@@ -696,4 +702,10 @@ class EditorActivity : AppCompatActivity() {
                             or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
                     )
         }
-    }}
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        imageLoadingScope.cancel()
+    }
+}
