@@ -5,7 +5,7 @@ import android.util.Log
 
 data class ImageGroup(
     val name: String,
-    val images: List<Pair<Bitmap, String>> = listOf(),
+    val images: MutableList<Pair<Bitmap, String>>,
     val children: List<ImageGroup> = listOf(),
     val fullPath: String? = null
 ) {

@@ -61,6 +61,11 @@ class ImageAdapter(
         notifyDataSetChanged()
     }
 
+    fun addImage(bitmap: Bitmap, fullPath: String) {
+        // Cette méthode n'est plus utilisée de la même façon, voir EditorActivity.kt pour la reconstruction dynamique
+        // Laissez ce stub pour compatibilité éventuelle
+    }
+
     private fun flattenGroups(groups: List<ImageGroup>, level: Int = 0): List<DisplayItem> {
         val result = mutableListOf<DisplayItem>()
         val sortedGroups = groups.sortedWith(compareBy({ it.name != "Racine" }, { it.name }))
@@ -262,3 +267,4 @@ class ImageAdapter(
         }
     }
 }
+

@@ -557,6 +557,7 @@ class EditorActivity : AppCompatActivity() {
     private fun loadImagesFromFolder(uri: Uri) {
         Log.d("EditorActivity", "Loading images from folder: $uri")
 
+        var firstImageLoaded = false
         val skippedFiles = mutableListOf<String>()
         binding.loadingOverlay.isVisible = true
         imageLoadingScope.launch {
@@ -579,6 +580,32 @@ class EditorActivity : AppCompatActivity() {
                             "EditorActivity",
                             "Image found: $fullPath"
                         )  // Log pour chaque image trouvée
+                        // Démarrer immédiatement le chargement de la première image trouvée
+                        if (!firstImageLoaded) {
+                            firstImageLoaded = true
+                            imageLoadingScope.launch {
+                                try {
+                                    val bitmap = withContext(Dispatchers.IO) {
+                                        Glide.with(this@EditorActivity)
+                                            .asBitmap()
+                                            .load(file.uri)
+                                            .apply(RequestOptions().diskCacheStrategy(DiskCacheStrategy.ALL))
+                                            .submit()
+                                            .get()
+                                    }
+                                    imageBitmapMap[fullPath] = bitmap
+                                    imageDataMap[fullPath] = mutableListOf()
+                                    loadedImagesCount++
+                                    withContext(Dispatchers.Main) {
+                                        imageRootNode = ImageGroupTreeBuilder.buildImageGroupTree(imageBitmapMap.map { (path, bmp) -> bmp to path })
+                                        imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
+                                        updateLoadingProgress()
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e("EditorActivity", "Erreur au chargement anticipé de la première image", e)
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -593,7 +620,7 @@ class EditorActivity : AppCompatActivity() {
             imageBitmapMap.clear()
             imageDataMap.clear()
 
-            // Charger les images en batch
+            // Chargement image par image, mise à jour UI à chaque ajout
             val batches = allImageFiles.chunked(imagesPerBatch)
             for (batch in batches) {
                 batch.forEach { (file, fullPath) ->
@@ -612,6 +639,13 @@ class EditorActivity : AppCompatActivity() {
 
                         // Log de succès pour chaque image chargée
                         Log.d("EditorActivity", "Image loaded successfully: $fullPath")
+                        loadedImagesCount++ // Incrémenter pour l'affichage du chargement
+                        withContext(Dispatchers.Main) {
+                            // Reconstruction dynamique de l’arborescence
+                            imageRootNode = ImageGroupTreeBuilder.buildImageGroupTree(imageBitmapMap.map { (path, bmp) -> bmp to path })
+                            imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
+                            updateLoadingProgress()
+                        }
                     } catch (e: Exception) {
                         skippedFiles.add(fullPath)
                         Log.e(
@@ -619,14 +653,11 @@ class EditorActivity : AppCompatActivity() {
                             "Failed to load image: $fullPath",
                             e
                         )  // Log d'erreur en cas d'échec
+                        loadedImagesCount++ // Même si échec, on incrémente pour la barre de chargement
+                        withContext(Dispatchers.Main) {
+                            updateLoadingProgress()
+                        }
                     }
-                    loadedImagesCount++ // Incrémenter pour l'affichage du chargement
-                }
-                withContext(Dispatchers.Main) {
-                    val allImages = imageBitmapMap.map { (path, bitmap) -> bitmap to path }
-                    imageRootNode = ImageGroupTreeBuilder.buildImageGroupTree(allImages)
-                    imageAdapter.updateData(ImageGroup.fromTree(imageRootNode)) // Mettre à jour l'adaptateur
-                    updateLoadingProgress() // Mettre à jour le pourcentage de chargement
                 }
             }
 
