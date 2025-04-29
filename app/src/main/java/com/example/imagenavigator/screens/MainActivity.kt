@@ -28,9 +28,21 @@ class MainActivity : AppCompatActivity() {
         // Initialiser l'adapter (onAdventureClick)
         adventureAdapter = AdventureAdapter(
             onAdventureClick = { adventureName ->
-                val intent = Intent(this, NavigatorActivity::class.java)
-                intent.putExtra("adventureName", adventureName)
-                startActivity(intent)
+                val file = File(filesDir, "${adventureName}_zones.json")
+                if (file.exists()) {
+                    val fileUri = androidx.core.content.FileProvider.getUriForFile(
+                        this,
+                        "${packageName}.fileprovider",
+                        file
+                    )
+
+                    val intent = Intent(this, NavigatorActivity::class.java)
+                    intent.putExtra("adventureJsonUri", fileUri)
+                    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) // Très important pour donner accès au fichier
+                    startActivity(intent)
+                } else {
+                    Toast.makeText(this, "Fichier d'aventure introuvable.", Toast.LENGTH_SHORT).show()
+                }
             },
             onAdventureEdit = { adventureName ->
                 val intent = Intent(this, EditorActivity::class.java)

@@ -8,6 +8,8 @@
     <string name="nom_aventure">Nom de l\'aventure</string>
     <string name="save_adventure">Sauvegarder l\'aventure</string>
     <string name="rename_adventure">Renommer l\'aventure</string>
+    <string name="back">Retour arrière</string>
+
 
 
 </resources>
