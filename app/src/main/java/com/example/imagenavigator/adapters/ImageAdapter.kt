@@ -62,8 +62,28 @@ class ImageAdapter(
     }
 
     fun addImage(bitmap: Bitmap, fullPath: String) {
-        // Cette méthode n'est plus utilisée de la même façon, voir EditorActivity.kt pour la reconstruction dynamique
-        // Laissez ce stub pour compatibilité éventuelle
+        // Déduire le nom du groupe principal (premier dossier du chemin)
+        val mainGroupName = fullPath.substringBefore("/", "Racine")
+        var group = rootGroups.find { it.name == mainGroupName }
+
+        if (group == null) {
+            group = ImageGroup(name = mainGroupName, images = mutableListOf(), fullPath = mainGroupName)
+            rootGroups = rootGroups + group
+        }
+
+        // Ajouter l'image au groupe
+        group.images.add(bitmap to fullPath)
+
+        // Mettre à jour la liste aplatie pour l'affichage
+        displayItems = flattenGroups(rootGroups)
+
+        // Trouver la position d'insertion pour animer l'ajout
+        val index = displayItems.indexOfLast { it is DisplayItem.ImageItem && it.fullPath == fullPath }
+        if (index != -1) {
+            notifyItemInserted(index)
+        } else {
+            notifyDataSetChanged()
+        }
     }
 
     private fun flattenGroups(groups: List<ImageGroup>, level: Int = 0): List<DisplayItem> {

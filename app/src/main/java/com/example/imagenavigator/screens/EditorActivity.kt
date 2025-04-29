@@ -41,6 +41,7 @@ import com.example.imagenavigator.model.Adventure
 import com.example.imagenavigator.model.ImageData
 import com.example.imagenavigator.model.toZone
 import com.example.imagenavigator.model.toZoneData
+import android.widget.ProgressBar
 
 
 
@@ -79,6 +80,7 @@ class EditorActivity : AppCompatActivity() {
     private var loadedImagesCount = 0
 
     private var currentFolderUri: Uri? = null
+    private lateinit var loadingProgressBar: ProgressBar
 
 
     // Demander l'accès au dossier
@@ -255,6 +257,8 @@ class EditorActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityEditorBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        loadingProgressBar = findViewById(R.id.progressBarLoading)
 
         // Adapter images
         imageAdapter = ImageAdapter(
@@ -559,7 +563,6 @@ class EditorActivity : AppCompatActivity() {
 
         var firstImageLoaded = false
         val skippedFiles = mutableListOf<String>()
-        binding.loadingOverlay.isVisible = true
         imageLoadingScope.launch {
             val folder = DocumentFile.fromTreeUri(this@EditorActivity, uri) ?: return@launch
             val allImageFiles = mutableListOf<Pair<DocumentFile, String>>()
@@ -597,8 +600,7 @@ class EditorActivity : AppCompatActivity() {
                                     imageDataMap[fullPath] = mutableListOf()
                                     loadedImagesCount++
                                     withContext(Dispatchers.Main) {
-                                        imageRootNode = ImageGroupTreeBuilder.buildImageGroupTree(imageBitmapMap.map { (path, bmp) -> bmp to path })
-                                        imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
+                                        imageAdapter.addImage(bitmap, fullPath)
                                         updateLoadingProgress()
                                     }
                                 } catch (e: Exception) {
@@ -611,7 +613,11 @@ class EditorActivity : AppCompatActivity() {
             }
 
             folder.listFiles()?.forEach { traverse(it) }
-            allImageFiles.sortBy { it.second }
+            // Tri par profondeur puis ordre alphabétique
+            allImageFiles.sortWith(compareBy(
+                { it.second.count { c -> c == '/' } },
+                { it.second }
+            ))
 
             totalImagesToLoad = allImageFiles.size
             loadedImagesCount = 0
@@ -662,7 +668,8 @@ class EditorActivity : AppCompatActivity() {
             }
 
             withContext(Dispatchers.Main) {
-                binding.loadingOverlay.isVisible = false
+                //binding.loadingOverlay.isVisible = false
+                loadingProgressBar.visibility = View.GONE
                 if (skippedFiles.isNotEmpty()) {
                     Toast.makeText(
                         this@EditorActivity,
@@ -673,12 +680,21 @@ class EditorActivity : AppCompatActivity() {
                 updateBottomBarInfo(isLoading = false)  // Mise à jour de la barre inférieure
             }
         }
+        // SUPPRIMÉ : loadingProgressBar.visibility = View.GONE
     }
 
 
-    // 🆕 Nouvelle fonction :
     private fun updateLoadingProgress() {
-        imagesInfoText.text = "Chargement : $loadedImagesCount/$totalImagesToLoad images"
+        if (!::imagesInfoText.isInitialized) return
+
+        if (totalImagesToLoad > 0) {
+            val progressPercent = (loadedImagesCount * 100) / totalImagesToLoad
+            loadingProgressBar.progress = progressPercent
+            loadingProgressBar.visibility = View.VISIBLE
+            imagesInfoText.text = "Chargement : $loadedImagesCount/$totalImagesToLoad images"
+        } else {
+            loadingProgressBar.visibility = View.GONE
+        }
     }
 
     private fun isValidImage(file: DocumentFile): Boolean {
