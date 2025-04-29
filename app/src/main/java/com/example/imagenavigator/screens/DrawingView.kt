@@ -10,6 +10,7 @@ import android.util.Log
 import android.view.GestureDetector
 import android.os.Handler
 import android.os.Looper
+import kotlin.math.absoluteValue
 
 /**
  * Vue personnalisée qui permet d'afficher une image et de dessiner des zones rectangulaires
@@ -18,6 +19,8 @@ import android.os.Looper
 class DrawingView @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null
 ) : View(context, attrs) {
+
+    private var justDeletedZones = false
 
     init {
         isClickable = true
@@ -44,6 +47,12 @@ class DrawingView @JvmOverloads constructor(
     // Map pour associer les chemins d'images aux bitmaps
     private val imageBitmapMap = mutableMapOf<String, Bitmap>()
 
+    private val selectedZonesMulti = mutableSetOf<Zone>()
+    fun clearSelectedZones() {
+        selectedZonesMulti.clear()
+        invalidate()
+    }
+
     /**
      * Charge une nouvelle liste de zones à afficher pour l'image courante.
      * Cela remplace toutes les zones actuellement affichées.
@@ -54,10 +63,11 @@ class DrawingView @JvmOverloads constructor(
         invalidate()
     }
 
+    fun getAllZones(): MutableList<Zone> = zones
+
     private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
         override fun onSingleTapUp(e: MotionEvent): Boolean {
             Log.d("DrawingView", "onSingleTapUp détecté")
-            Log.d("DrawingView", "Chemin de l'image dans le cache : ${imageBitmapMap.keys}")
             // Si spotlight actif, désactiver au tap simple
             if (spotlightActive) {
                 clearSpotlight()
@@ -68,8 +78,29 @@ class DrawingView @JvmOverloads constructor(
         }
 
         override fun onLongPress(e: MotionEvent) {
-            Log.d("DrawingView", "onLongPress détecté - appel performLongClick()")
-            performLongClick()
+            val bitmap = imageBitmap ?: return
+            val dstRect = getImageDisplayRect(bitmap)
+            val x = e.x.coerceIn(dstRect.left, dstRect.right)
+            val y = e.y.coerceIn(dstRect.top, dstRect.bottom)
+
+            for (zone in zones) {
+                val absLeft = dstRect.left + zone.rect.left * dstRect.width()
+                val absTop = dstRect.top + zone.rect.top * dstRect.height()
+                val absRight = dstRect.left + zone.rect.right * dstRect.width()
+                val absBottom = dstRect.top + zone.rect.bottom * dstRect.height()
+                val absRect = RectF(absLeft, absTop, absRight, absBottom)
+
+                if (absRect.contains(x, y)) {
+                    if (selectedZonesMulti.contains(zone)) {
+                        selectedZonesMulti.remove(zone)
+                    } else {
+                        selectedZonesMulti.add(zone)
+                    }
+                    (context as? EditorActivity)?.updateDeleteButtonVisibilityForZones()
+                    invalidate()
+                    break
+                }
+            }
         }
     })
 
@@ -93,9 +124,6 @@ class DrawingView @JvmOverloads constructor(
 
         Log.d("DrawingView", "onDraw avec bitmap = ${imageBitmap != null}")
 
-       // Log des images dans le cache
-       Log.d("DrawingView", "Images dans le cache : ${imageBitmapMap.keys}, Cache: $imageBitmapMap")
-
         val bitmap = imageBitmap ?: return
         val dstRect = getImageDisplayRect(bitmap)
 
@@ -111,8 +139,17 @@ class DrawingView @JvmOverloads constructor(
             val absBottom = dstRect.top + r.bottom * dstRect.height()
             val absRect = RectF(absLeft, absTop, absRight, absBottom)
 
-            canvas.drawRect(absRect, paintZone)
-            canvas.drawRect(absRect, paintBorder)
+            val zonePaint = Paint().apply {
+                color = when {
+                    selectedZonesMulti.contains(zone) -> Color.RED
+                    zone.linkedImagePath != null -> Color.GREEN
+                    else -> Color.LTGRAY
+                }
+                style = Paint.Style.FILL
+                alpha = if (zone == selectedZone && spotlightActive) 180 else 128
+            }
+
+            canvas.drawRect(absRect, zonePaint)
         }
 
         // Dessiner temporairement le rectangle qu'on est en train de tracer
@@ -142,54 +179,21 @@ class DrawingView @JvmOverloads constructor(
                xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
            }
            canvas.drawRect(absRect, clearPaint)
-
-           // Vérification de l'image liée dans le cache (imageBitmapMap)
-           selectedZone?.linkedImagePath?.let { linkedPath ->
-               Log.d("DrawingView", "Chemin de l'image liée : $linkedPath") // Log du chemin de l'image liée
-               val previewBitmap = imageBitmapMap[linkedPath]
-               if (previewBitmap == null) {
-                   Log.d("DrawingView", "Image liée introuvable dans le cache pour le chemin : $linkedPath")
-               } else {
-                   Log.d("DrawingView", "Image liée trouvée dans le cache pour le chemin : $linkedPath")
-               }
-
-               if (previewBitmap == null) {
-                   Log.d("DrawingView", "Image liée introuvable dans le cache.") // Log si l'image n'est pas dans le cache
-
-                   val paintText = Paint().apply {
-                       color = Color.WHITE
-                       textSize = 30f
-                       textAlign = Paint.Align.CENTER
-                   }
-                   canvas.drawText("Pas d'image liée", absRect.centerX(), absRect.centerY(), paintText)
-               } else {
-                   Log.d("DrawingView", "Affichage de l'aperçu de l'image liée.") // Log si l'image est dans le cache
-
-                   // Affichage de l'aperçu de l'image liée au centre du spotlight
-                   val previewSize = 150f // Taille fixe de l'aperçu
-                   val centerX = absRect.centerX()
-                   val centerY = absRect.centerY()
-                   val left = centerX - previewSize / 2
-                   val top = centerY - previewSize / 2
-                   val right = centerX + previewSize / 2
-                   val bottom = centerY + previewSize / 2
-
-                   val previewRect = RectF(left, top, right, bottom)
-
-                   val paintPreview = Paint().apply {
-                       alpha = 128 // 50% d'opacité
-                   }
-
-                   // Dessiner la vignette de l'image liée
-                   canvas.drawBitmap(previewBitmap, null, previewRect, paintPreview)
-               }
-           }
        }
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         Log.d("DrawingView", "onTouchEvent: ${event.action}, spotlightActive=$spotlightActive, selectedZone=$selectedZone")
+        if (event.action == MotionEvent.ACTION_DOWN && selectedZonesMulti.isNotEmpty()) {
+            clearSelectedZones()
+            (context as? EditorActivity)?.hideDeleteZonesButton()
+        }
         gestureDetector.onTouchEvent(event)
+
+        if (justDeletedZones) {
+            justDeletedZones = false
+            return true
+        }
 
         val bitmap = imageBitmap
         if (bitmap == null) {
@@ -198,6 +202,11 @@ class DrawingView @JvmOverloads constructor(
                     clearSpotlight()
                 }
             }
+            return true
+        }
+
+        if (selectedZonesMulti.isNotEmpty()) {
+            // Pas de spotlight en mode sélection multiple
             return true
         }
 
@@ -340,6 +349,48 @@ class DrawingView @JvmOverloads constructor(
         spotlightActive = false
         selectedZone = null
         invalidate()
+    }
+
+    fun deleteSelectedZones() {
+        Log.d("DeleteZones", "Sélection : ${selectedZonesMulti.size}, Zones : ${zones.size}")
+        if (selectedZonesMulti.isEmpty()) {
+            Log.d("DeleteZones", "Aucune zone sélectionnée.")
+            return
+        }
+
+        Log.d("DeleteZones", "Zones avant suppression: ${zones.size}")
+        Log.d("DeleteZones", "Zones sélectionnées: ${selectedZonesMulti.size}")
+
+        val selectedRects = selectedZonesMulti.map { it.rect }
+
+        val toRemove = zones.filter { zone ->
+            selectedRects.any { selectedRect ->
+                areRectsEqual(zone.rect, selectedRect)
+            }
+        }
+
+        Log.d("DeleteZones", "Zones à supprimer : $toRemove")
+        Log.d("DeleteZones", "Contenu exact des zones : $zones")
+        Log.d("DeleteZones", "Contenu exact des selectedZonesMulti : $selectedZonesMulti")
+        zones.removeAll(toRemove)
+        Log.d("DeleteZones", "zones.removeAll(toRemove) exécuté")
+
+        Log.d("DeleteZones", "Zones après suppression: ${zones.size}")
+
+        selectedZonesMulti.clear()
+        justDeletedZones = true
+        invalidate()
+    }
+
+    private fun areRectsEqual(rect1: RectF, rect2: RectF): Boolean {
+        return (rect1.left - rect2.left).absoluteValue < 0.01f &&
+                (rect1.top - rect2.top).absoluteValue < 0.01f &&
+                (rect1.right - rect2.right).absoluteValue < 0.01f &&
+                (rect1.bottom - rect2.bottom).absoluteValue < 0.01f
+    }
+
+    fun hasSelectedZones(): Boolean {
+        return selectedZonesMulti.isNotEmpty()
     }
 
 }

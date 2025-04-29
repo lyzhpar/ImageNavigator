@@ -68,6 +68,19 @@
         app:layout_constraintEnd_toEndOf="parent"
         android:elevation="5dp" />
 
+    <!-- 🟦 Delete Zones Button -->
+    <ImageButton
+        android:id="@+id/deleteZonesButton"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:backgroundTint="@color/design_default_color_error"
+        android:src="@android:drawable/ic_menu_delete"
+        android:contentDescription="Supprimer les zones"
+        android:visibility="gone"
+        android:layout_margin="16dp"
+        app:layout_constraintBottom_toTopOf="@id/bottomBar"
+        app:layout_constraintEnd_toEndOf="parent" />
+
     <!-- 🟩 BottomBar -->
     <include
         android:id="@+id/bottomBar"

@@ -42,8 +42,7 @@ import com.example.imagenavigator.model.ImageData
 import com.example.imagenavigator.model.toZone
 import com.example.imagenavigator.model.toZoneData
 import android.widget.ProgressBar
-
-
+import androidx.constraintlayout.widget.ConstraintLayout
 
 
 class EditorActivity : AppCompatActivity() {
@@ -72,6 +71,8 @@ class EditorActivity : AppCompatActivity() {
     private lateinit var selectedImagesCount: TextView
     private lateinit var selectedWorldsCount: TextView
     private lateinit var selectionInfoContainer: View
+
+    private lateinit var deleteZonesButton: ImageButton
 
     private val imageLoadingScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val imagesPerBatch = 10
@@ -106,21 +107,11 @@ class EditorActivity : AppCompatActivity() {
     // Quand une image est sélectionnée
     private fun onImageSelected(bitmap: Bitmap, fullPath: String) {
         if (binding.drawingView.isSpotlightActive()) {
-            // Si en mode spotlight, vérifier le cache
-            val linkedImagePath = fullPath
-            if (imageBitmapMap.containsKey(linkedImagePath)) {
-                binding.drawingView.imageBitmap = imageBitmapMap[linkedImagePath]
-            } else {
-                Log.e(
-                    "EditorActivity",
-                    "Image liée introuvable dans le cache pour le chemin : $linkedImagePath"
-                )
-            }
-            // Si on est en mode spotlight, on assigne l'image à la zone sélectionnée
+            // Mode Spotlight : lier l'image à la zone sélectionnée sans changer l'image affichée
             binding.drawingView.assignLinkedImageToSelectedZone(fullPath)
             binding.drawingView.clearSpotlight()
         } else {
-            // Sinon, on change d'image normalement
+            // Mode normal : changer l'image affichée
             currentImageName = fullPath
             binding.drawingView.imageBitmap = bitmap
             binding.drawingView.setZonesForCurrentImage(imageDataMap[fullPath] ?: emptyList())
@@ -257,6 +248,16 @@ class EditorActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityEditorBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        deleteZonesButton = findViewById(R.id.deleteZonesButton)
+        deleteZonesButton.setOnClickListener {
+            Log.d("DeleteZones", "Suppression demandée via bouton")
+            binding.drawingView.deleteSelectedZones()
+            currentImageName?.let { imageName ->
+                imageDataMap[imageName] = binding.drawingView.getAllZones().toMutableList()
+                Log.d("DeleteZones", "Zones restantes pour $imageName : ${imageDataMap[imageName]?.size}")
+            }
+            deleteZonesButton.visibility = View.GONE
+        }
 
         loadingProgressBar = findViewById(R.id.progressBarLoading)
 
@@ -339,6 +340,13 @@ class EditorActivity : AppCompatActivity() {
             setOnClickListener { handleDeleteSelectedItems(this) }
         }
         binding.bottomBar.root.addView(deleteButton)
+
+        // --- Ajout bouton "poubelle" pour suppression des zones sélectionnées ---
+        binding.drawingView.setOnTouchListener { _, _ ->
+            updateDeleteButtonVisibilityForZones()
+            false
+        }
+
 
         // Indicateur Mode sélection
         selectionModeIndicator = TextView(this).apply {
@@ -592,7 +600,11 @@ class EditorActivity : AppCompatActivity() {
                                         Glide.with(this@EditorActivity)
                                             .asBitmap()
                                             .load(file.uri)
-                                            .apply(RequestOptions().diskCacheStrategy(DiskCacheStrategy.ALL))
+                                            .apply(
+                                                RequestOptions().diskCacheStrategy(
+                                                    DiskCacheStrategy.ALL
+                                                )
+                                            )
                                             .submit()
                                             .get()
                                     }
@@ -604,7 +616,11 @@ class EditorActivity : AppCompatActivity() {
                                         updateLoadingProgress()
                                     }
                                 } catch (e: Exception) {
-                                    Log.e("EditorActivity", "Erreur au chargement anticipé de la première image", e)
+                                    Log.e(
+                                        "EditorActivity",
+                                        "Erreur au chargement anticipé de la première image",
+                                        e
+                                    )
                                 }
                             }
                         }
@@ -614,7 +630,8 @@ class EditorActivity : AppCompatActivity() {
 
             folder.listFiles()?.forEach { traverse(it) }
             // Tri par profondeur puis ordre alphabétique
-            allImageFiles.sortWith(compareBy(
+            allImageFiles.sortWith(
+                compareBy(
                 { it.second.count { c -> c == '/' } },
                 { it.second }
             ))
@@ -648,7 +665,8 @@ class EditorActivity : AppCompatActivity() {
                         loadedImagesCount++ // Incrémenter pour l'affichage du chargement
                         withContext(Dispatchers.Main) {
                             // Reconstruction dynamique de l’arborescence
-                            imageRootNode = ImageGroupTreeBuilder.buildImageGroupTree(imageBitmapMap.map { (path, bmp) -> bmp to path })
+                            imageRootNode =
+                                ImageGroupTreeBuilder.buildImageGroupTree(imageBitmapMap.map { (path, bmp) -> bmp to path })
                             imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
                             updateLoadingProgress()
                         }
@@ -755,4 +773,16 @@ class EditorActivity : AppCompatActivity() {
         super.onDestroy()
         imageLoadingScope.cancel()
     }
+
+    // Affiche ou masque le bouton de suppression des zones selon la sélection
+    fun updateDeleteButtonVisibilityForZones() {
+        val hasSelection = binding.drawingView.hasSelectedZones()
+        deleteZonesButton.visibility = if (hasSelection) View.VISIBLE else View.GONE
+    }
+
+    // Permet à DrawingView de masquer le bouton de suppression des zones
+    fun hideDeleteZonesButton() {
+        deleteZonesButton.visibility = View.GONE
+    }
+
 }
