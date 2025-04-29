@@ -28,7 +28,6 @@ import com.example.imagenavigator.R
 import com.example.imagenavigator.adapters.ImageAdapter
 import com.example.imagenavigator.databinding.ActivityEditorBinding
 import com.example.imagenavigator.model.AdventureData
-import com.example.imagenavigator.model.ImageData
 import com.example.imagenavigator.model.Zone
 import com.example.imagenavigator.utils.ImageGroup
 import com.example.imagenavigator.utils.ImageGroupTreeBuilder
@@ -38,6 +37,10 @@ import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.*
 import java.io.File
 import android.view.inputmethod.InputMethodManager
+import com.example.imagenavigator.model.Adventure
+import com.example.imagenavigator.model.ImageData
+import com.example.imagenavigator.model.toZone
+import com.example.imagenavigator.model.toZoneData
 
 
 
@@ -179,6 +182,13 @@ class EditorActivity : AppCompatActivity() {
         if (file.exists()) {
             val json = file.readText()
             val adventureData = GsonBuilder().create().fromJson(json, AdventureData::class.java)
+
+            // Remplir imageDataMap avec les Zones reconverties
+            imageDataMap.clear()
+            adventureData.images.forEach { image ->
+                val zones = image.zones.map { it.toZone() }.toMutableList()
+                imageDataMap[image.imageName] = zones
+            }
 
             // Mettre à jour le titre de l'aventure
             currentAdventureName = adventureData.adventureTitle
@@ -644,15 +654,18 @@ class EditorActivity : AppCompatActivity() {
         isLoadingBatch = false
     }
 
-    private fun generateAdventureData(): AdventureData {
+    private fun generateAdventureData(): Adventure {
         val imagesList = imageDataMap.map { (path, zones) ->
-            ImageData(imageName = path, zones = zones)
+            ImageData(
+                imageName = path,
+                zones = zones.map { it.toZoneData() }
+            )
         }
-        return AdventureData(
+        return Adventure(
             adventureTitle = currentAdventureName,
-            images = imagesList,
-            folderUri = currentFolderUri?.toString()
-         )
+            folderUri = currentFolderUri?.toString() ?: "",
+            images = imagesList
+        )
     }
 
     private fun countTotalGroups(node: ImageGroupNode): Int {
