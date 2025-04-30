@@ -43,6 +43,7 @@ import com.example.imagenavigator.model.toZone
 import com.example.imagenavigator.model.toZoneData
 import android.widget.ProgressBar
 import androidx.constraintlayout.widget.ConstraintLayout
+import kotlin.collections.remove
 
 
 class EditorActivity : AppCompatActivity() {
@@ -325,12 +326,16 @@ class EditorActivity : AppCompatActivity() {
         selectedWorldsCount = bottomBarView.findViewById(R.id.selectedWorldsCount)
         selectionInfoContainer = bottomBarView.findViewById(R.id.selectionInfoContainer)
 
-        bottomBarView.findViewById<Button>(R.id.buttonImportFolder).setOnClickListener {
-            openFolderPicker()
+        // Remplace le bouton d'import dossier par un bouton de synchronisation
+        val buttonSyncFolder = bottomBarView.findViewById<Button>(R.id.buttonImportFolder)
+        buttonSyncFolder.text = "Synchroniser"
+        buttonSyncFolder.id = R.id.buttonSyncFolder
+        buttonSyncFolder.setOnClickListener {
+            synchronizeFolder()
         }
-        bottomBarView.findViewById<Button>(R.id.buttonImportImage).setOnClickListener {
+        /*bottomBarView.findViewById<Button>(R.id.buttonImportImage).setOnClickListener {
             TODO("À implémenter")
-        }
+        }*/
 
         // Bouton Supprimer
         deleteButton = Button(this).apply {
@@ -523,7 +528,23 @@ class EditorActivity : AppCompatActivity() {
             } else {
                 imagesInfoText.text = "Images : ${imageBitmapMap.size}"
             }
+            // Ajout de l'appel de la nouvelle fonction pour la mise à jour des mondes et non liées
+            updateWorldAndUnlinkedCounts()
         }
+    }
+
+    private fun updateWorldAndUnlinkedCounts() {
+        val worldCount = imageRootNode.children.count { it.name != "Racine" }
+
+        val linkedImageNames = imageDataMap
+            .flatMap { it.value }
+            .mapNotNull { it.linkedImagePath }
+            .toSet()
+
+        val unlinkedCount = imageBitmapMap.keys.count { it !in linkedImageNames }
+
+        worldsInfoText.text = "Mondes : $worldCount"
+        findViewById<TextView>(R.id.textUnlinkedCount).text = "Non liées : $unlinkedCount"
     }
 
     private fun isGroupPath(fullPath: String): Boolean {
@@ -783,6 +804,132 @@ class EditorActivity : AppCompatActivity() {
     // Permet à DrawingView de masquer le bouton de suppression des zones
     fun hideDeleteZonesButton() {
         deleteZonesButton.visibility = View.GONE
+    }
+
+
+    // --- Synchronisation du dossier ---
+    private fun synchronizeFolder() {
+        val uri = currentFolderUri
+        if (uri == null) {
+            Toast.makeText(this, "Aucun dossier à synchroniser.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val previousImagePaths = imageBitmapMap.keys.toSet()
+        val previousGroups = imageRootNode.children.map { it.name }
+
+        val newImagePaths = mutableSetOf<String>()
+        val newGroups = mutableSetOf<String>()
+        val removedLinkedImages = mutableListOf<String>()
+
+        val folder = DocumentFile.fromTreeUri(this, uri)
+        if (folder == null || !folder.exists()) {
+            Toast.makeText(this, "Le dossier n'existe plus.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        fun traverse(file: DocumentFile, path: String = "") {
+            if (file.isDirectory) {
+                val groupName = file.name
+                if (!groupName.isNullOrEmpty()) newGroups.add(groupName)
+                file.listFiles()?.forEach { traverse(it, if (path.isEmpty()) groupName!! else "$path/${file.name}") }
+            } else {
+                val name = file.name ?: return
+                val fullPath = if (path.isEmpty()) name else "$path/$name"
+                if (isValidImage(file)) {
+                    newImagePaths.add(fullPath)
+                }
+            }
+        }
+
+        folder.listFiles()?.forEach { traverse(it) }
+
+        val addedImages = newImagePaths - previousImagePaths
+        val removedImages = previousImagePaths - newImagePaths
+        val addedGroups = newGroups - previousGroups.toSet()
+        val removedGroups = previousGroups.toSet() - newGroups
+
+        // Supprimer les données des images disparues
+        for (path in removedImages) {
+            imageBitmapMap.remove(path)
+            imageDataMap.remove(path)
+        }
+
+        // Supprimer les zones pointant vers des images disparues
+        for ((_, zones) in imageDataMap) {
+            zones.removeAll { it.linkedImagePath in removedImages }
+        }
+
+        val linkedImagePaths = imageDataMap.flatMap { it.value }.mapNotNull { it.linkedImagePath }.toSet()
+        removedLinkedImages.addAll(removedImages.filter { it in linkedImagePaths })
+
+        // Charger uniquement les nouvelles images
+        val uriMatcher = DocumentFile.fromTreeUri(this, uri)
+        if (uriMatcher != null) {
+            fun findFileByPath(base: DocumentFile, target: String): DocumentFile? {
+                val segments = target.split('/')
+                var current = base
+                for (segment in segments) {
+                    current = current.listFiles().find { it.name == segment } ?: return null
+                }
+                return current
+            }
+
+            for (path in addedImages) {
+                val file = findFileByPath(uriMatcher, path)
+                if (file != null && isValidImage(file)) {
+                    try {
+                        val bitmap = Glide.with(this)
+                            .asBitmap()
+                            .load(file.uri)
+                            .apply(RequestOptions().diskCacheStrategy(DiskCacheStrategy.ALL))
+                            .submit()
+                            .get()
+                        imageBitmapMap[path] = bitmap
+                        imageDataMap[path] = mutableListOf()
+                    } catch (e: Exception) {
+                        Log.e("Sync", "Erreur chargement $path", e)
+                    }
+                }
+            }
+        }
+
+        // Reconstruire l’arborescence avec les nouvelles données
+        imageRootNode = ImageGroupTreeBuilder.buildImageGroupTree(
+            imageBitmapMap.map { (path, bmp) -> bmp to path }
+        )
+        imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
+        updateBottomBarInfo()
+
+        val detailedSummary = buildString {
+            if (addedGroups.isNotEmpty()) {
+                append("📁 Dossiers ajoutés (${addedGroups.size}) :\n")
+                addedGroups.forEach { append("   - $it\n") }
+            }
+            if (removedGroups.isNotEmpty()) {
+                append("📁 Dossiers supprimés (${removedGroups.size}) :\n")
+                removedGroups.forEach { append("   - $it\n") }
+            }
+            if (addedImages.isNotEmpty()) {
+                append("🖼️ Images ajoutées (${addedImages.size}) :\n")
+                addedImages.forEach { append("   - $it\n") }
+            }
+            if (removedImages.isNotEmpty()) {
+                append("🖼️ Images supprimées (${removedImages.size}) :\n")
+                removedImages.forEach { append("   - $it\n") }
+            }
+            if (removedLinkedImages.isNotEmpty()) {
+                append("⚠️ Images liées disparues (${removedLinkedImages.size}) :\n")
+                removedLinkedImages.forEach { append("   - $it\n") }
+            }
+            if (isEmpty()) append("✅ Dossier à jour, aucun changement.")
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Résumé de la synchronisation")
+            .setMessage(detailedSummary)
+            .setPositiveButton("Fermer", null)
+            .show()
     }
 
 }

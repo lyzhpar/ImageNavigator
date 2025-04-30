@@ -28,7 +28,7 @@
 
     <!-- Importer une image -->
     <Button
-        android:id="@+id/buttonImportImage"
+        android:id="@+id/buttonSyncFolder"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:background="#DDDDDD"
