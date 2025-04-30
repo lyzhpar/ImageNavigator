@@ -44,6 +44,7 @@ import com.example.imagenavigator.model.toZoneData
 import android.widget.ProgressBar
 import androidx.constraintlayout.widget.ConstraintLayout
 import kotlin.collections.remove
+import androidx.lifecycle.lifecycleScope
 
 
 class EditorActivity : AppCompatActivity() {
@@ -331,7 +332,9 @@ class EditorActivity : AppCompatActivity() {
         buttonSyncFolder.text = "Synchroniser"
         buttonSyncFolder.id = R.id.buttonSyncFolder
         buttonSyncFolder.setOnClickListener {
-            synchronizeFolder()
+            lifecycleScope.launch {
+                synchronizeFolder()
+            }
         }
         /*bottomBarView.findViewById<Button>(R.id.buttonImportImage).setOnClickListener {
             TODO("À implémenter")
@@ -596,6 +599,7 @@ class EditorActivity : AppCompatActivity() {
             val folder = DocumentFile.fromTreeUri(this@EditorActivity, uri) ?: return@launch
             val allImageFiles = mutableListOf<Pair<DocumentFile, String>>()
             val seenPaths = mutableSetOf<String>()
+            val imageFiles = mutableMapOf<String, DocumentFile>()
 
             // Fonction pour traverser le dossier
             fun traverse(file: DocumentFile, path: String = "") {
@@ -808,78 +812,116 @@ class EditorActivity : AppCompatActivity() {
 
 
     // --- Synchronisation du dossier ---
-    private fun synchronizeFolder() {
+    private suspend fun synchronizeFolder() {
         val uri = currentFolderUri
         if (uri == null) {
-            Toast.makeText(this, "Aucun dossier à synchroniser.", Toast.LENGTH_SHORT).show()
+            withContext(Dispatchers.Main) {
+                Toast.makeText(this@EditorActivity, "Aucun dossier à synchroniser.", Toast.LENGTH_SHORT).show()
+            }
             return
         }
 
-        val previousImagePaths = imageBitmapMap.keys.toSet()
-        val previousGroups = imageRootNode.children.map { it.name }
-
-        val newImagePaths = mutableSetOf<String>()
-        val newGroups = mutableSetOf<String>()
+        var detailedSummary: String = ""
+        var addedGroups: Set<String> = emptySet()
+        var removedGroups: Set<String> = emptySet()
+        var addedImages: Set<String> = emptySet()
+        var removedImages: Set<String> = emptySet()
         val removedLinkedImages = mutableListOf<String>()
 
-        val folder = DocumentFile.fromTreeUri(this, uri)
-        if (folder == null || !folder.exists()) {
-            Toast.makeText(this, "Le dossier n'existe plus.", Toast.LENGTH_SHORT).show()
-            return
+        withContext(Dispatchers.Main) {
+            binding.syncOverlay.visibility = View.VISIBLE
+        }
+        // Afficher le toast avant le withContext(Dispatchers.IO)
+        withContext(Dispatchers.Main) {
+            Toast.makeText(this@EditorActivity, "Syncro en cours !...", Toast.LENGTH_SHORT).show()
         }
 
-        fun traverse(file: DocumentFile, path: String = "") {
-            if (file.isDirectory) {
-                val groupName = file.name
-                if (!groupName.isNullOrEmpty()) newGroups.add(groupName)
-                file.listFiles()?.forEach { traverse(it, if (path.isEmpty()) groupName!! else "$path/${file.name}") }
-            } else {
-                val name = file.name ?: return
-                val fullPath = if (path.isEmpty()) name else "$path/$name"
-                if (isValidImage(file)) {
-                    newImagePaths.add(fullPath)
+        withContext(Dispatchers.IO) {
+            val previousImagePaths = imageBitmapMap.keys.toSet()
+
+            // Remplir previousGroupImages : Map<String, MutableList<String>>
+            val previousGroupImages = mutableMapOf<String, MutableList<String>>()
+            for (path in previousImagePaths) {
+                val segments = path.split("/")
+                if (segments.isNotEmpty() && segments[0] != "Racine") {
+                    val group = segments[0]
+                    previousGroupImages.getOrPut(group) { mutableListOf() }.add(path)
                 }
             }
-        }
 
-        folder.listFiles()?.forEach { traverse(it) }
+            val newImagePaths = mutableSetOf<String>()
+            val imageFiles = mutableMapOf<String, DocumentFile>()
+            val rootName = DocumentFile.fromTreeUri(this@EditorActivity, uri)?.name ?: ""
 
-        val addedImages = newImagePaths - previousImagePaths
-        val removedImages = previousImagePaths - newImagePaths
-        val addedGroups = newGroups - previousGroups.toSet()
-        val removedGroups = previousGroups.toSet() - newGroups
-
-        // Supprimer les données des images disparues
-        for (path in removedImages) {
-            imageBitmapMap.remove(path)
-            imageDataMap.remove(path)
-        }
-
-        // Supprimer les zones pointant vers des images disparues
-        for ((_, zones) in imageDataMap) {
-            zones.removeAll { it.linkedImagePath in removedImages }
-        }
-
-        val linkedImagePaths = imageDataMap.flatMap { it.value }.mapNotNull { it.linkedImagePath }.toSet()
-        removedLinkedImages.addAll(removedImages.filter { it in linkedImagePaths })
-
-        // Charger uniquement les nouvelles images
-        val uriMatcher = DocumentFile.fromTreeUri(this, uri)
-        if (uriMatcher != null) {
-            fun findFileByPath(base: DocumentFile, target: String): DocumentFile? {
-                val segments = target.split('/')
-                var current = base
-                for (segment in segments) {
-                    current = current.listFiles().find { it.name == segment } ?: return null
+            val folder = DocumentFile.fromTreeUri(this@EditorActivity, uri)
+            if (folder == null || !folder.exists()) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@EditorActivity, "Le dossier n'existe plus.", Toast.LENGTH_SHORT).show()
                 }
-                return current
+                return@withContext
             }
 
+            fun traverse(file: DocumentFile, path: String = "") {
+                if (file.isDirectory) {
+                    file.listFiles()?.forEach { traverse(it, if (path.isEmpty()) file.name!! else "$path/${file.name}") }
+                } else {
+                    val name = file.name ?: return
+                    val fullPath = if (path.isEmpty()) name else "$path/$name"
+                    if (isValidImage(file)) {
+                        newImagePaths.add(fullPath)
+                        imageFiles[fullPath] = file
+                    }
+                }
+            }
+
+            folder.listFiles()?.forEach { traverse(it) }
+
+            // Remplir newGroupImages : Map<String, MutableList<String>>
+            val newGroupImages = mutableMapOf<String, MutableList<String>>()
+            for (path in newImagePaths) {
+                val segments = path.split("/")
+                if (segments.isNotEmpty() && segments[0] != "Racine") {
+                    val group = segments[0]
+                    newGroupImages.getOrPut(group) { mutableListOf() }.add(path)
+                }
+            }
+
+            // Filtrer les groupes pour ne garder que ceux qui contiennent plus d'une image ou un sous-groupe réel
+            val filteredNewGroups = newGroupImages.filter { (_, images) ->
+                images.size > 1 || images.any { !it.substringAfterLast('/').equals(it, ignoreCase = true) }
+            }
+            addedGroups = filteredNewGroups.keys.filter { it !in previousGroupImages.keys }.toSet()
+
+            val filteredPreviousGroups = previousGroupImages.filter { (_, images) ->
+                images.size > 1 || images.any { !it.substringAfterLast('/').equals(it, ignoreCase = true) }
+            }
+            removedGroups = filteredPreviousGroups.keys.filter { it !in newGroupImages.keys }.toSet()
+
+            addedImages = newImagePaths - previousImagePaths
+            removedImages = previousImagePaths - newImagePaths
+
+            // Supprimer les données des images disparues
+            for (path in removedImages) {
+                imageBitmapMap.remove(path)
+                imageDataMap.remove(path)
+            }
+
+            // Supprimer les zones pointant vers des images disparues
+            for ((_, zones) in imageDataMap) {
+                zones.removeAll { it.linkedImagePath in removedImages }
+            }
+
+            // Recalculer removedLinkedImages après suppression des zones orphelines
+            val linkedImagePaths = imageDataMap.flatMap { it.value }.mapNotNull { it.linkedImagePath }.toSet()
+            removedLinkedImages.clear()
+            removedLinkedImages.addAll(removedImages.filter { it in linkedImagePaths })
+
+            // Charger uniquement les nouvelles images
             for (path in addedImages) {
-                val file = findFileByPath(uriMatcher, path)
+                val file = imageFiles[path]
                 if (file != null && isValidImage(file)) {
                     try {
-                        val bitmap = Glide.with(this)
+                        val bitmap = Glide.with(this@EditorActivity)
                             .asBitmap()
                             .load(file.uri)
                             .apply(RequestOptions().diskCacheStrategy(DiskCacheStrategy.ALL))
@@ -892,44 +934,63 @@ class EditorActivity : AppCompatActivity() {
                     }
                 }
             }
+
+            // Reconstruire l’arborescence avec les nouvelles données
+            imageRootNode = ImageGroupTreeBuilder.buildImageGroupTree(
+                imageBitmapMap.map { (path, bmp) -> bmp to path }
+            )
+            // Ajout : mettre à jour groupedImages et l'adapter avec la nouvelle liste
+            groupedImages.clear()
+            groupedImages.addAll(ImageGroup.fromTree(imageRootNode))
         }
 
-        // Reconstruire l’arborescence avec les nouvelles données
-        imageRootNode = ImageGroupTreeBuilder.buildImageGroupTree(
-            imageBitmapMap.map { (path, bmp) -> bmp to path }
-        )
-        imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
-        updateBottomBarInfo()
+        // UI updates and dialog in Main thread
+        withContext(Dispatchers.Main) {
+            imageAdapter.updateData(groupedImages)
+            binding.recyclerViewThumbnails.adapter = imageAdapter
+            // Réafficher l'image actuellement sélectionnée si elle existe encore
+            currentImageName?.let { path ->
+                imageBitmapMap[path]?.let { bitmap ->
+                    binding.drawingView.imageBitmap = bitmap
+                    binding.drawingView.setZonesForCurrentImage(imageDataMap[path] ?: emptyList())
+                }
+            }
+            imageAdapter.notifyDataSetChanged()
+            updateBottomBarInfo()
 
-        val detailedSummary = buildString {
-            if (addedGroups.isNotEmpty()) {
-                append("📁 Dossiers ajoutés (${addedGroups.size}) :\n")
-                addedGroups.forEach { append("   - $it\n") }
+            detailedSummary = buildString {
+                if (addedGroups.isNotEmpty()) {
+                    append("📁 Dossiers ajoutés (${addedGroups.size}) :\n")
+                    addedGroups.forEach { append("   - $it\n") }
+                }
+                if (removedGroups.isNotEmpty()) {
+                    append("📁 Dossiers supprimés (${removedGroups.size}) :\n")
+                    removedGroups.forEach { append("   - $it\n") }
+                }
+                if (addedImages.isNotEmpty()) {
+                    append("🖼️ Images ajoutées (${addedImages.size}) :\n")
+                    addedImages.forEach { append("   - $it\n") }
+                }
+                if (removedImages.isNotEmpty()) {
+                    append("🖼️ Images supprimées (${removedImages.size}) :\n")
+                    removedImages.forEach { append("   - $it\n") }
+                }
+                if (removedLinkedImages.isNotEmpty()) {
+                    append("⚠️ Images liées disparues (${removedLinkedImages.size}) :\n")
+                    removedLinkedImages.forEach { append("   - $it\n") }
+                }
+                if (isEmpty()) append("✅ Dossier à jour, aucun changement.")
             }
-            if (removedGroups.isNotEmpty()) {
-                append("📁 Dossiers supprimés (${removedGroups.size}) :\n")
-                removedGroups.forEach { append("   - $it\n") }
-            }
-            if (addedImages.isNotEmpty()) {
-                append("🖼️ Images ajoutées (${addedImages.size}) :\n")
-                addedImages.forEach { append("   - $it\n") }
-            }
-            if (removedImages.isNotEmpty()) {
-                append("🖼️ Images supprimées (${removedImages.size}) :\n")
-                removedImages.forEach { append("   - $it\n") }
-            }
-            if (removedLinkedImages.isNotEmpty()) {
-                append("⚠️ Images liées disparues (${removedLinkedImages.size}) :\n")
-                removedLinkedImages.forEach { append("   - $it\n") }
-            }
-            if (isEmpty()) append("✅ Dossier à jour, aucun changement.")
+
+            AlertDialog.Builder(this@EditorActivity)
+                .setTitle("Résumé de la synchronisation")
+                .setMessage(detailedSummary)
+                .setPositiveButton("Fermer", null)
+                .show()
         }
-
-        AlertDialog.Builder(this)
-            .setTitle("Résumé de la synchronisation")
-            .setMessage(detailedSummary)
-            .setPositiveButton("Fermer", null)
-            .show()
+        binding.syncOverlay.visibility = View.GONE
     }
 
+
 }
+
