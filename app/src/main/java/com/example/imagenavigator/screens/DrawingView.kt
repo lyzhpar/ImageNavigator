@@ -184,10 +184,6 @@ class DrawingView @JvmOverloads constructor(
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         Log.d("DrawingView", "onTouchEvent: ${event.action}, spotlightActive=$spotlightActive, selectedZone=$selectedZone")
-        if (event.action == MotionEvent.ACTION_DOWN && selectedZonesMulti.isNotEmpty()) {
-            clearSelectedZones()
-            (context as? EditorActivity)?.hideDeleteZonesButton()
-        }
         gestureDetector.onTouchEvent(event)
 
         if (justDeletedZones) {
@@ -206,8 +202,11 @@ class DrawingView @JvmOverloads constructor(
         }
 
         if (selectedZonesMulti.isNotEmpty()) {
-            // Pas de spotlight en mode sélection multiple
-            return true
+            // Pas de spotlight, mais permettre tout de même onLongPress pour sélectionner
+            if (event.action == MotionEvent.ACTION_UP) {
+                justDeletedZones = false
+            }
+            return gestureDetector.onTouchEvent(event)
         }
 
         val dstRect = getImageDisplayRect(bitmap)
@@ -361,32 +360,14 @@ class DrawingView @JvmOverloads constructor(
         Log.d("DeleteZones", "Zones avant suppression: ${zones.size}")
         Log.d("DeleteZones", "Zones sélectionnées: ${selectedZonesMulti.size}")
 
-        val selectedRects = selectedZonesMulti.map { it.rect }
-
-        val toRemove = zones.filter { zone ->
-            selectedRects.any { selectedRect ->
-                areRectsEqual(zone.rect, selectedRect)
-            }
-        }
-
-        Log.d("DeleteZones", "Zones à supprimer : $toRemove")
-        Log.d("DeleteZones", "Contenu exact des zones : $zones")
-        Log.d("DeleteZones", "Contenu exact des selectedZonesMulti : $selectedZonesMulti")
-        zones.removeAll(toRemove)
-        Log.d("DeleteZones", "zones.removeAll(toRemove) exécuté")
+        Log.d("DeleteZones", "Zones à supprimer (direct): $selectedZonesMulti")
+        zones.removeAll(selectedZonesMulti)
 
         Log.d("DeleteZones", "Zones après suppression: ${zones.size}")
 
         selectedZonesMulti.clear()
         justDeletedZones = true
         invalidate()
-    }
-
-    private fun areRectsEqual(rect1: RectF, rect2: RectF): Boolean {
-        return (rect1.left - rect2.left).absoluteValue < 0.01f &&
-                (rect1.top - rect2.top).absoluteValue < 0.01f &&
-                (rect1.right - rect2.right).absoluteValue < 0.01f &&
-                (rect1.bottom - rect2.bottom).absoluteValue < 0.01f
     }
 
     fun hasSelectedZones(): Boolean {
