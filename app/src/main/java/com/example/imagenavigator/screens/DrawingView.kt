@@ -186,7 +186,7 @@ class DrawingView @JvmOverloads constructor(
         Log.d("DrawingView", "onTouchEvent: ${event.action}, spotlightActive=$spotlightActive, selectedZone=$selectedZone")
         gestureDetector.onTouchEvent(event)
 
-        if (justDeletedZones) {
+        if (justDeletedZones && event.action != MotionEvent.ACTION_DOWN) {
             justDeletedZones = false
             return true
         }
