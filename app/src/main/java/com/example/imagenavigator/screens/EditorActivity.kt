@@ -47,6 +47,7 @@ import com.example.imagenavigator.model.toZone
 import com.example.imagenavigator.model.toZoneData
 import android.widget.ProgressBar
 import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.content.ContextCompat
 import kotlin.collections.remove
 import androidx.lifecycle.lifecycleScope
 
@@ -814,7 +815,23 @@ class EditorActivity : AppCompatActivity() {
         }
     }
 
+    override fun onPause() {
+        super.onPause()
+        saveZones()  // Sauvegarde automatique aussi quand l’activité passe en arrière-plan
+        Snackbar.make(
+            findViewById(android.R.id.content),
+            "✅ Sauvegarde automatique effectuée",
+            Snackbar.LENGTH_LONG
+        ).show()
+    }
+
     override fun onDestroy() {
+        saveZones()  // Sauvegarde automatique avant destruction
+        Snackbar.make(
+            findViewById(android.R.id.content),
+            "✅ Sauvegarde automatique effectuée",
+            Snackbar.LENGTH_LONG
+        ).show()
         super.onDestroy()
         imageLoadingScope.cancel()
     }
