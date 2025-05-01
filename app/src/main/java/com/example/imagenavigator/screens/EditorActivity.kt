@@ -108,10 +108,16 @@ class EditorActivity : AppCompatActivity() {
             if (result.resultCode == Activity.RESULT_OK) {
                 val uri = result.data?.data
                 if (uri != null) {
-                    // On a l'URI du dossier, on peut maintenant l'utiliser
                     currentFolderUri = uri
-                    // Charger les images avec cette URI
-                    loadImagesFromFolder(uri)
+                    val adventureFromIntent = intent.getStringExtra("adventureName")
+                    if (adventureFromIntent != null) {
+                        loadAdventureData(adventureFromIntent)
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            synchronizeFolder()
+                        }
+                    } else {
+                        loadImagesFromFolder(uri, true)
+                    }
                 }
             }
         }
@@ -205,15 +211,15 @@ class EditorActivity : AppCompatActivity() {
 
             // Charger l'URI du dossier à partir des données d'aventure
             val folderUriString = adventureData.folderUri
-            if (folderUriString != null) {
-                currentFolderUri = Uri.parse(folderUriString)
-                // Charger les images depuis le dossier si l'URI est valide
-                currentFolderUri?.let {
-                    requestFolderAccess(it)
-                }
-            } else {
-                Toast.makeText(this, "Dossier d'images non sauvegardé.", Toast.LENGTH_SHORT).show()
+            if (folderUriString.isNullOrEmpty()) {
+                Toast.makeText(this, "Le dossier initial n’a pas été enregistré ou a été perdu. Veuillez le sélectionner à nouveau pour restaurer les images et les zones.", Toast.LENGTH_LONG).show()
+                openFolderPicker()
                 return
+            }
+            currentFolderUri = Uri.parse(folderUriString)
+            // Charger les images depuis le dossier si l'URI est valide
+            currentFolderUri?.let {
+                requestFolderAccess(it)
             }
 
             // Charger les images depuis le fichier JSON
@@ -293,11 +299,21 @@ class EditorActivity : AppCompatActivity() {
         // 🛠 Accès propre aux éléments du header
         adventureNameTextView = binding.headerAdventure.adventureNameTextView
 
+        // Bottom bar
+        val bottomBarView = binding.bottomBar.root
+        imagesInfoText = bottomBarView.findViewById(R.id.textImageCount)
+        worldsInfoText = bottomBarView.findViewById(R.id.textWorldCount)
+        selectedImagesCount = bottomBarView.findViewById(R.id.selectedImagesCount)
+        selectedWorldsCount = bottomBarView.findViewById(R.id.selectedWorldsCount)
+        selectionInfoContainer = bottomBarView.findViewById(R.id.selectionInfoContainer)
+
         val adventureFromIntent = intent.getStringExtra("adventureName")
         if (adventureFromIntent != null) {
             currentAdventureName = adventureFromIntent
             binding.headerAdventure.adventureNameTextView.text = currentAdventureName
-            loadAdventureData(adventureFromIntent) // 🆕 nouvelle fonction à créer juste en dessous
+            // Initialisation du champ imagesInfoText AVANT openFolderPicker/loadAdventureData
+            imagesInfoText = binding.bottomBar.root.findViewById(R.id.textImageCount)
+            openFolderPicker()
             return
         }
 
@@ -329,14 +345,6 @@ class EditorActivity : AppCompatActivity() {
             }
         }
 
-        // Bottom bar
-        val bottomBarView = binding.bottomBar.root
-        imagesInfoText = bottomBarView.findViewById(R.id.textImageCount)
-        worldsInfoText = bottomBarView.findViewById(R.id.textWorldCount)
-        selectedImagesCount = bottomBarView.findViewById(R.id.selectedImagesCount)
-        selectedWorldsCount = bottomBarView.findViewById(R.id.selectedWorldsCount)
-        selectionInfoContainer = bottomBarView.findViewById(R.id.selectionInfoContainer)
-
         // Remplace le bouton d'import dossier par un bouton de synchronisation
         val buttonSyncFolder = bottomBarView.findViewById<Button>(R.id.buttonImportFolder)
         buttonSyncFolder.text = "Synchroniser"
@@ -345,8 +353,6 @@ class EditorActivity : AppCompatActivity() {
             lifecycleScope.launch(Dispatchers.IO) {
                 synchronizeFolder()
             }
-
-
 
             // Bouton Supprimer
             deleteButton = Button(this).apply {
@@ -362,7 +368,6 @@ class EditorActivity : AppCompatActivity() {
                 updateDeleteButtonVisibilityForZones()
                 false
             }
-
 
             // Indicateur Mode sélection
             selectionModeIndicator = TextView(this).apply {
@@ -427,7 +432,10 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun saveZones() {
-
+        if (currentFolderUri == null || imageBitmapMap.isEmpty()) {
+            Log.w("AutoSave", "Pas de dossier ou d’images → autosave annulée.")
+            return
+        }
         val adventureData = generateAdventureData()
         val gson = GsonBuilder().setPrettyPrinting().create()
         val json = gson.toJson(adventureData)
@@ -600,7 +608,7 @@ class EditorActivity : AppCompatActivity() {
         node.children.forEach { removeImageFromNode(it, fullPath) }
     }
 
-    private fun loadImagesFromFolder(uri: Uri) {
+    private fun loadImagesFromFolder(uri: Uri, clearData: Boolean = true) {
         if (DEBUG_LOGS) Log.d("EditorActivity", "Loading images from folder: $uri")
 
         var firstImageLoaded = false
@@ -613,6 +621,13 @@ class EditorActivity : AppCompatActivity() {
 
             // Afficher la barre de progression ET le texte d'initialisation juste avant traverse()
             withContext(Dispatchers.Main) {
+                // Ajout du guard pour éviter crash si non initialisé
+                if (!::imagesInfoText.isInitialized) {
+                    Log.w("EditorActivity", "imagesInfoText non initialisé, on saute la mise à jour UI.")
+                } else {
+                    loadingProgressBar.visibility = View.VISIBLE
+                    imagesInfoText.text = "Initialisation..."
+                }
                 loadingProgressBar.visibility = View.VISIBLE
                 imagesInfoText.text = "Initialisation..."
             }
@@ -679,8 +694,10 @@ class EditorActivity : AppCompatActivity() {
             loadedImagesCount = 0
 
             // Initialiser les maps pour les images et les zones
-            imageBitmapMap.clear()
-            imageDataMap.clear()
+            if (clearData) {
+                imageBitmapMap.clear()
+                imageDataMap.clear()
+            }
             allImageFiles.sortBy { it.second }
 
             // Ajout du sémaphore pour limiter le nombre de chargements simultanés
@@ -779,7 +796,10 @@ class EditorActivity : AppCompatActivity() {
         }
         return Adventure(
             adventureTitle = currentAdventureName,
-            folderUri = currentFolderUri?.toString() ?: "",
+            folderUri = if (currentFolderUri != null) currentFolderUri.toString() else {
+                Log.w("Save", "Pas de dossier courant, on ne sauvegarde pas le folderUri.")
+                ""
+            },
             images = imagesList
         )
     }
@@ -850,6 +870,9 @@ class EditorActivity : AppCompatActivity() {
 
     // --- Synchronisation du dossier ---
     private suspend fun synchronizeFolder() {
+        // --- Déclarations globales pour la fonction ---
+        lateinit var newGroupImages: MutableMap<String, MutableList<String>>
+        lateinit var previousGroupImages: MutableMap<String, MutableList<String>>
         val uri = currentFolderUri
         if (uri == null) {
             withContext(Dispatchers.Main) {
@@ -896,7 +919,7 @@ class EditorActivity : AppCompatActivity() {
         withContext(Dispatchers.IO) {
             val previousImagePaths = imageBitmapMap.keys.toSet()
 
-            val previousGroupImages = mutableMapOf<String, MutableList<String>>()
+            previousGroupImages = mutableMapOf()
             for (path in previousImagePaths) {
                 val segments = path.split("/")
                 if (segments.isNotEmpty() && segments[0] != "Racine") {
@@ -930,7 +953,7 @@ class EditorActivity : AppCompatActivity() {
 
             folder.listFiles()?.forEach { traverse(it) }
 
-            val newGroupImages = mutableMapOf<String, MutableList<String>>()
+            newGroupImages = mutableMapOf()
             for (path in newImagePaths) {
                 val segments = path.split("/")
                 if (segments.isNotEmpty() && segments[0] != "Racine") {
@@ -964,6 +987,7 @@ class EditorActivity : AppCompatActivity() {
             val linkedImagePaths = imageDataMap.flatMap { it.value }.mapNotNull { it.linkedImagePath }.toSet()
             removedLinkedImages.clear()
             removedLinkedImages.addAll(removedImages.filter { it in linkedImagePaths })
+
 
             for (path in addedImages) {
                 val file = imageFiles[path]
@@ -1002,26 +1026,36 @@ class EditorActivity : AppCompatActivity() {
             imageAdapter.notifyDataSetChanged()
             updateBottomBarInfo()
 
+            // Ajout calcul linkedImages et orphanImages AVANT detailedSummary
+            val linkedImages = imageDataMap.flatMap { it.value }.mapNotNull { it.linkedImagePath }.toSet()
+            val orphanImages = imageBitmapMap.keys.filter { image ->
+                (imageDataMap[image]?.isEmpty() ?: true) && image !in linkedImages
+            }
+
             detailedSummary = buildString {
                 if (addedGroups.isNotEmpty()) {
-                    append("📁 Dossiers ajoutés (${addedGroups.size}) :\n")
-                    addedGroups.forEach { append("   - $it\n") }
+                    append("📁 Dossiers ajoutés (${addedGroups.size}):\n")
+                    addedGroups.forEach { append("   - $it (${newGroupImages[it]?.size ?: 0} images)\n") }
                 }
                 if (removedGroups.isNotEmpty()) {
-                    append("📁 Dossiers supprimés (${removedGroups.size}) :\n")
-                    removedGroups.forEach { append("   - $it\n") }
+                    append("📁 Dossiers supprimés (${removedGroups.size}):\n")
+                    removedGroups.forEach { append("   - $it (${previousGroupImages[it]?.size ?: 0} images)\n") }
                 }
                 if (addedImages.isNotEmpty()) {
-                    append("🖼️ Images ajoutées (${addedImages.size}) :\n")
+                    append("🖼️ Images ajoutées (${addedImages.size}):\n")
                     addedImages.forEach { append("   - $it\n") }
                 }
                 if (removedImages.isNotEmpty()) {
-                    append("🖼️ Images supprimées (${removedImages.size}) :\n")
+                    append("🖼️ Images supprimées (${removedImages.size}):\n")
                     removedImages.forEach { append("   - $it\n") }
                 }
                 if (removedLinkedImages.isNotEmpty()) {
-                    append("⚠️ Images liées disparues (${removedLinkedImages.size}) :\n")
+                    append("⚠️ Zones cassées (${removedLinkedImages.size}):\n")
                     removedLinkedImages.forEach { append("   - $it\n") }
+                }
+                if (orphanImages.isNotEmpty()) {
+                    append("⚠️ Images orphelines (${orphanImages.size}):\n")
+                    orphanImages.forEach { append("   - $it\n") }
                 }
                 if (isEmpty()) append("✅ Dossier à jour, aucun changement.")
             }
