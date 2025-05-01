@@ -224,10 +224,14 @@ class EditorActivity : AppCompatActivity() {
                 for (path in allImageFiles) {
                     val uri = getUriForImage(path)  // Fonction qui retourne l'URI de chaque image
                     if (uri != null) {
-                        val bitmap = loadBitmapFromUri(uri)  // Charger l'image en bitmap
-                        if (bitmap != null) {
-                            imageBitmapMap[path] = bitmap
-                            imageDataMap[path] = mutableListOf()  // Ajouter les zones après
+                        val inputStream = contentResolver.openInputStream(uri)
+                        if (inputStream != null) {
+                            val options = BitmapFactory.Options().apply { inSampleSize = 4 }
+                            val bitmap = BitmapFactory.decodeStream(inputStream, null, options)
+                            inputStream.close()
+                            if (bitmap != null) {
+                                imageBitmapMap[path] = bitmap
+                            }
                         }
                     }
                 }
@@ -256,7 +260,10 @@ class EditorActivity : AppCompatActivity() {
             binding.drawingView.deleteSelectedZones()
             currentImageName?.let { imageName ->
                 imageDataMap[imageName] = binding.drawingView.getAllZones().toMutableList()
-                Log.d("DeleteZones", "Zones restantes pour $imageName : ${imageDataMap[imageName]?.size}")
+                Log.d(
+                    "DeleteZones",
+                    "Zones restantes pour $imageName : ${imageDataMap[imageName]?.size}"
+                )
             }
             deleteZonesButton.visibility = View.GONE
         }
@@ -332,45 +339,44 @@ class EditorActivity : AppCompatActivity() {
         buttonSyncFolder.text = "Synchroniser"
         buttonSyncFolder.id = R.id.buttonSyncFolder
         buttonSyncFolder.setOnClickListener {
-            lifecycleScope.launch {
+            lifecycleScope.launch(Dispatchers.IO) {
                 synchronizeFolder()
             }
-        }
-        /*bottomBarView.findViewById<Button>(R.id.buttonImportImage).setOnClickListener {
-            TODO("À implémenter")
-        }*/
-
-        // Bouton Supprimer
-        deleteButton = Button(this).apply {
-            text = "Supprimer"
-            visibility = View.GONE
-            isEnabled = false
-            setOnClickListener { handleDeleteSelectedItems(this) }
-        }
-        binding.bottomBar.root.addView(deleteButton)
-
-        // --- Ajout bouton "poubelle" pour suppression des zones sélectionnées ---
-        binding.drawingView.setOnTouchListener { _, _ ->
-            updateDeleteButtonVisibilityForZones()
-            false
-        }
 
 
-        // Indicateur Mode sélection
-        selectionModeIndicator = TextView(this).apply {
-            text = "Mode sélection"
-            visibility = View.GONE
-            textSize = 16f
-            setPadding(16, 0, 16, 0)
-            setOnClickListener {
-                exitSelectionMode()
-                updateDeleteButtonVisibility(deleteButton)
+
+            // Bouton Supprimer
+            deleteButton = Button(this).apply {
+                text = "Supprimer"
                 visibility = View.GONE
+                isEnabled = false
+                setOnClickListener { handleDeleteSelectedItems(this) }
             }
-        }
-        binding.bottomBar.root.addView(selectionModeIndicator)
+            binding.bottomBar.root.addView(deleteButton)
 
-        hideSystemUI()
+            // --- Ajout bouton "poubelle" pour suppression des zones sélectionnées ---
+            binding.drawingView.setOnTouchListener { _, _ ->
+                updateDeleteButtonVisibilityForZones()
+                false
+            }
+
+
+            // Indicateur Mode sélection
+            selectionModeIndicator = TextView(this).apply {
+                text = "Mode sélection"
+                visibility = View.GONE
+                textSize = 16f
+                setPadding(16, 0, 16, 0)
+                setOnClickListener {
+                    exitSelectionMode()
+                    updateDeleteButtonVisibility(deleteButton)
+                    visibility = View.GONE
+                }
+            }
+            binding.bottomBar.root.addView(selectionModeIndicator)
+
+            hideSystemUI()
+        }
     }
 
 // --- FONCTIONS UTILITAIRES ---
@@ -667,51 +673,51 @@ class EditorActivity : AppCompatActivity() {
             // Initialiser les maps pour les images et les zones
             imageBitmapMap.clear()
             imageDataMap.clear()
+            allImageFiles.sortBy { it.second }
 
-            // Chargement image par image, mise à jour UI à chaque ajout
+            // Afficher la barre de progression avant de commencer le chargement (Main thread)
+            withContext(Dispatchers.Main) {
+                loadingProgressBar.visibility = View.VISIBLE
+            }
+
+            // Chargement en parallèle par lot
             val batches = allImageFiles.chunked(imagesPerBatch)
             for (batch in batches) {
-                batch.forEach { (file, fullPath) ->
-                    try {
-                        val bitmap = withContext(Dispatchers.IO) {
-                            Glide.with(this@EditorActivity)
-                                .asBitmap()
-                                .load(file.uri)
-                                .apply(RequestOptions().diskCacheStrategy(DiskCacheStrategy.ALL))
-                                .submit()
-                                .get()
-                        }
-                        imageBitmapMap[fullPath] = bitmap
-                        Log.d("DrawingView", "Image ajoutée au cache : $fullPath")
-                        imageDataMap[fullPath] = mutableListOf()  // Initialiser les zones vides
-
-                        // Log de succès pour chaque image chargée
-                        Log.d("EditorActivity", "Image loaded successfully: $fullPath")
-                        loadedImagesCount++ // Incrémenter pour l'affichage du chargement
-                        withContext(Dispatchers.Main) {
-                            // Reconstruction dynamique de l’arborescence
-                            imageRootNode =
-                                ImageGroupTreeBuilder.buildImageGroupTree(imageBitmapMap.map { (path, bmp) -> bmp to path })
-                            imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
-                            updateLoadingProgress()
-                        }
-                    } catch (e: Exception) {
-                        skippedFiles.add(fullPath)
-                        Log.e(
-                            "EditorActivity",
-                            "Failed to load image: $fullPath",
-                            e
-                        )  // Log d'erreur en cas d'échec
-                        loadedImagesCount++ // Même si échec, on incrémente pour la barre de chargement
-                        withContext(Dispatchers.Main) {
-                            updateLoadingProgress()
+                val deferreds = batch.map { (file, fullPath) ->
+                    async(Dispatchers.IO) {
+                        try {
+                            val inputStream = contentResolver.openInputStream(file.uri)
+                            val options = BitmapFactory.Options().apply { inSampleSize = 4 }
+                            val bmp = inputStream?.use { BitmapFactory.decodeStream(it, null, options) }
+                            if (bmp != null) {
+                                imageBitmapMap[fullPath] = bmp
+                                Log.d("DrawingView", "Image ajoutée au cache : $fullPath")
+                            }
+                            imageDataMap[fullPath] = mutableListOf()  // Initialiser les zones vides
+                            Log.d("EditorActivity", "Image loaded successfully: $fullPath")
+                            loadedImagesCount++ // Incrémenter pour l'affichage du chargement
+                        } catch (e: Exception) {
+                            skippedFiles.add(fullPath)
+                            Log.e(
+                                "EditorActivity",
+                                "Failed to load image: $fullPath",
+                                e
+                            )  // Log d'erreur en cas d'échec
+                            loadedImagesCount++ // Même si échec, on incrémente pour la barre de chargement
                         }
                     }
+                }
+                deferreds.awaitAll()
+                withContext(Dispatchers.Main) {
+                    // Reconstruction dynamique de l’arborescence
+                    imageRootNode =
+                        ImageGroupTreeBuilder.buildImageGroupTree(imageBitmapMap.map { (path, bmp) -> bmp to path })
+                    imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
+                    updateLoadingProgress()
                 }
             }
 
             withContext(Dispatchers.Main) {
-                //binding.loadingOverlay.isVisible = false
                 loadingProgressBar.visibility = View.GONE
                 if (skippedFiles.isNotEmpty()) {
                     Toast.makeText(
@@ -723,7 +729,6 @@ class EditorActivity : AppCompatActivity() {
                 updateBottomBarInfo(isLoading = false)  // Mise à jour de la barre inférieure
             }
         }
-        // SUPPRIMÉ : loadingProgressBar.visibility = View.GONE
     }
 
 
