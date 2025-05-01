@@ -122,9 +122,14 @@ class DrawingView @JvmOverloads constructor(
    override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        Log.d("DrawingView", "onDraw avec bitmap = ${imageBitmap != null}")
+        val bitmap = imageBitmap
+        if (bitmap == null || bitmap.isRecycled) {
+            Log.e("DrawingView", "Bitmap nul ou recyclé, onDraw annulé")
+            return
+        }
 
-        val bitmap = imageBitmap ?: return
+        Log.d("DrawingView", "onDraw avec bitmap = ${bitmap != null}")
+
         val dstRect = getImageDisplayRect(bitmap)
 
         // Dessiner l’image
@@ -190,12 +195,17 @@ class DrawingView @JvmOverloads constructor(
         }
         gestureDetector.onTouchEvent(event)
 
+        val bitmap = imageBitmap
+        if (bitmap != null && bitmap.isRecycled) {
+            Log.e("DrawingView", "Bitmap recyclé détecté dans onTouchEvent, retour anticipé")
+            return true
+        }
+
         if (justDeletedZones) {
             justDeletedZones = false
             return true
         }
 
-        val bitmap = imageBitmap
         if (bitmap == null) {
             if (event.action == MotionEvent.ACTION_UP) {
                 if (spotlightActive) {
@@ -327,9 +337,14 @@ class DrawingView @JvmOverloads constructor(
             Log.d("DrawingView", "Aucune image liée à cette zone.")
             return false
         }
-        val bitmap = android.graphics.BitmapFactory.decodeFile(path)
+        val bitmap = try {
+            android.graphics.BitmapFactory.decodeFile(path)
+        } catch (e: Exception) {
+            Log.e("DrawingView", "Erreur lors du décodage de l'image liée : $path", e)
+            null
+        }
         if (bitmap == null) {
-            Log.d("DrawingView", "Image liée introuvable : $path")
+            Log.d("DrawingView", "Image liée introuvable ou invalide : $path")
             return false
         }
         return true

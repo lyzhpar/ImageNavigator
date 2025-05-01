@@ -1,5 +1,9 @@
 package com.example.imagenavigator.screens
 
+import java.util.concurrent.Semaphore
+
+//import com.example.imagenavigator.BuildConfig
+
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
@@ -49,6 +53,8 @@ import androidx.lifecycle.lifecycleScope
 
 class EditorActivity : AppCompatActivity() {
 
+    private val DEBUG_LOGS = false
+
     // --- Déclarations ---
 
     private lateinit var binding: ActivityEditorBinding
@@ -80,7 +86,7 @@ class EditorActivity : AppCompatActivity() {
     private lateinit var deleteZonesButton: ImageButton
 
     private val imageLoadingScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val imagesPerBatch = 10
+    private val imagesPerBatch = 5
     private var isLoadingBatch = false
     private var totalImagesToLoad = 0
     private var loadedImagesCount = 0
@@ -111,6 +117,19 @@ class EditorActivity : AppCompatActivity() {
 
     // Quand une image est sélectionnée
     private fun onImageSelected(bitmap: Bitmap, fullPath: String) {
+        val file = imageFileMap[fullPath]
+        if (file == null) {
+            Log.e("EditorActivity", "Aucun DocumentFile pour $fullPath")
+            Toast.makeText(this, "Erreur : fichier introuvable.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val inputStream = contentResolver.openInputStream(file.uri)
+        val hdBitmap = inputStream?.use { BitmapFactory.decodeStream(it) }
+        if (hdBitmap == null) {
+            Log.e("EditorActivity", "Bitmap nul pour $fullPath")
+            Toast.makeText(this, "Erreur : impossible de charger l’image.", Toast.LENGTH_SHORT).show()
+            return
+        }
         if (binding.drawingView.isSpotlightActive()) {
             binding.drawingView.assignLinkedImageToSelectedZone(fullPath)
             binding.drawingView.clearSpotlight()
@@ -596,6 +615,7 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun removeImage(fullPath: String) {
+        imageBitmapMap[fullPath]?.recycle()
         imageBitmapMap.remove(fullPath)
         imageDataMap.remove(fullPath)
         removeImageFromNode(imageRootNode, fullPath)
@@ -607,7 +627,7 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun loadImagesFromFolder(uri: Uri) {
-        Log.d("EditorActivity", "Loading images from folder: $uri")
+        if (DEBUG_LOGS) Log.d("EditorActivity", "Loading images from folder: $uri")
 
         var firstImageLoaded = false
         val skippedFiles = mutableListOf<String>()
@@ -634,10 +654,7 @@ class EditorActivity : AppCompatActivity() {
                     if (isValidImage(file) && fullPath !in seenPaths) {
                         allImageFiles.add(file to fullPath)
                         seenPaths.add(fullPath)
-                        Log.d(
-                            "EditorActivity",
-                            "Image found: $fullPath"
-                        )  // Log pour chaque image trouvée
+                        if (DEBUG_LOGS) Log.d("EditorActivity", "Image trouvée: $fullPath")
                         // Démarrer immédiatement le chargement de la première image trouvée
                         if (!firstImageLoaded) {
                             firstImageLoaded = true
@@ -685,8 +702,6 @@ class EditorActivity : AppCompatActivity() {
             ))
 
             totalImagesToLoad = allImageFiles.size
-
-
             loadedImagesCount = 0
 
             // Initialiser les maps pour les images et les zones
@@ -694,32 +709,39 @@ class EditorActivity : AppCompatActivity() {
             imageDataMap.clear()
             allImageFiles.sortBy { it.second }
 
+            // Ajout du sémaphore pour limiter le nombre de chargements simultanés
+            val semaphore = Semaphore(5)
 
             // Chargement en parallèle par lot
             val batches = allImageFiles.chunked(imagesPerBatch)
             for (batch in batches) {
                 val deferreds = batch.map { (file, fullPath) ->
                     async(Dispatchers.IO) {
+                        semaphore.acquire()
                         try {
                             imageFileMap[fullPath] = file
                             val inputStream = contentResolver.openInputStream(file.uri)
                             val options = BitmapFactory.Options().apply { inSampleSize = 4 }
-                            val bmp = inputStream?.use { BitmapFactory.decodeStream(inputStream, null, options) }
+                            val bmp = inputStream?.use { BitmapFactory.decodeStream(it, null, options) }
                             if (bmp != null) {
                                 imageBitmapMap[fullPath] = bmp
-                                Log.d("DrawingView", "Image ajoutée au cache : $fullPath")
+                                if (DEBUG_LOGS) Log.d("EditorActivity", "Image trouvée: $fullPath")
                             }
                             imageDataMap[fullPath] = mutableListOf()  // Initialiser les zones vides
-                            Log.d("EditorActivity", "Image loaded successfully: $fullPath")
                             loadedImagesCount++ // Incrémenter pour l'affichage du chargement
+                            if (DEBUG_LOGS && loadedImagesCount % 10 == 0) {
+                                Log.d("EditorActivity", "Chargées : $loadedImagesCount / $totalImagesToLoad")
+                            }
                         } catch (e: Exception) {
                             skippedFiles.add(fullPath)
                             Log.e(
                                 "EditorActivity",
                                 "Failed to load image: $fullPath",
                                 e
-                            )  // Log d'erreur en cas d'échec
+                            )
                             loadedImagesCount++ // Même si échec, on incrémente pour la barre de chargement
+                        } finally {
+                            semaphore.release()
                         }
                     }
                 }
@@ -749,15 +771,17 @@ class EditorActivity : AppCompatActivity() {
 
 
     private fun updateLoadingProgress() {
-        if (!::imagesInfoText.isInitialized) return
-
-        if (totalImagesToLoad > 0) {
-            val progressPercent = (loadedImagesCount * 100) / totalImagesToLoad
-            loadingProgressBar.progress = progressPercent
-            imagesInfoText.text = "Chargement : $loadedImagesCount / $totalImagesToLoad"
+        try {
+            if (!::imagesInfoText.isInitialized) return
+            if (totalImagesToLoad > 0) {
+                val progressPercent = (loadedImagesCount * 100) / totalImagesToLoad
+                loadingProgressBar.progress = progressPercent
+                imagesInfoText.text = "Chargement : $loadedImagesCount / $totalImagesToLoad"
+            }
+            loadingProgressBar.visibility = View.VISIBLE
+        } catch (e: Exception) {
+            Log.e("EditorActivity", "Erreur UI update: ${e.message}")
         }
-        loadingProgressBar.visibility = View.VISIBLE
-
     }
 
     private fun isValidImage(file: DocumentFile): Boolean {
