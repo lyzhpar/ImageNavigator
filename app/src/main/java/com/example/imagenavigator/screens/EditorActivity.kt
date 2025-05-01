@@ -890,7 +890,7 @@ class EditorActivity : AppCompatActivity() {
 
         withContext(Dispatchers.Main) {
             binding.syncOverlay.visibility = View.VISIBLE
-            Toast.makeText(this@EditorActivity, "Syncro en cours !...", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this@EditorActivity, "Synchro en cours !...", Toast.LENGTH_SHORT).show()
         }
 
         withContext(Dispatchers.IO) {
