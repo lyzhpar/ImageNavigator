@@ -123,28 +123,21 @@ class EditorActivity : AppCompatActivity() {
             Toast.makeText(this, "Erreur : fichier introuvable.", Toast.LENGTH_SHORT).show()
             return
         }
-        val inputStream = contentResolver.openInputStream(file.uri)
-        val hdBitmap = inputStream?.use { BitmapFactory.decodeStream(it) }
-        if (hdBitmap == null) {
-            Log.e("EditorActivity", "Bitmap nul pour $fullPath")
-            Toast.makeText(this, "Erreur : impossible de charger l’image.", Toast.LENGTH_SHORT).show()
-            return
-        }
-        if (binding.drawingView.isSpotlightActive()) {
-            binding.drawingView.assignLinkedImageToSelectedZone(fullPath)
-            binding.drawingView.clearSpotlight()
-        } else {
-            currentImageName = fullPath
-            lifecycleScope.launch {
-                val file = imageFileMap[fullPath]
-                if (file != null) {
-                    val inputStream = contentResolver.openInputStream(file.uri)
-                    val hdBitmap = inputStream?.use { BitmapFactory.decodeStream(it) }
-                    if (hdBitmap != null) {
-                        binding.drawingView.imageBitmap = hdBitmap
-                        binding.drawingView.setZonesForCurrentImage(imageDataMap[fullPath] ?: emptyList())
-                    }
+        lifecycleScope.launch {
+            try {
+                val hdBitmap = withContext(Dispatchers.IO) {
+                    Glide.with(this@EditorActivity)
+                        .asBitmap()
+                        .load(file.uri)
+                        .apply(RequestOptions().diskCacheStrategy(DiskCacheStrategy.ALL))
+                        .submit()
+                        .get()
                 }
+                binding.drawingView.imageBitmap = hdBitmap
+                binding.drawingView.setZonesForCurrentImage(imageDataMap[fullPath] ?: emptyList())
+            } catch (e: Exception) {
+                Log.e("EditorActivity", "Erreur lors du chargement HD de l'image : $fullPath", e)
+                Toast.makeText(this@EditorActivity, "Erreur : impossible de charger l’image en HD.", Toast.LENGTH_SHORT).show()
             }
         }
     }
