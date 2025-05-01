@@ -117,29 +117,9 @@ class EditorActivity : AppCompatActivity() {
 
     // Quand une image est sélectionnée
     private fun onImageSelected(bitmap: Bitmap, fullPath: String) {
-        val file = imageFileMap[fullPath]
-        if (file == null) {
-            Log.e("EditorActivity", "Aucun DocumentFile pour $fullPath")
-            Toast.makeText(this, "Erreur : fichier introuvable.", Toast.LENGTH_SHORT).show()
-            return
-        }
-        lifecycleScope.launch {
-            try {
-                val hdBitmap = withContext(Dispatchers.IO) {
-                    Glide.with(this@EditorActivity)
-                        .asBitmap()
-                        .load(file.uri)
-                        .apply(RequestOptions().diskCacheStrategy(DiskCacheStrategy.ALL))
-                        .submit()
-                        .get()
-                }
-                binding.drawingView.imageBitmap = hdBitmap
-                binding.drawingView.setZonesForCurrentImage(imageDataMap[fullPath] ?: emptyList())
-            } catch (e: Exception) {
-                Log.e("EditorActivity", "Erreur lors du chargement HD de l'image : $fullPath", e)
-                Toast.makeText(this@EditorActivity, "Erreur : impossible de charger l’image en HD.", Toast.LENGTH_SHORT).show()
-            }
-        }
+        // Remplacement : accès direct au bitmap chargé
+        binding.drawingView.imageBitmap = imageBitmapMap[fullPath]
+        binding.drawingView.setZonesForCurrentImage(imageDataMap[fullPath] ?: emptyList())
     }
 
     // Quand l'utilisateur demande de renommer un groupe
@@ -713,14 +693,17 @@ class EditorActivity : AppCompatActivity() {
                         semaphore.acquire()
                         try {
                             imageFileMap[fullPath] = file
-                            val inputStream = contentResolver.openInputStream(file.uri)
-                            val options = BitmapFactory.Options().apply { inSampleSize = 4 }
-                            val bmp = inputStream?.use { BitmapFactory.decodeStream(it, null, options) }
-                            if (bmp != null) {
-                                imageBitmapMap[fullPath] = bmp
-                                if (DEBUG_LOGS) Log.d("EditorActivity", "Image trouvée: $fullPath")
+                            val bitmap = withContext(Dispatchers.IO) {
+                                Glide.with(this@EditorActivity)
+                                    .asBitmap()
+                                    .load(file.uri)
+                                    .apply(RequestOptions().override(800, 600).diskCacheStrategy(DiskCacheStrategy.ALL))
+                                    .submit()
+                                    .get()
                             }
+                            imageBitmapMap[fullPath] = bitmap
                             imageDataMap[fullPath] = mutableListOf()  // Initialiser les zones vides
+                            if (DEBUG_LOGS) Log.d("EditorActivity", "Image trouvée: $fullPath")
                             loadedImagesCount++ // Incrémenter pour l'affichage du chargement
                             if (DEBUG_LOGS && loadedImagesCount % 10 == 0) {
                                 Log.d("EditorActivity", "Chargées : $loadedImagesCount / $totalImagesToLoad")
