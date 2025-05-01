@@ -833,12 +833,50 @@ class EditorActivity : AppCompatActivity() {
 
     // --- Synchronisation du dossier ---
     private suspend fun synchronizeFolder() {
+        // Vérification des permissions persistantes pour le dossier courant
+        val permissions = contentResolver.persistedUriPermissions
+        val hasPermission = permissions.any { it.uri == currentFolderUri && it.isReadPermission }
+        if (!hasPermission) {
+            withContext(Dispatchers.Main) {
+                Toast.makeText(
+                    this@EditorActivity,
+                    "Permissions expirées, merci de sélectionner à nouveau le dossier.",
+                    Toast.LENGTH_LONG
+                ).show()
+                openFolderPicker()
+            }
+            return
+        }
+
         val uri = currentFolderUri
         if (uri == null) {
             withContext(Dispatchers.Main) {
                 Toast.makeText(this@EditorActivity, "Aucun dossier à synchroniser.", Toast.LENGTH_SHORT).show()
             }
             return
+        }
+
+        // --- Calculer la taille totale du dossier ---
+        var totalSize = 0L
+        val folder = DocumentFile.fromTreeUri(this@EditorActivity, uri)
+        if (folder != null) {
+            fun accumulateSize(file: DocumentFile) {
+                if (file.isDirectory) {
+                    file.listFiles()?.forEach { accumulateSize(it) }
+                } else if (file.isFile) {
+                    totalSize += file.length()
+                }
+            }
+            folder.listFiles()?.forEach { accumulateSize(it) }
+        }
+        if (totalSize > 1_000_000_000L) { // 1 Go
+            withContext(Dispatchers.Main) {
+                Toast.makeText(
+                    this@EditorActivity,
+                    "⚠ Attention : ce dossier dépasse 1 Go, risque de ralentissements ou plantage.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
         }
 
         var detailedSummary: String = ""
@@ -871,9 +909,8 @@ class EditorActivity : AppCompatActivity() {
 
             val newImagePaths = mutableSetOf<String>()
             val imageFiles = mutableMapOf<String, DocumentFile>()
-            val rootName = DocumentFile.fromTreeUri(this@EditorActivity, uri)?.name ?: ""
+            val rootName = folder?.name ?: ""
 
-            val folder = DocumentFile.fromTreeUri(this@EditorActivity, uri)
             if (folder == null || !folder.exists()) {
                 withContext(Dispatchers.Main) {
                     Toast.makeText(this@EditorActivity, "Le dossier n'existe plus.", Toast.LENGTH_SHORT).show()
@@ -977,6 +1014,12 @@ class EditorActivity : AppCompatActivity() {
             }
             imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
             updateBottomBarInfo()
+
+            // Nettoyer le cache Glide (mémoire et disque)
+            Glide.get(this@EditorActivity).clearMemory()
+            lifecycleScope.launch(Dispatchers.IO) {
+                Glide.get(this@EditorActivity).clearDiskCache()
+            }
 
             detailedSummary = buildString {
                 if (addedGroups.isNotEmpty()) {
