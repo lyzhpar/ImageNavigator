@@ -833,21 +833,6 @@ class EditorActivity : AppCompatActivity() {
 
     // --- Synchronisation du dossier ---
     private suspend fun synchronizeFolder() {
-        // Vérification des permissions persistantes pour le dossier courant
-        val permissions = contentResolver.persistedUriPermissions
-        val hasPermission = permissions.any { it.uri == currentFolderUri && it.isReadPermission }
-        if (!hasPermission) {
-            withContext(Dispatchers.Main) {
-                Toast.makeText(
-                    this@EditorActivity,
-                    "Permissions expirées, merci de sélectionner à nouveau le dossier.",
-                    Toast.LENGTH_LONG
-                ).show()
-                openFolderPicker()
-            }
-            return
-        }
-
         val uri = currentFolderUri
         if (uri == null) {
             withContext(Dispatchers.Main) {
@@ -879,25 +864,21 @@ class EditorActivity : AppCompatActivity() {
             }
         }
 
-        var detailedSummary: String = ""
-        var addedGroups: Set<String> = emptySet()
-        var removedGroups: Set<String> = emptySet()
-        var addedImages: Set<String> = emptySet()
-        var removedImages: Set<String> = emptySet()
+        var detailedSummary = ""
+        var addedGroups = emptySet<String>()
+        var removedGroups = emptySet<String>()
+        var addedImages = emptySet<String>()
+        var removedImages = emptySet<String>()
         val removedLinkedImages = mutableListOf<String>()
 
         withContext(Dispatchers.Main) {
             binding.syncOverlay.visibility = View.VISIBLE
-        }
-        // Afficher le toast avant le withContext(Dispatchers.IO)
-        withContext(Dispatchers.Main) {
             Toast.makeText(this@EditorActivity, "Syncro en cours !...", Toast.LENGTH_SHORT).show()
         }
 
         withContext(Dispatchers.IO) {
             val previousImagePaths = imageBitmapMap.keys.toSet()
 
-            // Remplir previousGroupImages : Map<String, MutableList<String>>
             val previousGroupImages = mutableMapOf<String, MutableList<String>>()
             for (path in previousImagePaths) {
                 val segments = path.split("/")
@@ -909,7 +890,6 @@ class EditorActivity : AppCompatActivity() {
 
             val newImagePaths = mutableSetOf<String>()
             val imageFiles = mutableMapOf<String, DocumentFile>()
-            val rootName = folder?.name ?: ""
 
             if (folder == null || !folder.exists()) {
                 withContext(Dispatchers.Main) {
@@ -933,7 +913,6 @@ class EditorActivity : AppCompatActivity() {
 
             folder.listFiles()?.forEach { traverse(it) }
 
-            // Remplir newGroupImages : Map<String, MutableList<String>>
             val newGroupImages = mutableMapOf<String, MutableList<String>>()
             for (path in newImagePaths) {
                 val segments = path.split("/")
@@ -943,7 +922,6 @@ class EditorActivity : AppCompatActivity() {
                 }
             }
 
-            // Filtrer les groupes pour ne garder que ceux qui contiennent plus d'une image ou un sous-groupe réel
             val filteredNewGroups = newGroupImages.filter { (_, images) ->
                 images.size > 1 || images.any { !it.substringAfterLast('/').equals(it, ignoreCase = true) }
             }
@@ -957,23 +935,19 @@ class EditorActivity : AppCompatActivity() {
             addedImages = newImagePaths - previousImagePaths
             removedImages = previousImagePaths - newImagePaths
 
-            // Supprimer les données des images disparues
             for (path in removedImages) {
                 imageBitmapMap.remove(path)
                 imageDataMap.remove(path)
             }
 
-            // Supprimer les zones pointant vers des images disparues
             for ((_, zones) in imageDataMap) {
                 zones.removeAll { it.linkedImagePath in removedImages }
             }
 
-            // Recalculer removedLinkedImages après suppression des zones orphelines
             val linkedImagePaths = imageDataMap.flatMap { it.value }.mapNotNull { it.linkedImagePath }.toSet()
             removedLinkedImages.clear()
             removedLinkedImages.addAll(removedImages.filter { it in linkedImagePaths })
 
-            // Charger uniquement les nouvelles images
             for (path in addedImages) {
                 val file = imageFiles[path]
                 if (file != null && isValidImage(file)) {
@@ -992,34 +966,24 @@ class EditorActivity : AppCompatActivity() {
                 }
             }
 
-            // Reconstruire l’arborescence avec les nouvelles données
             imageRootNode = ImageGroupTreeBuilder.buildImageGroupTree(
                 imageBitmapMap.map { (path, bmp) -> bmp to path }
             )
-            // Ajout : mettre à jour groupedImages et l'adapter avec la nouvelle liste
             groupedImages.clear()
             groupedImages.addAll(ImageGroup.fromTree(imageRootNode))
         }
 
-        // UI updates and dialog in Main thread
         withContext(Dispatchers.Main) {
             imageAdapter.updateData(groupedImages)
             binding.recyclerViewThumbnails.adapter = imageAdapter
-            // Réafficher l'image actuellement sélectionnée si elle existe encore
             currentImageName?.let { path ->
                 imageBitmapMap[path]?.let { bitmap ->
                     binding.drawingView.imageBitmap = bitmap
                     binding.drawingView.setZonesForCurrentImage(imageDataMap[path] ?: emptyList())
                 }
             }
-            imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
+            imageAdapter.notifyDataSetChanged()
             updateBottomBarInfo()
-
-            // Nettoyer le cache Glide (mémoire et disque)
-            Glide.get(this@EditorActivity).clearMemory()
-            lifecycleScope.launch(Dispatchers.IO) {
-                Glide.get(this@EditorActivity).clearDiskCache()
-            }
 
             detailedSummary = buildString {
                 if (addedGroups.isNotEmpty()) {
@@ -1050,8 +1014,8 @@ class EditorActivity : AppCompatActivity() {
                 .setMessage(detailedSummary)
                 .setPositiveButton("Fermer", null)
                 .show()
+            binding.syncOverlay.visibility = View.GONE
         }
-        binding.syncOverlay.visibility = View.GONE
     }
 
 
