@@ -60,6 +60,9 @@ class EditorActivity : AppCompatActivity() {
     private lateinit var imageRootNode: ImageGroupNode
     private var currentImageName: String? = null
 
+    // Map pour retrouver le DocumentFile correspondant à chaque image
+    private val imageFileMap = mutableMapOf<String, DocumentFile>()
+
     private lateinit var adventureNameTextView: TextView
     private var currentAdventureName: String = ""
 
@@ -109,14 +112,21 @@ class EditorActivity : AppCompatActivity() {
     // Quand une image est sélectionnée
     private fun onImageSelected(bitmap: Bitmap, fullPath: String) {
         if (binding.drawingView.isSpotlightActive()) {
-            // Mode Spotlight : lier l'image à la zone sélectionnée sans changer l'image affichée
             binding.drawingView.assignLinkedImageToSelectedZone(fullPath)
             binding.drawingView.clearSpotlight()
         } else {
-            // Mode normal : changer l'image affichée
             currentImageName = fullPath
-            binding.drawingView.imageBitmap = bitmap
-            binding.drawingView.setZonesForCurrentImage(imageDataMap[fullPath] ?: emptyList())
+            lifecycleScope.launch {
+                val file = imageFileMap[fullPath]
+                if (file != null) {
+                    val inputStream = contentResolver.openInputStream(file.uri)
+                    val hdBitmap = inputStream?.use { BitmapFactory.decodeStream(it) }
+                    if (hdBitmap != null) {
+                        binding.drawingView.imageBitmap = hdBitmap
+                        binding.drawingView.setZonesForCurrentImage(imageDataMap[fullPath] ?: emptyList())
+                    }
+                }
+            }
         }
     }
 
@@ -506,7 +516,7 @@ class EditorActivity : AppCompatActivity() {
         }
         selectedItems.clear()
         exitSelectionMode()
-        imageAdapter.notifyDataSetChanged()
+        imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
         deleteButton?.let { updateDeleteButtonVisibility(it) }
         updateBottomBarInfo()
     }
@@ -607,6 +617,12 @@ class EditorActivity : AppCompatActivity() {
             val seenPaths = mutableSetOf<String>()
             val imageFiles = mutableMapOf<String, DocumentFile>()
 
+            // Afficher la barre de progression ET le texte d'initialisation juste avant traverse()
+            withContext(Dispatchers.Main) {
+                loadingProgressBar.visibility = View.VISIBLE
+                imagesInfoText.text = "Initialisation..."
+            }
+
             // Fonction pour traverser le dossier
             fun traverse(file: DocumentFile, path: String = "") {
                 if (file.isDirectory) {
@@ -625,6 +641,7 @@ class EditorActivity : AppCompatActivity() {
                         // Démarrer immédiatement le chargement de la première image trouvée
                         if (!firstImageLoaded) {
                             firstImageLoaded = true
+                            imageFileMap[fullPath] = file
                             imageLoadingScope.launch {
                                 try {
                                     val bitmap = withContext(Dispatchers.IO) {
@@ -668,6 +685,8 @@ class EditorActivity : AppCompatActivity() {
             ))
 
             totalImagesToLoad = allImageFiles.size
+
+
             loadedImagesCount = 0
 
             // Initialiser les maps pour les images et les zones
@@ -675,10 +694,6 @@ class EditorActivity : AppCompatActivity() {
             imageDataMap.clear()
             allImageFiles.sortBy { it.second }
 
-            // Afficher la barre de progression avant de commencer le chargement (Main thread)
-            withContext(Dispatchers.Main) {
-                loadingProgressBar.visibility = View.VISIBLE
-            }
 
             // Chargement en parallèle par lot
             val batches = allImageFiles.chunked(imagesPerBatch)
@@ -686,9 +701,10 @@ class EditorActivity : AppCompatActivity() {
                 val deferreds = batch.map { (file, fullPath) ->
                     async(Dispatchers.IO) {
                         try {
+                            imageFileMap[fullPath] = file
                             val inputStream = contentResolver.openInputStream(file.uri)
                             val options = BitmapFactory.Options().apply { inSampleSize = 4 }
-                            val bmp = inputStream?.use { BitmapFactory.decodeStream(it, null, options) }
+                            val bmp = inputStream?.use { BitmapFactory.decodeStream(inputStream, null, options) }
                             if (bmp != null) {
                                 imageBitmapMap[fullPath] = bmp
                                 Log.d("DrawingView", "Image ajoutée au cache : $fullPath")
@@ -738,11 +754,10 @@ class EditorActivity : AppCompatActivity() {
         if (totalImagesToLoad > 0) {
             val progressPercent = (loadedImagesCount * 100) / totalImagesToLoad
             loadingProgressBar.progress = progressPercent
-            loadingProgressBar.visibility = View.VISIBLE
-            imagesInfoText.text = "Chargement : $loadedImagesCount/$totalImagesToLoad images"
-        } else {
-            loadingProgressBar.visibility = View.GONE
+            imagesInfoText.text = "Chargement : $loadedImagesCount / $totalImagesToLoad"
         }
+        loadingProgressBar.visibility = View.VISIBLE
+
     }
 
     private fun isValidImage(file: DocumentFile): Boolean {
@@ -960,7 +975,7 @@ class EditorActivity : AppCompatActivity() {
                     binding.drawingView.setZonesForCurrentImage(imageDataMap[path] ?: emptyList())
                 }
             }
-            imageAdapter.notifyDataSetChanged()
+            imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
             updateBottomBarInfo()
 
             detailedSummary = buildString {

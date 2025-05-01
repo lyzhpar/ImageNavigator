@@ -6,6 +6,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.example.imagenavigator.R
 import com.example.imagenavigator.utils.ImageGroup
@@ -21,7 +23,7 @@ class ImageAdapter(
     private val onItemLongPress: (DisplayItem) -> Unit,
     private val getSelectedItems: () -> Set<String>,
     private val exitSelectionMode: () -> Unit
-) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+) : ListAdapter<ImageAdapter.DisplayItem, RecyclerView.ViewHolder>(DiffCallback()) {
 
     private val expandedGroups = mutableSetOf<String>()
     private var displayItems = flattenGroups(rootGroups)
@@ -38,6 +40,15 @@ class ImageAdapter(
         data class GroupItem(val name: String, override val fullPath: String) : DisplayItem()
     }
 
+    class DiffCallback : DiffUtil.ItemCallback<DisplayItem>() {
+        override fun areItemsTheSame(oldItem: DisplayItem, newItem: DisplayItem): Boolean {
+            return oldItem.fullPath == newItem.fullPath
+        }
+        override fun areContentsTheSame(oldItem: DisplayItem, newItem: DisplayItem): Boolean {
+            return oldItem == newItem
+        }
+    }
+
     fun getSelectedItems(): Set<String> {
         return selectedItems
     }
@@ -45,7 +56,7 @@ class ImageAdapter(
     fun exitSelectionMode() {
         isSelectionMode = false
         selectedItems.clear()
-        notifyDataSetChanged()
+        submitList(displayItems)
     }
 
     fun updateData(newGroups: List<ImageGroup>) {
@@ -58,7 +69,7 @@ class ImageAdapter(
             }
         }
         displayItems = flattenGroups(newGroups)
-        notifyDataSetChanged()
+        submitList(displayItems)
     }
 
     fun addImage(bitmap: Bitmap, fullPath: String) {
@@ -76,14 +87,7 @@ class ImageAdapter(
 
         // Mettre à jour la liste aplatie pour l'affichage
         displayItems = flattenGroups(rootGroups)
-
-        // Trouver la position d'insertion pour animer l'ajout
-        val index = displayItems.indexOfLast { it is DisplayItem.ImageItem && it.fullPath == fullPath }
-        if (index != -1) {
-            notifyItemInserted(index)
-        } else {
-            notifyDataSetChanged()
-        }
+        submitList(displayItems)
     }
 
     private fun flattenGroups(groups: List<ImageGroup>, level: Int = 0): List<DisplayItem> {
@@ -110,10 +114,10 @@ class ImageAdapter(
         this.isSelectionMode = isSelectionMode
         this.selectedItems.clear()
         this.selectedItems.addAll(selectedItems)
-        notifyDataSetChanged()
+        submitList(displayItems)
     }
 
-    override fun getItemViewType(position: Int): Int = when (displayItems[position]) {
+    override fun getItemViewType(position: Int): Int = when(getItem(position)) {
         is DisplayItem.GroupItem -> 0
         is DisplayItem.ImageItem -> 1
     }
@@ -129,10 +133,10 @@ class ImageAdapter(
         }
     }
 
-    override fun getItemCount(): Int = displayItems.size
+    override fun getItemCount(): Int = currentList.size
 
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
-        val item = displayItems[position]
+        val item = getItem(position)
         when (holder) {
             is GroupViewHolder -> {
                 holder.bind(item as DisplayItem.GroupItem)
@@ -166,7 +170,7 @@ class ImageAdapter(
         } else {
             selectedItems.add(fullPath)
         }
-        notifyDataSetChanged()
+        submitList(displayItems)
     }
 
     inner class GroupViewHolder(view: View) : RecyclerView.ViewHolder(view) {
@@ -208,7 +212,7 @@ class ImageAdapter(
                         expandedGroups.add(key)
                     }
                     displayItems = flattenGroups(rootGroups)
-                    notifyDataSetChanged()
+                    submitList(displayItems)
                 }
             }
 
@@ -287,4 +291,3 @@ class ImageAdapter(
         }
     }
 }
-
