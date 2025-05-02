@@ -955,12 +955,14 @@ class EditorActivity : BaseActivity() {
     // Affiche ou masque le bouton de suppression des zones selon la sélection
     fun updateDeleteButtonVisibilityForZones() {
         val hasSelection = binding.drawingView.hasSelectedZones()
+        Log.d("EditorActivity", "updateDeleteButtonVisibilityForZones() → hasSelection=$hasSelection")
         deleteZonesButton.visibility = if (hasSelection) View.VISIBLE else View.GONE
     }
 
     // Permet à DrawingView de masquer le bouton de suppression des zones
     fun hideDeleteZonesButton() {
         deleteZonesButton.visibility = View.GONE
+        Log.d("EditorActivity", "hideDeleteZonesButton() appelé → on cache le bouton")
     }
 
 
@@ -1180,6 +1182,7 @@ class EditorActivity : BaseActivity() {
             selectedZone.linkedImagePath = linkedImagePath
             binding.drawingView.selectedZone = null
             binding.drawingView.invalidate()
+            hideDeleteZonesButton()
             currentImageName?.let { imageName ->
                 imageDataMap[imageName] = binding.drawingView.getAllZones().toMutableList()
                 val layoutManager = binding.recyclerViewThumbnails.layoutManager as LinearLayoutManager

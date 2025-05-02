@@ -330,6 +330,7 @@ class DrawingView @JvmOverloads constructor(
     /**
      * Associe simplement le chemin de l'image liée à la zone sélectionnée.
      * Déclenche le redessin de la vue pour afficher la modification.
+     * Désactive toutes les sélections avant de mettre à jour l'affichage du bouton.
      */
     fun assignLinkedImageToSelectedZone(imagePath: String) {
         selectedZone?.let {
@@ -342,10 +343,13 @@ class DrawingView @JvmOverloads constructor(
                 ).show()
                 return
             }
+            Log.d("Debug", "Avant liaison : selectedZone=$selectedZone, selectedZonesMulti=$selectedZonesMulti")
             it.linkedImagePath = imagePath
-            Log.d("DrawingView", "Image liée à la zone : ${it.linkedImagePath}")
             selectedZone = null
+            selectedZonesMulti.clear()
             invalidate()
+            (context as? EditorActivity)?.hideDeleteZonesButton()
+            Log.d("Debug", "Après liaison : selectedZone=$selectedZone, selectedZonesMulti=$selectedZonesMulti")
         }
     }
 
@@ -404,7 +408,10 @@ class DrawingView @JvmOverloads constructor(
 
 
     fun hasSelectedZones(): Boolean {
-        return selectedZonesMulti.isNotEmpty()
+        val hasMulti = selectedZonesMulti.isNotEmpty()
+        val hasSingle = selectedZone != null
+        Log.d("DrawingView", "hasSelectedZones() → multi: $hasMulti, single: $hasSingle")
+        return hasMulti || hasSingle
     }
 
 }
