@@ -1,5 +1,8 @@
 package com.example.imagenavigator.model
 
+
+val startImagePath: String? = null
+
 data class Adventure(
     val adventureTitle: String,
     val folderUri: String,
