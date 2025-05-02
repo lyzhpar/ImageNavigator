@@ -138,13 +138,11 @@ class DrawingView @JvmOverloads constructor(
             val absBottom = dstRect.top + r.bottom * dstRect.height()
             val absRect = RectF(absLeft, absTop, absRight, absBottom)
 
-            // Afficher la vignette 50% transparente de l’image liée au-dessus de chaque zone
+            // Afficher la vignette 50% transparente de l’image liée au-dessus de chaque zone, taille fixe
             zone.linkedImagePath?.let { linkedPath ->
                 val linkedBitmap = imageBitmapMap[linkedPath]
                 linkedBitmap?.let { bmp ->
-                    val scaledBitmap = Bitmap.createScaledBitmap(bmp, absRect.width().toInt(), absRect.height().toInt(), false)
-                    val paint = Paint().apply { alpha = 128 }
-                    canvas.drawBitmap(scaledBitmap, null, absRect, paint)
+                    drawLinkedThumbnail(canvas, bmp, absRect)
                 }
             }
 
@@ -167,6 +165,27 @@ class DrawingView @JvmOverloads constructor(
         }
 
         // Plus d'overlay blanc/spotlight ici
+    }
+
+    private fun drawLinkedThumbnail(canvas: Canvas, bmp: Bitmap, absRect: RectF) {
+        val thumbnailWidth = 200
+        val thumbnailHeight = 100
+        val srcAspect = bmp.width.toFloat() / bmp.height.toFloat()
+        val targetAspect = thumbnailWidth.toFloat() / thumbnailHeight.toFloat()
+        val srcRect: Rect = if (srcAspect > targetAspect) {
+            val newWidth = (bmp.height * targetAspect).toInt()
+            val left = (bmp.width - newWidth) / 2
+            Rect(left, 0, left + newWidth, bmp.height)
+        } else {
+            val newHeight = (bmp.width / targetAspect).toInt()
+            val top = (bmp.height - newHeight) / 2
+            Rect(0, top, bmp.width, top + newHeight)
+        }
+        val paint = Paint().apply { alpha = 200 }
+        val thumbLeft = absRect.left
+        val thumbTop = absRect.top - thumbnailHeight
+        val thumbRect = RectF(thumbLeft, thumbTop, thumbLeft + thumbnailWidth, thumbTop + thumbnailHeight)
+        canvas.drawBitmap(bmp, srcRect, thumbRect, paint)
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
