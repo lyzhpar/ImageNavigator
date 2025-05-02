@@ -98,6 +98,8 @@ class EditorActivity : BaseActivity() {
 
     private val DEBUG_LOGS = true
 
+    private var startImagePath: String? = null
+
 
     private fun logDebug(tag: String, message: String) {
         if (DEBUG_LOGS) {
@@ -129,6 +131,13 @@ class EditorActivity : BaseActivity() {
     private fun requestFolderAccess(uri: Uri) {
         // Charger directement les images depuis le dossier sans relancer de sélecteur
         loadImagesFromFolder(uri)
+    }
+
+    private fun setStartImage(fullPath: String) {
+        startImagePath = fullPath
+        Toast.makeText(this, "Image de départ sélectionnée", Toast.LENGTH_SHORT).show()
+        imageAdapter.startImagePath = fullPath
+        imageAdapter.notifyDataSetChanged()
     }
 
     // Sélecteur de dossier
@@ -270,6 +279,9 @@ class EditorActivity : BaseActivity() {
                 imageDataMap[image.imageName] = zones
             }
 
+            startImagePath = adventureData.startImagePath
+            Log.d("EditorActivity", "Image de départ chargée : $startImagePath")
+
             // Mettre à jour le titre de l'aventure
             currentAdventureName = adventureData.adventureTitle
             adventureNameTextView.text = currentAdventureName
@@ -331,6 +343,15 @@ class EditorActivity : BaseActivity() {
         binding = ActivityEditorBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        // --- Initialisation du bouton Supprimer (deleteButton) ---
+        deleteButton = Button(this).apply {
+            text = "Supprimer"
+            visibility = View.GONE
+            isEnabled = false
+            setOnClickListener { handleDeleteSelectedItems(this) }
+        }
+        binding.bottomBar.root.addView(deleteButton)
+
         deleteZonesButton = findViewById(R.id.deleteZonesButton)
         deleteZonesButton.setOnClickListener {
             Log.d("DeleteZones", "Suppression demandée via bouton")
@@ -360,7 +381,7 @@ class EditorActivity : BaseActivity() {
             },
             onGroupRenameRequested = { updatedItem -> onGroupRenameRequested(updatedItem) },
             onGroupDeleteRequested = { itemToDelete -> onGroupDeleteRequested(itemToDelete) },
-            onItemLongPress = { item -> toggleSelection(item.fullPath) },
+            onItemLongPress = { item -> setStartImage(item.fullPath) },
             getSelectedItems = { imageAdapter.getSelectedItems() },
             exitSelectionMode = { exitSelectionMode() }
         )
@@ -466,15 +487,6 @@ class EditorActivity : BaseActivity() {
             lifecycleScope.launch(Dispatchers.IO) {
                 synchronizeFolder()
             }
-
-            // Bouton Supprimer
-            deleteButton = Button(this).apply {
-                text = "Supprimer"
-                visibility = View.GONE
-                isEnabled = false
-                setOnClickListener { handleDeleteSelectedItems(this) }
-            }
-            binding.bottomBar.root.addView(deleteButton)
 
             // --- Ajout bouton "poubelle" pour suppression des zones sélectionnées ---
             binding.drawingView.setOnTouchListener { _, _ ->
@@ -915,7 +927,8 @@ class EditorActivity : BaseActivity() {
                 Log.w("Save", "Pas de dossier courant, on ne sauvegarde pas le folderUri.")
                 ""
             },
-            images = imagesList
+            images = imagesList,
+            startImagePath = startImagePath
         )
     }
 

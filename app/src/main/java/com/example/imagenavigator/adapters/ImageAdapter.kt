@@ -27,6 +27,8 @@ class ImageAdapter(
     private val exitSelectionMode: () -> Unit
 ) : ListAdapter<ImageAdapter.DisplayItem, RecyclerView.ViewHolder>(DiffCallback()) {
 
+    var startImagePath: String? = null
+
     private val expandedGroups = mutableSetOf<String>()
     private var displayItems = flattenGroups(rootGroups)
 
@@ -158,9 +160,8 @@ class ImageAdapter(
                     true
                 }
 
-                // Appliquer un filtre vert à la vignette de l'image si elle est liée à une zone
-                if (linkedImagePaths.contains(item.fullPath)) {
-                    holder.imageView.setColorFilter(Color.parseColor("#8000FF00")) // Filtre vert
+                if (startImagePath == item.fullPath) {
+                    holder.imageView.setColorFilter(Color.parseColor("#80FFD700")) // Filtre doré
                 } else {
                     holder.imageView.clearColorFilter() // Retirer le filtre si non liée
                 }
@@ -305,6 +306,11 @@ class ImageAdapter(
             } else {
                 imageView.clearColorFilter()
                 checkbox.visibility = View.GONE
+            }
+
+            if (startImagePath == item.fullPath) {
+                imageView.setColorFilter(Color.parseColor("#80FFD700")) // Filtre doré pour image de départ
+                checkbox.visibility = View.VISIBLE
             }
 
             itemView.setOnClickListener {

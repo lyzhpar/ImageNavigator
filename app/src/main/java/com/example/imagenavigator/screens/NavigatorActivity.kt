@@ -1,9 +1,17 @@
 package com.example.imagenavigator.screens
 
+import android.animation.ObjectAnimator
+import android.animation.ValueAnimator
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.provider.DocumentsContract
+import android.util.Log
+import android.view.Gravity
+import android.view.View
+import android.view.ViewConfiguration
+import android.widget.LinearLayout
+import android.widget.PopupWindow
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.documentfile.provider.DocumentFile
@@ -14,43 +22,59 @@ import com.example.imagenavigator.model.Adventure
 import com.example.imagenavigator.model.ZoneData
 import com.google.gson.Gson
 import java.io.InputStreamReader
-import androidx.appcompat.app.AlertDialog
-import android.util.Log
-import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions.withCrossFade
+import com.example.imagenavigator.R
 
 
 class NavigatorActivity : BaseActivity() {
 
     private lateinit var binding: ActivityNavigatorBinding
-
     private lateinit var adventure: Adventure
     private lateinit var folderUri: Uri
     private var currentImageName: String? = null
     private val historyStack = mutableListOf<String>()
+    private var loadingView: View? = null
+
+    private var lastTouchX = 0f
+    private var lastTouchY = 0f
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         binding = ActivityNavigatorBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Lancer le picker pour choisir un dossier
+        binding.overlayView.onLongClickAt = { x, y ->
+            lastTouchX = x
+            lastTouchY = y
+        }
+
+        loadingView = layoutInflater.inflate(R.layout.loading_view, null)
+        val loadingText = loadingView?.findViewById<TextView>(R.id.loadingText)
+        val animator = ObjectAnimator.ofFloat(loadingText, View.ALPHA, 0.5f, 1f).apply {
+            duration = 1000
+            repeatMode = ValueAnimator.REVERSE
+            repeatCount = ValueAnimator.INFINITE
+            start()
+        }
+        binding.root.addView(loadingView)
+
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
         startActivityForResult(intent, REQUEST_CODE_PICK_FOLDER)
 
-        binding.backButton.setOnClickListener {
-            goBack()
+        binding.backButton.setOnClickListener { goBack() }
+
+        binding.overlayView.isClickable = true
+        binding.overlayView.isLongClickable = true
+        binding.overlayView.setOnLongClickListener {
+            Log.d("NAVIGATOR", "Long-clic détecté sur overlayView")
+            showContextMenu()
+            true
         }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-
         if (requestCode == REQUEST_CODE_PICK_FOLDER && resultCode == RESULT_OK) {
-            val uri = data?.data ?: return
-            folderUri = uri
-
-            // Essayer de récupérer l'aventure transmise
+            folderUri = data?.data ?: return
             val jsonUri = intent.getParcelableExtra<Uri>("adventureJsonUri")
             if (jsonUri != null) {
                 loadAdventure(jsonUri)
@@ -67,11 +91,8 @@ class NavigatorActivity : BaseActivity() {
             val reader = InputStreamReader(inputStream)
             adventure = Gson().fromJson(reader, Adventure::class.java)
             reader.close()
-
-            currentImageName = adventure.images.firstOrNull()?.imageName
-
+            currentImageName = adventure.startImagePath ?: adventure.images.firstOrNull()?.imageName
             showCurrentImage()
-
         } catch (e: Exception) {
             e.printStackTrace()
             Toast.makeText(this, "Erreur de chargement de l'aventure.", Toast.LENGTH_SHORT).show()
@@ -79,135 +100,44 @@ class NavigatorActivity : BaseActivity() {
         }
     }
 
-    private fun findFileRecursively(folder: DocumentFile?, relativePath: String): DocumentFile? {
-        if (folder == null || !folder.isDirectory) return null
+    private fun showCurrentImage() {
+        currentImageName?.let { fullImagePath ->
+            val folderDocument = DocumentFile.fromTreeUri(this, folderUri)
+            var imageFile = findFileRecursively(folderDocument, fullImagePath)
+            var correctedPath = fullImagePath
 
-        // Normalisation du chemin : remplace les antislashs par des slashs, et réduit les slashs multiples à un seul
-        val cleanRelativePath = relativePath.replace("\\", "/").replace(Regex("/+"), "/")
-        val segments = cleanRelativePath.split('/')
+            if (imageFile == null) {
+                correctedPath = correctImagePathIfNeeded(folderDocument, fullImagePath)
+                imageFile = findFileRecursively(folderDocument, correctedPath)
+                if (imageFile != null) currentImageName = correctedPath
+            }
 
-        var currentFolder = folder
-        for (i in 0 until segments.size - 1)
-        {            currentFolder = currentFolder?.listFiles()
-                ?.firstOrNull { it.isDirectory && it.name == segments[i] }
-        }
-
-        return currentFolder?.listFiles()
-            ?.firstOrNull { !it.isDirectory && it.name == segments.last() }
-    }
-
-private fun showCurrentImage() {
-    currentImageName?.let { fullImagePath ->
-        Log.d("NAVIGATOR", "Recherche des zones pour : $fullImagePath")
-
-        val folderDocument = DocumentFile.fromTreeUri(this, folderUri)
-
-        /*Log.d("NAVIGATOR", "On cherche l'image avec ce chemin : $fullImagePath")
-        for (image in adventure.images) {
-            Log.d("NAVIGATOR", "Image JSON présente : ${image.imageName}")
-        }*/
-
-        var imageFile = findFileRecursively(folderDocument, fullImagePath)
-        var correctedPath = fullImagePath
-        if (imageFile == null) {
-            correctedPath = correctImagePathIfNeeded(folderDocument, fullImagePath)
-            imageFile = findFileRecursively(folderDocument, correctedPath)
             if (imageFile != null) {
-                currentImageName = correctedPath
+                Glide.with(this)
+                    .load(imageFile.uri)
+                    .transition(withCrossFade(300))
+                    .override(2048, 2048)
+                    .into(binding.imageView)
+                removeLoadingView()
+            } else {
+                Toast.makeText(this, "Image non trouvée : $correctedPath", Toast.LENGTH_SHORT).show()
             }
-        } else {
-            currentImageName = fullImagePath
-        }
 
-        if (imageFile != null) {
-            Log.d("NAVIGATOR", "Image trouvée : ${imageFile.name}")
-            Glide.with(this)
-                .load(imageFile.uri)
-                .transition(withCrossFade(300))
-                .into(binding.imageView)
-        } else {
-            Log.e("NAVIGATOR", "Image non trouvée : $correctedPath")
-            Toast.makeText(this, "Image non trouvée : $correctedPath", Toast.LENGTH_SHORT).show()
-        }
-
-        Log.d("NAVIGATOR", "On cherche l'image avec ce chemin : $correctedPath")
-        for (image in adventure.images) {
-            Log.d("NAVIGATOR", "Image JSON présente : ${image.imageName}")
-        }
-
-        // --- Bloc de debug pour comparer les chemins JSON et les fichiers réels ---
-        val allFiles = mutableListOf<String>()
-        fun listFilesRecursively(folder: DocumentFile?) {
-            folder?.listFiles()?.forEach {
-                if (it.isDirectory) {
-                    listFilesRecursively(it)
-                } else {
-                    allFiles.add(it.name ?: "")
-                }
-            }
-        }
-        allFiles.clear()
-        /*listFilesRecursively(DocumentFile.fromTreeUri(this, folderUri))
-
-        Log.d("DEBUG", "---- Fichiers trouvés dans le dossier : ----")
-        for (file in allFiles) {
-            Log.d("DEBUG", file)
-        }
-        Log.d("DEBUG", "---- Images dans le JSON : ----")
-        for (img in adventure.images) {
-            Log.d("DEBUG", img.imageName)
-        }
-        */
-
-        // --- Fin du bloc de debug ---
-
-        // Ici on utilise directement correctedPath pour trouver les zones,
-        // mais on s'assure de comparer sans espaces superflus.
-        val currentImageData = adventure.images.find { it.imageName.trim() == correctedPath.trim() }
-        if (currentImageData == null) {
-            Log.e("NAVIGATOR", "Aucune image JSON trouvée pour ce nom : $correctedPath")
-        }
-        val zones = currentImageData?.zones ?: emptyList<ZoneData>()
-
-        Log.d("NAVIGATOR", "Nombre de zones chargées : ${zones.size}")
-
-        binding.overlayView.zones = zones
-        binding.overlayView.onZoneClicked = { targetPath ->
-            Log.d("NAVIGATOR", "Zone cliquée, cible = $targetPath")
-            navigateToImage(targetPath)
+            val currentImageData = adventure.images.find { it.imageName.trim() == correctedPath.trim() }
+            val zones = currentImageData?.zones ?: emptyList()
+            binding.overlayView.zones = zones
+            binding.overlayView.onZoneClicked = { targetPath -> navigateToImage(targetPath) }
         }
     }
-}
 
-private fun correctImagePathIfNeeded(folder: DocumentFile?, path: String): String {
-    if (folder == null) return path
-
-    val cleanPath = path.replace("\\", "/").replace(Regex("/+"), "/").trim()
-
-    val segments = cleanPath.split("/")
-    if (segments.isEmpty()) return path
-
-    var currentFolder = folder
-    for (i in 0 until segments.size - 1) {
-        currentFolder = currentFolder?.listFiles()
-            ?.firstOrNull { it.isDirectory && it.name.equals(segments[i], ignoreCase = true) }
+    private fun removeLoadingView() {
+        loadingView?.let {
+            binding.root.removeView(it)
+            loadingView = null
+        }
     }
-
-    val targetName = segments.last()
-    val matchingFile = currentFolder?.listFiles()
-        ?.firstOrNull { !it.isDirectory && it.name.equals(targetName, ignoreCase = true) }
-
-    return if (matchingFile != null) {
-        // Reconstruire un chemin avec le bon nom de fichier
-        val correctedSegments = segments.dropLast(1) + (matchingFile.name ?: targetName)
-        correctedSegments.joinToString("/")
-    } else {
-        path
-    }
-}
 
     private fun navigateToImage(targetPath: String) {
-        Log.d("NAVIGATOR", "Navigation vers l'image : $targetPath")
         currentImageName?.let { historyStack.add(it) }
         currentImageName = targetPath
         showCurrentImage()
@@ -219,6 +149,53 @@ private fun correctImagePathIfNeeded(folder: DocumentFile?, path: String): Strin
             showCurrentImage()
         } else {
             finish()
+        }
+    }
+
+    private fun findFileRecursively(folder: DocumentFile?, relativePath: String): DocumentFile? {
+        if (folder == null || !folder.isDirectory) return null
+        val cleanRelativePath = relativePath.replace("\\", "/").replace(Regex("/+"), "/")
+        val segments = cleanRelativePath.split('/')
+        var currentFolder = folder
+        for (i in 0 until segments.size - 1) {
+            currentFolder = currentFolder?.listFiles()?.firstOrNull { it.isDirectory && it.name == segments[i] }
+        }
+        return currentFolder?.listFiles()?.firstOrNull { !it.isDirectory && it.name == segments.last() }
+    }
+
+    private fun correctImagePathIfNeeded(folder: DocumentFile?, path: String): String {
+        if (folder == null) return path
+        val cleanPath = path.replace("\\", "/").replace(Regex("/+"), "/").trim()
+        val segments = cleanPath.split("/")
+        if (segments.isEmpty()) return path
+        var currentFolder = folder
+        for (i in 0 until segments.size - 1) {
+            currentFolder = currentFolder?.listFiles()
+                ?.firstOrNull { it.isDirectory && it.name.equals(segments[i], ignoreCase = true) }
+        }
+        val targetName = segments.last()
+        val matchingFile = currentFolder?.listFiles()
+            ?.firstOrNull { !it.isDirectory && it.name.equals(targetName, ignoreCase = true) }
+        return matchingFile?.let {
+            (segments.dropLast(1) + (it.name ?: targetName)).joinToString("/")
+        } ?: path
+    }
+
+    private fun showContextMenu() {
+        Log.d("NAVIGATOR", "Affichage du PopupWindow")
+        val popupView = layoutInflater.inflate(R.layout.custom_popup_menu, null)
+        val popupWindow = PopupWindow(popupView, LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT, true)
+        popupWindow.showAtLocation(binding.root, Gravity.NO_GRAVITY, lastTouchX.toInt(), lastTouchY.toInt())
+
+        popupView.findViewById<TextView>(R.id.option1).setOnClickListener {
+            currentImageName = adventure.startImagePath ?: adventure.images.firstOrNull()?.imageName
+            historyStack.clear()
+            showCurrentImage()
+            popupWindow.dismiss()
+        }
+        popupView.findViewById<TextView>(R.id.option2).setOnClickListener {
+            Toast.makeText(this, "Fonction pas encore implémentée", Toast.LENGTH_SHORT).show()
+            popupWindow.dismiss()
         }
     }
 

@@ -3,8 +3,10 @@ package com.example.imagenavigator
 import android.content.Context
 import android.graphics.RectF
 import android.util.AttributeSet
+import android.util.Log
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import com.example.imagenavigator.model.ZoneData
 
 class OverlayView @JvmOverloads constructor(
@@ -14,13 +16,29 @@ class OverlayView @JvmOverloads constructor(
 
     var zones: List<ZoneData> = emptyList()
     var onZoneClicked: ((String) -> Unit)? = null // Appelé quand on clique sur une zone valide
+    var onLongClickAt: ((Float, Float) -> Unit)? = null
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val width = MeasureSpec.getSize(widthMeasureSpec)
+        val height = MeasureSpec.getSize(heightMeasureSpec)
+        setMeasuredDimension(width, height)
+    }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        val x = event.x / width   // Position relative X (0..1)
-        val y = event.y / height  // Position relative Y (0..1)
+        val x = event.x / width
+        val y = event.y / height
 
         if (event.action == MotionEvent.ACTION_DOWN) {
-            // Détection du clic
+            postDelayed({
+                performLongClick()
+                onLongClickAt?.invoke(event.rawX, event.rawY)
+            }, ViewConfiguration.getLongPressTimeout().toLong())
+            Log.d("OVERLAY", "overlayView size: $width x $height")
+            if (width < 5000 && height < 5000) {
+                postDelayed({ performLongClick() }, ViewConfiguration.getLongPressTimeout().toLong())
+            } else {
+                Log.e("OVERLAY", "overlayView trop grand, long-clic ignoré")
+            }
             val clickedZone = findZoneAt(x, y)
             clickedZone?.linkedImagePath?.let { targetPath ->
                 onZoneClicked?.invoke(targetPath)
