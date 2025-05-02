@@ -52,7 +52,6 @@ import androidx.lifecycle.lifecycleScope
 
 class EditorActivity : BaseActivity() {
 
-    private val DEBUG_LOGS = false
 
     // --- Déclarations ---
 
@@ -60,8 +59,8 @@ class EditorActivity : BaseActivity() {
     private lateinit var imageAdapter: ImageAdapter
 
     private val groupedImages = mutableListOf<ImageGroup>()
-    private val imageDataMap = mutableMapOf<String, MutableList<Zone>>()
-    private val imageBitmapMap = mutableMapOf<String, Bitmap>()
+    var imageDataMap = mutableMapOf<String, MutableList<Zone>>()
+    var imageBitmapMap = mutableMapOf<String, Bitmap>()
     private lateinit var imageRootNode: ImageGroupNode
     private var currentImageName: String? = null
 
@@ -93,6 +92,23 @@ class EditorActivity : BaseActivity() {
     private var currentFolderUri: Uri? = null
     private lateinit var loadingProgressBar: ProgressBar
 
+    private val DEBUG_LOGS = true
+
+
+    private fun logDebug(tag: String, message: String) {
+        if (DEBUG_LOGS) {
+            Log.d(tag, message)
+        }
+    }
+
+    private fun logBitmapCache() {
+        if (!DEBUG_LOGS) return
+        Log.d("BitmapCache", "--- Contenu de imageBitmapMap ---")
+        imageBitmapMap.forEach { (imageName, bitmap) ->
+            Log.d("BitmapCache", "Image: $imageName → bitmap: ${bitmap.width}x${bitmap.height}")
+        }
+        Log.d("BitmapCache", "---------------------------------")
+    }
 
     // Demander l'accès au dossier
     private fun requestFolderAccess(uri: Uri) {
@@ -126,10 +142,27 @@ class EditorActivity : BaseActivity() {
         currentImageName?.let { oldImageName ->
             imageDataMap[oldImageName] = binding.drawingView.getAllZones().toMutableList()
         }
+
+        logBitmapCache()
+
         // Remplacement : accès direct au bitmap chargé
         binding.drawingView.imageBitmap = imageBitmapMap[fullPath]
         binding.drawingView.setZonesForCurrentImage(imageDataMap[fullPath] ?: emptyList())
         currentImageName = fullPath
+
+        // Toujours synchroniser le cache des bitmaps avec le DrawingView
+        binding.drawingView.imageBitmapMap = imageBitmapMap
+
+        if (DEBUG_LOGS) {
+            Log.d("ImageDataMap", "--- Contenu de imageDataMap ---")
+            imageDataMap.forEach { (imageName, zones) ->
+                Log.d("ImageDataMap", "Image: $imageName → Zones: ${zones.size}")
+                zones.forEach { zone ->
+                    Log.d("ImageDataMap", "   Zone rect: ${zone.rect} linkedImagePath: ${zone.linkedImagePath}")
+                }
+            }
+            logDebug("ImageDataMap", "-------------------------------")
+        }
     }
 
     // Quand l'utilisateur demande de renommer un groupe
@@ -246,6 +279,8 @@ class EditorActivity : BaseActivity() {
                             }
                         }
                     }
+                    // Synchroniser le cache à chaque chargement d'image
+                    binding.drawingView.imageBitmapMap = imageBitmapMap
                 }
 
                 // Recréer l'arbre d'images et mettre à jour l'adapter
@@ -286,7 +321,14 @@ class EditorActivity : BaseActivity() {
         // Adapter images
         imageAdapter = ImageAdapter(
             rootGroups = groupedImages,
-            onImageSelected = { bitmap, fullPath -> onImageSelected(bitmap, fullPath) },
+            onImageSelected = { bitmap, fullPath ->
+                val selectedZone = binding.drawingView.selectedZone
+                if (selectedZone != null) {
+                    linkSelectedZoneToImage(fullPath)
+                } else {
+                    onImageSelected(bitmap, fullPath)
+                }
+            },
             onGroupRenameRequested = { updatedItem -> onGroupRenameRequested(updatedItem) },
             onGroupDeleteRequested = { itemToDelete -> onGroupDeleteRequested(itemToDelete) },
             onItemLongPress = { item -> toggleSelection(item.fullPath) },
@@ -723,6 +765,10 @@ class EditorActivity : BaseActivity() {
                             }
                             imageBitmapMap[fullPath] = bitmap
                             imageDataMap[fullPath] = mutableListOf()  // Initialiser les zones vides
+                            // Synchroniser le cache à chaque chargement d'image
+                            withContext(Dispatchers.Main) {
+                                binding.drawingView.imageBitmapMap = imageBitmapMap
+                            }
                             if (DEBUG_LOGS) Log.d("EditorActivity", "Image trouvée: $fullPath")
                             loadedImagesCount++ // Incrémenter pour l'affichage du chargement
                             if (DEBUG_LOGS && loadedImagesCount % 10 == 0) {
@@ -1052,6 +1098,23 @@ class EditorActivity : BaseActivity() {
         }
     }
 
+    // Lie l'image à la zone sélectionnée
+    private fun linkSelectedZoneToImage(linkedImagePath: String) {
+        val selectedZone = binding.drawingView.selectedZone
+        if (selectedZone != null) {
+            selectedZone.linkedImagePath = linkedImagePath
+            binding.drawingView.selectedZone = null
+            binding.drawingView.invalidate()
+            currentImageName?.let { imageName ->
+                imageDataMap[imageName] = binding.drawingView.getAllZones().toMutableList()
+            }
+            Log.d("LinkZone", "Zone liée: ${selectedZone.rect}, image: $linkedImagePath")
+            Log.d("LinkZone", "ImageDataMap après liaison: $imageDataMap")
+            Log.d("LinkZone", "ImageBitmapMap contient: ${imageBitmapMap.keys}")
+        }
+    }
+
 
 }
+
 

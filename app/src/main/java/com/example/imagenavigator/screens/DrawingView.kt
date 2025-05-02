@@ -41,11 +41,10 @@ class DrawingView @JvmOverloads constructor(
     var onTapListener: (() -> Unit)? = null
 
     var selectedZone: Zone? = null
-    private var spotlightActive = false
     private var overlayAlpha = 255
     private val fadeHandler = Handler(Looper.getMainLooper())
     // Map pour associer les chemins d'images aux bitmaps
-    private val imageBitmapMap = mutableMapOf<String, Bitmap>()
+    var imageBitmapMap = mutableMapOf<String, Bitmap>()
 
     private val selectedZonesMulti = mutableSetOf<Zone>()
     fun clearSelectedZones() {
@@ -68,11 +67,6 @@ class DrawingView @JvmOverloads constructor(
     private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
         override fun onSingleTapUp(e: MotionEvent): Boolean {
             Log.d("DrawingView", "onSingleTapUp détecté")
-            // Si spotlight actif, désactiver au tap simple
-            if (spotlightActive) {
-                clearSpotlight()
-                return true
-            }
             onTapListener?.invoke()
             return true
         }
@@ -144,14 +138,23 @@ class DrawingView @JvmOverloads constructor(
             val absBottom = dstRect.top + r.bottom * dstRect.height()
             val absRect = RectF(absLeft, absTop, absRight, absBottom)
 
+            // Afficher la vignette 50% transparente de l’image liée au-dessus de chaque zone
+            zone.linkedImagePath?.let { linkedPath ->
+                val linkedBitmap = imageBitmapMap[linkedPath]
+                linkedBitmap?.let { bmp ->
+                    val scaledBitmap = Bitmap.createScaledBitmap(bmp, absRect.width().toInt(), absRect.height().toInt(), false)
+                    val paint = Paint().apply { alpha = 128 }
+                    canvas.drawBitmap(scaledBitmap, null, absRect, paint)
+                }
+            }
+
             val zonePaint = Paint().apply {
                 color = when {
-                    selectedZonesMulti.contains(zone) -> Color.RED
-                    zone.linkedImagePath != null -> Color.GREEN
-                    else -> Color.LTGRAY
+                    zone == selectedZone -> Color.argb(150, 255, 165, 0) // orange semi-transparent
+                    zone.linkedImagePath != null -> Color.argb(150, 0, 255, 0) // vert semi-transparent
+                    else -> Color.argb(150, 128, 128, 128) // gris semi-transparent
                 }
                 style = Paint.Style.FILL
-                alpha = if (zone == selectedZone && spotlightActive) 180 else 128
             }
 
             canvas.drawRect(absRect, zonePaint)
@@ -163,32 +166,11 @@ class DrawingView @JvmOverloads constructor(
             canvas.drawRect(it, paintBorder)
         }
 
-       if (spotlightActive && selectedZone != null) {
-           Log.d("DrawingView", "Image liée : ${selectedZone?.linkedImagePath}") // Log du chemin de l'image liée
-
-           // Overlay pour spotlight
-           val paintOverlay = Paint().apply {
-               color = Color.argb(128, 255, 255, 255) // Blanc semi-transparent
-           }
-           canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), paintOverlay)
-
-           val r = selectedZone!!.rect
-           val absLeft = dstRect.left + r.left * dstRect.width()
-           val absTop = dstRect.top + r.top * dstRect.height()
-           val absRight = dstRect.left + r.right * dstRect.width()
-           val absBottom = dstRect.top + r.bottom * dstRect.height()
-           val absRect = RectF(absLeft, absTop, absRight, absBottom)
-
-           // Découper un "trou" sur la zone sélectionnée
-           val clearPaint = Paint().apply {
-               xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
-           }
-           canvas.drawRect(absRect, clearPaint)
-       }
+        // Plus d'overlay blanc/spotlight ici
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        Log.d("DrawingView", "onTouchEvent: ${event.action}, spotlightActive=$spotlightActive, selectedZone=$selectedZone")
+        Log.d("DrawingView", "onTouchEvent: ${event.action}, selectedZone=$selectedZone")
         if (event.action == MotionEvent.ACTION_DOWN && selectedZonesMulti.isNotEmpty()) {
             clearSelectedZones()
             (context as? EditorActivity)?.hideDeleteZonesButton()
@@ -207,16 +189,11 @@ class DrawingView @JvmOverloads constructor(
         }
 
         if (bitmap == null) {
-            if (event.action == MotionEvent.ACTION_UP) {
-                if (spotlightActive) {
-                    clearSpotlight()
-                }
-            }
             return true
         }
 
         if (selectedZonesMulti.isNotEmpty()) {
-            // Pas de spotlight en mode sélection multiple
+            // Pas de sélection simple en mode sélection multiple
             return true
         }
 
@@ -258,17 +235,17 @@ class DrawingView @JvmOverloads constructor(
 
                             if (absRect.contains(touchX, touchY)) {
                                 selectedZone = zone
-                                spotlightActive = true
                                 overlayAlpha = 192
-                                Log.d("DrawingView", "Spotlight activé sur zone : ${zone.rect.left}, ${zone.rect.top}, ${zone.rect.right}, ${zone.rect.bottom}")
+                                Log.d("DrawingView", "Zone sélectionnée : ${zone.rect.left}, ${zone.rect.top}, ${zone.rect.right}, ${zone.rect.bottom}")
                                 invalidate()
                                 foundZone = true
                                 break
                             }
                         }
-                        if (!foundZone /*&& spotlightActive*/) {
-                            // Tap en dehors des zones désactive le spotlight
-                            clearSpotlight()
+                        if (!foundZone) {
+                            // Tap en dehors des zones désélectionne la zone
+                            selectedZone = null
+                            invalidate()
                         }
                     } else {
                         // Grand mouvement : créer une nouvelle zone
@@ -314,16 +291,14 @@ class DrawingView @JvmOverloads constructor(
 
     /**
      * Associe simplement le chemin de l'image liée à la zone sélectionnée.
-     * Ne modifie pas l'affichage dans le DrawingView.
-     * L'affichage (filtre vert sur la vignette) est géré dans l'adapter des images.
+     * Déclenche le redessin de la vue pour afficher la modification.
      */
     fun assignLinkedImageToSelectedZone(imagePath: String) {
         selectedZone?.let {
             it.linkedImagePath = imagePath
             Log.d("DrawingView", "Image liée à la zone : ${it.linkedImagePath}")
-            // Ne rien faire d'autre ici, l'affichage de la zone ne change pas dans le DrawingView.
-        } ?: run {
-            Log.d("DrawingView", "Aucune zone sélectionnée pour lier l'image.")
+            selectedZone = null
+            invalidate()
         }
     }
 
@@ -350,21 +325,7 @@ class DrawingView @JvmOverloads constructor(
         return true
     }
 
-    /**
-     * Indique si le spotlight est actuellement actif (zone sélectionnée en surbrillance).
-     */
-    fun isSpotlightActive(): Boolean {
-        return spotlightActive
-    }
-
-    /**
-     * Désactive le spotlight et désélectionne la zone, puis redessine la vue.
-     */
-    fun clearSpotlight() {
-        spotlightActive = false
-        selectedZone = null
-        invalidate()
-    }
+    // spotlightActive et spotlight methods supprimés
 
     fun deleteSelectedZones() {
         Log.d("DeleteZones", "Sélection : ${selectedZonesMulti.size}, Zones : ${zones.size}")
