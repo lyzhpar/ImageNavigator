@@ -75,6 +75,7 @@
         android:layout_height="56dp"
         android:backgroundTint="@color/design_default_color_error"
         android:src="@android:drawable/ic_menu_delete"
+        android:translationZ="10dp"
         android:contentDescription="Supprimer les zones"
         android:visibility="gone"
         android:layout_margin="16dp"

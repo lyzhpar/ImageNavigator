@@ -114,6 +114,17 @@ class EditorActivity : BaseActivity() {
         Log.d("BitmapCache", "---------------------------------")
     }
 
+    fun updateImageDataMap(updatedZones: List<Zone>) {
+        currentImageName?.let { imageName ->
+            imageDataMap[imageName] = updatedZones.toMutableList()
+        }
+    }
+
+    fun refreshThumbnailZones() {
+        imageAdapter.imageZonesMap = imageDataMap.mapValues { it.value.map { it.toZoneData() } }
+        imageAdapter.notifyDataSetChanged()
+    }
+
     // Demander l'accès au dossier
     private fun requestFolderAccess(uri: Uri) {
         // Charger directement les images depuis le dossier sans relancer de sélecteur
@@ -1158,28 +1169,32 @@ class EditorActivity : BaseActivity() {
     private fun linkSelectedZoneToImage(linkedImagePath: String) {
         val selectedZone = binding.drawingView.selectedZone
         if (selectedZone != null) {
+            if (linkedImagePath == currentImageName) {
+                Snackbar.make(
+                    findViewById(android.R.id.content),
+                    "Impossible de lier une zone à sa propre image.",
+                    Snackbar.LENGTH_SHORT
+                ).show()
+                return
+            }
             selectedZone.linkedImagePath = linkedImagePath
             binding.drawingView.selectedZone = null
             binding.drawingView.invalidate()
             currentImageName?.let { imageName ->
                 imageDataMap[imageName] = binding.drawingView.getAllZones().toMutableList()
-                // --- Empêcher le saut de scroll lors du rafraîchissement des vignettes ---
                 val layoutManager = binding.recyclerViewThumbnails.layoutManager as LinearLayoutManager
                 val firstVisiblePosition = layoutManager.findFirstVisibleItemPosition()
                 val offset = layoutManager.findViewByPosition(firstVisiblePosition)?.top ?: 0
 
-                // Mettre à jour les zones dans l'adapter (pour les vignettes)
                 val imageZonesMap = imageDataMap.mapValues { entry ->
                     entry.value.map { it.toZoneData() }
                 }
                 imageAdapter.imageZonesMap = imageZonesMap
-                // Mise à jour ciblée (évite notifyDataSetChanged)
                 val fullPath = imageName
                 val index = imageAdapter.currentList.indexOfFirst { it.fullPath == fullPath }
                 if (index >= 0) {
                     imageAdapter.notifyItemChanged(index)
                 }
-
                 layoutManager.scrollToPositionWithOffset(firstVisiblePosition, offset)
             }
             Log.d("LinkZone", "Zone liée: ${selectedZone.rect}, image: $linkedImagePath")

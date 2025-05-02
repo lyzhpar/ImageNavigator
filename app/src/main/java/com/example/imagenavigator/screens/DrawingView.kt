@@ -10,6 +10,7 @@ import android.util.Log
 import android.view.GestureDetector
 import android.os.Handler
 import android.os.Looper
+import com.google.android.material.snackbar.Snackbar
 import kotlin.math.absoluteValue
 
 /**
@@ -30,8 +31,6 @@ class DrawingView @JvmOverloads constructor(
     )
     var editorConfig = EditorConfig()
 
-    private var justDeletedZones = false
-
     init {
         isClickable = true
         isLongClickable = true
@@ -51,14 +50,15 @@ class DrawingView @JvmOverloads constructor(
     var onTapListener: (() -> Unit)? = null
 
     var selectedZone: Zone? = null
-    private var overlayAlpha = 255
     private val fadeHandler = Handler(Looper.getMainLooper())
     // Map pour associer les chemins d'images aux bitmaps
     var imageBitmapMap = mutableMapOf<String, Bitmap>()
+    var currentImageName: String? = null
 
     private val selectedZonesMulti = mutableSetOf<Zone>()
     fun clearSelectedZones() {
         selectedZonesMulti.clear()
+        (context as? EditorActivity)?.updateDeleteButtonVisibilityForZones()
         invalidate()
     }
 
@@ -69,6 +69,8 @@ class DrawingView @JvmOverloads constructor(
     fun setZonesForCurrentImage(newZones: List<Zone>) {
         zones.clear()
         zones.addAll(newZones)
+        clearSelectedZones()
+        (context as? EditorActivity)?.updateDeleteButtonVisibilityForZones()
         invalidate()
     }
 
@@ -160,6 +162,7 @@ class DrawingView @JvmOverloads constructor(
 //TODO:Config couleur zones
             val zonePaint = Paint().apply {
                 color = when {
+                    zone in selectedZonesMulti -> Color.argb(180, 255, 0, 0) // rouge semi-transparent pour multi-sélection
                     zone == selectedZone -> Color.argb(150, 255, 165, 0) // orange semi-transparent
                     zone.linkedImagePath != null -> Color.argb(60, 0, 255, 0) // vert semi-transparent
                     else -> Color.argb(150, 128, 128, 128) // gris semi-transparent
@@ -171,10 +174,14 @@ class DrawingView @JvmOverloads constructor(
         }
 
         // Dessiner temporairement le rectangle qu'on est en train de tracer
-        drawingRect?.let {
-            canvas.drawRect(it, paintZone)
-            canvas.drawRect(it, paintBorder)
-        }
+       drawingRect?.let {
+           val tempPaint = Paint().apply {
+               color = Color.argb(150, 128, 128, 128) // gris semi-transparent
+               style = Paint.Style.FILL
+           }
+           canvas.drawRect(it, tempPaint)
+           canvas.drawRect(it, paintBorder)
+       }
 
         // Plus d'overlay blanc/spotlight ici
     }
@@ -213,11 +220,6 @@ class DrawingView @JvmOverloads constructor(
         val bitmap = imageBitmap
         if (bitmap != null && bitmap.isRecycled) {
             Log.e("DrawingView", "Bitmap recyclé détecté dans onTouchEvent, retour anticipé")
-            return true
-        }
-
-        if (justDeletedZones) {
-            justDeletedZones = false
             return true
         }
 
@@ -268,9 +270,10 @@ class DrawingView @JvmOverloads constructor(
 
                             if (absRect.contains(touchX, touchY)) {
                                 selectedZone = zone
-                                overlayAlpha = 192
                                 Log.d("DrawingView", "Zone sélectionnée : ${zone.rect.left}, ${zone.rect.top}, ${zone.rect.right}, ${zone.rect.bottom}")
                                 invalidate()
+                                // Ajout : mettre à jour la visibilité du bouton suppression après sélection
+                                (context as? EditorActivity)?.updateDeleteButtonVisibilityForZones()
                                 foundZone = true
                                 break
                             }
@@ -279,6 +282,8 @@ class DrawingView @JvmOverloads constructor(
                             // Tap en dehors des zones désélectionne la zone
                             selectedZone = null
                             invalidate()
+                            // Ajout : mettre à jour la visibilité du bouton suppression après désélection
+                            (context as? EditorActivity)?.updateDeleteButtonVisibilityForZones()
                         }
                     } else {
                         // Grand mouvement : créer une nouvelle zone
@@ -328,6 +333,15 @@ class DrawingView @JvmOverloads constructor(
      */
     fun assignLinkedImageToSelectedZone(imagePath: String) {
         selectedZone?.let {
+            if (imagePath == currentImageName) {
+                Log.d("DrawingView", "Impossible de lier une zone à la même image.")
+                Snackbar.make(
+                    findViewById(android.R.id.content),
+                    "C'est la même image !",
+                    Snackbar.LENGTH_LONG
+                ).show()
+                return
+            }
             it.linkedImagePath = imagePath
             Log.d("DrawingView", "Image liée à la zone : ${it.linkedImagePath}")
             selectedZone = null
@@ -362,41 +376,32 @@ class DrawingView @JvmOverloads constructor(
 
     fun deleteSelectedZones() {
         Log.d("DeleteZones", "Sélection : ${selectedZonesMulti.size}, Zones : ${zones.size}")
-        if (selectedZonesMulti.isEmpty()) {
+
+        val zonesToDelete = if (selectedZonesMulti.isNotEmpty()) {
+            selectedZonesMulti.toList()
+        } else {
+            selectedZone?.let { listOf(it) } ?: emptyList()
+        }
+
+        if (zonesToDelete.isEmpty()) {
             Log.d("DeleteZones", "Aucune zone sélectionnée.")
             return
         }
 
-        Log.d("DeleteZones", "Zones avant suppression: ${zones.size}")
-        Log.d("DeleteZones", "Zones sélectionnées: ${selectedZonesMulti.size}")
+        zones.removeAll(zonesToDelete)
 
-        val selectedRects = selectedZonesMulti.map { it.rect }
+        (context as? EditorActivity)?.updateImageDataMap(zones)
+        (context as? EditorActivity)?.refreshThumbnailZones()
 
-        val toRemove = zones.filter { zone ->
-            selectedRects.any { selectedRect ->
-                areRectsEqual(zone.rect, selectedRect)
-            }
-        }
-
-        Log.d("DeleteZones", "Zones à supprimer : $toRemove")
-        Log.d("DeleteZones", "Contenu exact des zones : $zones")
-        Log.d("DeleteZones", "Contenu exact des selectedZonesMulti : $selectedZonesMulti")
-        zones.removeAll(toRemove)
-        Log.d("DeleteZones", "zones.removeAll(toRemove) exécuté")
-
-        Log.d("DeleteZones", "Zones après suppression: ${zones.size}")
-
+        selectedZone = null
         selectedZonesMulti.clear()
-        justDeletedZones = true
+        drawingRect = null
+        startX = 0f
+        startY = 0f
         invalidate()
+        (context as? EditorActivity)?.updateDeleteButtonVisibilityForZones()
     }
 
-    private fun areRectsEqual(rect1: RectF, rect2: RectF): Boolean {
-        return (rect1.left - rect2.left).absoluteValue < 0.01f &&
-                (rect1.top - rect2.top).absoluteValue < 0.01f &&
-                (rect1.right - rect2.right).absoluteValue < 0.01f &&
-                (rect1.bottom - rect2.bottom).absoluteValue < 0.01f
-    }
 
     fun hasSelectedZones(): Boolean {
         return selectedZonesMulti.isNotEmpty()
