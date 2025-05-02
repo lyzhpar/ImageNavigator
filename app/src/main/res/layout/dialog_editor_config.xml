@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Largeur vignette (px)"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:paddingBottom="4dp" />
+        <SeekBar
+            android:id="@+id/sliderThumbnailWidth"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="500"
+            android:progress="200" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Hauteur vignette (px)"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:paddingTop="12dp"
+            android:paddingBottom="4dp" />
+        <SeekBar
+            android:id="@+id/sliderThumbnailHeight"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="500"
+            android:progress="100" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Transparence (0-255)"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:paddingTop="12dp"
+            android:paddingBottom="4dp" />
+        <SeekBar
+            android:id="@+id/sliderThumbnailAlpha"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="255"
+            android:progress="200" />
+
+        <CheckBox
+            android:id="@+id/switchShowThumbnails"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Afficher les vignettes liées"
+            android:checked="true" />
+    </LinearLayout>
+</ScrollView>

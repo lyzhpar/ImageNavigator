@@ -13,7 +13,9 @@ import android.net.Uri
 import android.os.Bundle
 import android.provider.DocumentsContract
 import android.util.Log
+import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
@@ -41,6 +43,7 @@ import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.*
 import java.io.File
 import android.view.inputmethod.InputMethodManager
+import android.widget.FrameLayout
 import com.example.imagenavigator.model.Adventure
 import com.example.imagenavigator.model.ImageData
 import com.example.imagenavigator.model.toZone
@@ -48,6 +51,7 @@ import com.example.imagenavigator.model.toZoneData
 import android.widget.ProgressBar
 
 import androidx.lifecycle.lifecycleScope
+import com.google.android.material.floatingactionbutton.FloatingActionButton
 
 
 class EditorActivity : BaseActivity() {
@@ -345,6 +349,15 @@ class EditorActivity : BaseActivity() {
         // 🛠 Accès propre aux éléments du header
         adventureNameTextView = binding.headerAdventure.adventureNameTextView
 
+        // CONFIG START - Header Config Button
+        // --- Ajout bouton Config dans le header ---
+        // Ajoute un bouton config à droite du titre, et le clic sur le titre déclenche aussi la config
+        // binding.headerAdventure.adventureNameTextView.setCompoundDrawablesWithIntrinsicBounds(
+        //    0, 0, android.R.drawable.ic_menu_preferences, 0
+        //)
+        // binding.headerAdventure.adventureNameTextView.setOnClickListener { showConfigDialog() }
+        // CONFIG END - Header Config Button
+
         // Bottom bar
         val bottomBarView = binding.bottomBar.root
         imagesInfoText = bottomBarView.findViewById(R.id.textImageCount)
@@ -390,6 +403,23 @@ class EditorActivity : BaseActivity() {
                 imageDataMap[imageName]?.add(zone)
             }
         }
+
+        // CONFIG START - FloatingActionButton
+        // Ajout du FloatingActionButton en bas à droite (toujours visible)
+        /*val fab = FloatingActionButton(this).apply {
+            setImageResource(R.drawable.ic_baseline_settings_24) // icône roue dentée moderne
+            setOnClickListener { showConfigDialog() }
+        }
+        val params = FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply {
+            gravity = Gravity.BOTTOM or Gravity.END
+            marginEnd = 32
+            bottomMargin = 32
+        }
+        (binding.root as ViewGroup).addView(fab, params)*/
+        // CONFIG END - FloatingActionButton
 
         // Remplace le bouton d'import dossier par un bouton de synchronisation
         val buttonSyncFolder = bottomBarView.findViewById<Button>(R.id.buttonImportFolder)
@@ -869,7 +899,7 @@ class EditorActivity : BaseActivity() {
         saveZones()  // Sauvegarde automatique aussi quand l’activité passe en arrière-plan
         Snackbar.make(
             findViewById(android.R.id.content),
-            "✅ Sauvegarde automatique effectuée",
+            "Sauvegarde automatique effectuée",
             Snackbar.LENGTH_LONG
         ).show()
     }
@@ -878,7 +908,7 @@ class EditorActivity : BaseActivity() {
         saveZones()  // Sauvegarde automatique avant destruction
         Snackbar.make(
             findViewById(android.R.id.content),
-            "✅ Sauvegarde automatique effectuée",
+            "Sauvegarde automatique effectuée",
             Snackbar.LENGTH_LONG
         ).show()
         super.onDestroy()
@@ -1115,6 +1145,36 @@ class EditorActivity : BaseActivity() {
     }
 
 
-}
+    // CONFIG START - showConfigDialog
+    // --- Boîte de dialogue de configuration de l’éditeur ---
+    /*private fun showConfigDialog() {
+        val view = layoutInflater.inflate(R.layout.dialog_editor_config, null)
+        val widthSlider = view.findViewById<android.widget.SeekBar>(R.id.sliderThumbnailWidth)
+        val heightSlider = view.findViewById<android.widget.SeekBar>(R.id.sliderThumbnailHeight)
+        val alphaSlider = view.findViewById<android.widget.SeekBar>(R.id.sliderThumbnailAlpha)
+        val switchShowThumbs = view.findViewById<android.widget.CheckBox>(R.id.switchShowThumbnails)
 
+        val config = binding.drawingView.editorConfig
+        widthSlider.progress = config.thumbnailWidth
+        heightSlider.progress = config.thumbnailHeight
+        alphaSlider.progress = config.thumbnailAlpha
+        switchShowThumbs.isChecked = config.showLinkedThumbnails
+
+        AlertDialog.Builder(this)
+            .setTitle("Configuration de l’éditeur")
+            .setView(view)
+            .setPositiveButton("OK") { _, _ ->
+                config.thumbnailWidth = widthSlider.progress
+                config.thumbnailHeight = heightSlider.progress
+                config.thumbnailAlpha = alphaSlider.progress
+                config.showLinkedThumbnails = switchShowThumbs.isChecked
+                binding.drawingView.invalidate()
+            }
+            .setNegativeButton("Annuler", null)
+            .show()
+    }*/
+    // CONFIG END - showConfigDialog
+
+
+}
 

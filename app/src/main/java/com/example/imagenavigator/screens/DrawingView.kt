@@ -20,6 +20,16 @@ class DrawingView @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null
 ) : View(context, attrs) {
 
+    //Vignettes de ZONES
+    data class EditorConfig(
+        var thumbnailWidth: Int = 300,
+        var thumbnailHeight: Int = 200,
+        var thumbnailAlpha: Int = 200,
+        var keepPanoramic: Boolean = true,
+        var showLinkedThumbnails: Boolean = true
+    )
+    var editorConfig = EditorConfig()
+
     private var justDeletedZones = false
 
     init {
@@ -142,7 +152,9 @@ class DrawingView @JvmOverloads constructor(
             zone.linkedImagePath?.let { linkedPath ->
                 val linkedBitmap = imageBitmapMap[linkedPath]
                 linkedBitmap?.let { bmp ->
-                    drawLinkedThumbnail(canvas, bmp, absRect)
+                    if (editorConfig.showLinkedThumbnails) {
+                        drawLinkedThumbnail(canvas, bmp, absRect)
+                    }
                 }
             }
 
@@ -168,20 +180,22 @@ class DrawingView @JvmOverloads constructor(
     }
 
     private fun drawLinkedThumbnail(canvas: Canvas, bmp: Bitmap, absRect: RectF) {
-        val thumbnailWidth = 200
-        val thumbnailHeight = 100
+        val thumbnailWidth = editorConfig.thumbnailWidth
+        val thumbnailHeight = editorConfig.thumbnailHeight
         val srcAspect = bmp.width.toFloat() / bmp.height.toFloat()
         val targetAspect = thumbnailWidth.toFloat() / thumbnailHeight.toFloat()
-        val srcRect: Rect = if (srcAspect > targetAspect) {
+        val srcRect: Rect = if (editorConfig.keepPanoramic && srcAspect > targetAspect) {
             val newWidth = (bmp.height * targetAspect).toInt()
             val left = (bmp.width - newWidth) / 2
             Rect(left, 0, left + newWidth, bmp.height)
-        } else {
+        } else if (editorConfig.keepPanoramic) {
             val newHeight = (bmp.width / targetAspect).toInt()
             val top = (bmp.height - newHeight) / 2
             Rect(0, top, bmp.width, top + newHeight)
+        } else {
+            Rect(0, 0, bmp.width, bmp.height)
         }
-        val paint = Paint().apply { alpha = 200 }
+        val paint = Paint().apply { alpha = editorConfig.thumbnailAlpha }
         val thumbLeft = absRect.left
         val thumbTop = absRect.top - thumbnailHeight
         val thumbRect = RectF(thumbLeft, thumbTop, thumbLeft + thumbnailWidth, thumbTop + thumbnailHeight)
