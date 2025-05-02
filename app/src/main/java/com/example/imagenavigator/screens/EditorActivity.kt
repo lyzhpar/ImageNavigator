@@ -122,9 +122,14 @@ class EditorActivity : BaseActivity() {
 
     // Quand une image est sélectionnée
     private fun onImageSelected(bitmap: Bitmap, fullPath: String) {
+        // Avant de remplacer le bitmap et les zones, enregistrer les zones de l'image courante
+        currentImageName?.let { oldImageName ->
+            imageDataMap[oldImageName] = binding.drawingView.getAllZones().toMutableList()
+        }
         // Remplacement : accès direct au bitmap chargé
         binding.drawingView.imageBitmap = imageBitmapMap[fullPath]
         binding.drawingView.setZonesForCurrentImage(imageDataMap[fullPath] ?: emptyList())
+        currentImageName = fullPath
     }
 
     // Quand l'utilisateur demande de renommer un groupe
