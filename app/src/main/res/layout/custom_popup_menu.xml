@@ -20,6 +20,15 @@
         android:layout_height="wrap_content"
         android:text="Afficher les zones en gris"
         android:padding="8dp"
-        android:textAppearance="?android:attr/textAppearanceMedium" />
+        android:textAppearance="?android:attr/textAppearanceMedium"/>
+
+    <TextView
+        android:id="@+id/option3"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="16dp"
+        android:text="Recalculer et rafraîchir l’affichage"
+        android:textColor="@android:color/black"/>
+        />
 
 </LinearLayout>
