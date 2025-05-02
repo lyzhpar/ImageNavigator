@@ -19,7 +19,7 @@ import android.util.Log
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions.withCrossFade
 
 
-class NavigatorActivity : AppCompatActivity() {
+class NavigatorActivity : BaseActivity() {
 
     private lateinit var binding: ActivityNavigatorBinding
 

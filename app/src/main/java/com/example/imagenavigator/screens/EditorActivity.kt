@@ -46,13 +46,11 @@ import com.example.imagenavigator.model.ImageData
 import com.example.imagenavigator.model.toZone
 import com.example.imagenavigator.model.toZoneData
 import android.widget.ProgressBar
-import androidx.constraintlayout.widget.ConstraintLayout
-import androidx.core.content.ContextCompat
-import kotlin.collections.remove
+
 import androidx.lifecycle.lifecycleScope
 
 
-class EditorActivity : AppCompatActivity() {
+class EditorActivity : BaseActivity() {
 
     private val DEBUG_LOGS = false
 
@@ -263,6 +261,7 @@ class EditorActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityEditorBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
         deleteZonesButton = findViewById(R.id.deleteZonesButton)
         deleteZonesButton.setOnClickListener {
             Log.d("DeleteZones", "Suppression demandée via bouton")
@@ -382,8 +381,6 @@ class EditorActivity : AppCompatActivity() {
                 }
             }
             binding.bottomBar.root.addView(selectionModeIndicator)
-
-            hideSystemUI()
         }
     }
 
@@ -815,25 +812,6 @@ class EditorActivity : AppCompatActivity() {
         return count
     }
 
-    private fun hideSystemUI() {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-            window.insetsController?.let {
-                it.hide(android.view.WindowInsets.Type.systemBars())
-                it.systemBarsBehavior =
-                    android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            }
-        } else {
-            @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility = (
-                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                            or View.SYSTEM_UI_FLAG_FULLSCREEN
-                            or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                            or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                            or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                            or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                    )
-        }
-    }
 
     override fun onPause() {
         super.onPause()

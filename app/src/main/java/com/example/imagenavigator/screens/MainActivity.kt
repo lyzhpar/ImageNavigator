@@ -6,7 +6,6 @@ import android.os.Bundle
 import android.content.res.Configuration
 import android.util.Log
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.imagenavigator.adapters.AdventureAdapter
 import com.example.imagenavigator.databinding.ActivityMainBinding
@@ -15,7 +14,7 @@ import java.io.File
 /**
  * Menu principal : créer une nouvelle aventure ou explorer les aventures existantes.
  */
-class MainActivity : AppCompatActivity() {
+class MainActivity : BaseActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var adventureAdapter: AdventureAdapter
