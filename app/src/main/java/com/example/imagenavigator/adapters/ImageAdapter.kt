@@ -14,6 +14,8 @@ import com.example.imagenavigator.utils.ImageGroup
 import android.util.Log
 import com.bumptech.glide.Glide
 import android.graphics.Color
+import android.graphics.RectF
+import com.example.imagenavigator.model.ZoneData
 
 class ImageAdapter(
     private var rootGroups: List<ImageGroup>,
@@ -30,6 +32,8 @@ class ImageAdapter(
 
     private var isSelectionMode = false
     private val selectedItems = mutableSetOf<String>()
+
+    var imageZonesMap: Map<String, List<ZoneData>> = emptyMap()
 
     // Ajout de la variable linkedImagePaths pour les images liées à une zone
     var linkedImagePaths: Set<String> = emptySet()
@@ -254,38 +258,63 @@ class ImageAdapter(
         private val checkbox: ImageView = view.findViewById(R.id.checkbox)  // La coche pour l'image
 
         fun bind(item: DisplayItem) {
-            // Affichage des images pour ImageItem
             when (item) {
                 is DisplayItem.ImageItem -> {
+                    var displayBitmap = item.bitmap
+
+                    // Si l'image a des zones liées, dessiner les rectangles verts dessus
+                    val zones = imageZonesMap[item.fullPath]
+                    if (!zones.isNullOrEmpty()) {
+                        val mutableBitmap = try {
+                            item.bitmap.copy(Bitmap.Config.ARGB_8888, true)
+                        } catch (e: Exception) {
+                            item.bitmap
+                        }
+                        val canvas = android.graphics.Canvas(mutableBitmap)
+                        // Opacité et couleur vert
+                        val paint = android.graphics.Paint().apply { color = Color.argb(60, 0, 255, 0) }
+
+                        for (zone in zones) {
+                            if (zone.linkedImagePath != null) {
+                                val rect = zone.rect
+                                val left = rect.left * mutableBitmap.width
+                                val top = rect.top * mutableBitmap.height
+                                val right = rect.right * mutableBitmap.width
+                                val bottom = rect.bottom * mutableBitmap.height
+                                canvas.drawRect(left, top, right, bottom, paint)
+                            }
+                        }
+                        displayBitmap = mutableBitmap
+                    }
+
                     Glide.with(imageView.context)
-                        .load(item.bitmap)
+                        .load(displayBitmap)
                         .override(400, 250)
                         .centerCrop()
-                        .thumbnail(Glide.with(imageView.context).load(item.bitmap).override(40, 25))
+                        .thumbnail(Glide.with(imageView.context).load(displayBitmap).override(40, 25))
                         .into(imageView)
                 }
                 is DisplayItem.GroupItem -> {
-                    imageView.setImageResource(R.drawable.folder_icon) // Icône pour les dossiers
+                    imageView.setImageResource(R.drawable.folder_icon)
                 }
             }
 
-            // Appliquer un filtre gris sur l'image si sélectionnée
             if (selectedItems.contains(item.fullPath)) {
-                imageView.setColorFilter(Color.argb(150, 128, 128, 128))  // Gris sur l'image
-                checkbox.visibility = View.VISIBLE  // Afficher la coche
+                imageView.setColorFilter(Color.argb(150, 128, 128, 128))
+                checkbox.visibility = View.VISIBLE
             } else {
-                imageView.clearColorFilter()  // Retirer le filtre gris
-                checkbox.visibility = View.GONE  // Masquer la coche
+                imageView.clearColorFilter()
+                checkbox.visibility = View.GONE
             }
 
             itemView.setOnClickListener {
                 if (item is DisplayItem.ImageItem) {
-                    onImageSelected(item.bitmap, item.fullPath)  // Sélectionner l'image
+                    onImageSelected(item.bitmap, item.fullPath)
                 }
             }
 
             itemView.setOnLongClickListener {
-                onItemLongPress(item)  // Gérer le long press pour sélectionner
+                onItemLongPress(item)
                 true
             }
         }

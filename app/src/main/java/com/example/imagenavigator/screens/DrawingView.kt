@@ -42,7 +42,7 @@ class DrawingView @JvmOverloads constructor(
             invalidate()
         }
 
-    // Liste des zones visibles pour cette image
+    //Liste des zones visibles pour cette image
     val zones: MutableList<Zone> = mutableListOf()
 
     // Callback appelée quand une nouvelle zone est créée
@@ -157,11 +157,11 @@ class DrawingView @JvmOverloads constructor(
                     }
                 }
             }
-
+//TODO:Config couleur zones
             val zonePaint = Paint().apply {
                 color = when {
                     zone == selectedZone -> Color.argb(150, 255, 165, 0) // orange semi-transparent
-                    zone.linkedImagePath != null -> Color.argb(150, 0, 255, 0) // vert semi-transparent
+                    zone.linkedImagePath != null -> Color.argb(60, 0, 255, 0) // vert semi-transparent
                     else -> Color.argb(150, 128, 128, 128) // gris semi-transparent
                 }
                 style = Paint.Style.FILL

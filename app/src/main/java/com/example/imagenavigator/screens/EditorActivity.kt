@@ -157,6 +157,20 @@ class EditorActivity : BaseActivity() {
         // Toujours synchroniser le cache des bitmaps avec le DrawingView
         binding.drawingView.imageBitmapMap = imageBitmapMap
 
+        // --- Empêcher le saut de scroll lors du rafraîchissement des vignettes ---
+        val layoutManager = binding.recyclerViewThumbnails.layoutManager as LinearLayoutManager
+        val firstVisiblePosition = layoutManager.findFirstVisibleItemPosition()
+        val offset = layoutManager.findViewByPosition(firstVisiblePosition)?.top ?: 0
+
+        // Mettre à jour les zones dans l'adapter (pour les vignettes)
+        val imageZonesMap = imageDataMap.mapValues { entry ->
+            entry.value.map { it.toZoneData() }
+        }
+        imageAdapter.imageZonesMap = imageZonesMap
+        imageAdapter.notifyDataSetChanged()
+
+        layoutManager.scrollToPositionWithOffset(firstVisiblePosition, offset)
+
         if (DEBUG_LOGS) {
             Log.d("ImageDataMap", "--- Contenu de imageDataMap ---")
             imageDataMap.forEach { (imageName, zones) ->
@@ -345,6 +359,18 @@ class EditorActivity : BaseActivity() {
             setHasFixedSize(true)
             adapter = imageAdapter
         }
+        // Désactive les animations de changement pour éviter le clignotement
+        val animator = binding.recyclerViewThumbnails.itemAnimator
+        if (animator is androidx.recyclerview.widget.SimpleItemAnimator) {
+            animator.supportsChangeAnimations = false
+        }
+
+        // Mettre à jour les zones dans l'adapter après configuration de imageAdapter
+        val imageZonesMap = imageDataMap.mapValues { entry ->
+            entry.value.map { it.toZoneData() }
+        }
+        imageAdapter.imageZonesMap = imageZonesMap
+        imageAdapter.notifyDataSetChanged()
 
         // 🛠 Accès propre aux éléments du header
         adventureNameTextView = binding.headerAdventure.adventureNameTextView
@@ -1137,6 +1163,24 @@ class EditorActivity : BaseActivity() {
             binding.drawingView.invalidate()
             currentImageName?.let { imageName ->
                 imageDataMap[imageName] = binding.drawingView.getAllZones().toMutableList()
+                // --- Empêcher le saut de scroll lors du rafraîchissement des vignettes ---
+                val layoutManager = binding.recyclerViewThumbnails.layoutManager as LinearLayoutManager
+                val firstVisiblePosition = layoutManager.findFirstVisibleItemPosition()
+                val offset = layoutManager.findViewByPosition(firstVisiblePosition)?.top ?: 0
+
+                // Mettre à jour les zones dans l'adapter (pour les vignettes)
+                val imageZonesMap = imageDataMap.mapValues { entry ->
+                    entry.value.map { it.toZoneData() }
+                }
+                imageAdapter.imageZonesMap = imageZonesMap
+                // Mise à jour ciblée (évite notifyDataSetChanged)
+                val fullPath = imageName
+                val index = imageAdapter.currentList.indexOfFirst { it.fullPath == fullPath }
+                if (index >= 0) {
+                    imageAdapter.notifyItemChanged(index)
+                }
+
+                layoutManager.scrollToPositionWithOffset(firstVisiblePosition, offset)
             }
             Log.d("LinkZone", "Zone liée: ${selectedZone.rect}, image: $linkedImagePath")
             Log.d("LinkZone", "ImageDataMap après liaison: $imageDataMap")
