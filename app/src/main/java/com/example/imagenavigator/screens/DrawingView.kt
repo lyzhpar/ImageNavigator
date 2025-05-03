@@ -152,7 +152,8 @@ class DrawingView @JvmOverloads constructor(
             zone.linkedImagePath?.let { linkedPath ->
                 val linkedBitmap = imageBitmapMap[linkedPath]
                 linkedBitmap?.let { bmp ->
-                    if (editorConfig.showLinkedThumbnails) {
+                    if (!bmp.isRecycled && editorConfig.showLinkedThumbnails) {
+                        Log.d("LoadImages", "Image chargée: $linkedPath, taille: ${bmp.width}x${bmp.height}")
                         drawLinkedThumbnail(canvas, bmp, absRect)
                     }
                 }
@@ -185,6 +186,10 @@ class DrawingView @JvmOverloads constructor(
     }
 
     private fun drawLinkedThumbnail(canvas: Canvas, bmp: Bitmap, absRect: RectF) {
+        if (bmp.isRecycled) {
+            Log.e("DrawingView", "Bitmap recyclé détecté pour la vignette, on saute le draw")
+            return
+        }
         val thumbnailWidth = editorConfig.thumbnailWidth
         val thumbnailHeight = editorConfig.thumbnailHeight
         val srcAspect = bmp.width.toFloat() / bmp.height.toFloat()

@@ -129,6 +129,11 @@ class EditorActivity : BaseActivity() {
 
     // Demander l'accès au dossier
     private fun requestFolderAccess(uri: Uri) {
+        // Avant de charger, reset l'adapter et l'arbre racine et recycle les bitmaps
+        imageAdapter.updateData(emptyList())
+        imageRootNode = ImageGroupNode("Racine", null, mutableListOf(), mutableListOf())
+        imageBitmapMap.values.forEach { if (!it.isRecycled) it.recycle() }
+        imageBitmapMap.clear()
         // Charger directement les images depuis le dossier sans relancer de sélecteur
         // En mode édition, il ne faut pas effacer imageDataMap (clearData = false)
         loadImagesFromFolder(uri, clearData = false)
@@ -147,6 +152,11 @@ class EditorActivity : BaseActivity() {
             if (result.resultCode == Activity.RESULT_OK) {
                 val uri = result.data?.data
                 if (uri != null) {
+                    // Ajout: prendre la permission persistante sur le dossier sélectionné
+                    val flags = result.data?.flags?.and(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                    if (flags != null) {
+                        contentResolver.takePersistableUriPermission(uri, flags)
+                    }
                     currentFolderUri = uri
                     val adventureFromIntent = intent.getStringExtra("adventureName")
                     if (adventureFromIntent != null) {
@@ -790,6 +800,7 @@ class EditorActivity : BaseActivity() {
             if (clearData) {
                 imageBitmapMap.clear()
                 imageDataMap.clear()
+        imageRootNode = ImageGroupNode("Racine", null, mutableListOf(), mutableListOf())
             }
             allImageFiles.sortBy { it.second }
 
@@ -803,25 +814,30 @@ class EditorActivity : BaseActivity() {
                     async(Dispatchers.IO) {
                         semaphore.acquire()
                         try {
-                            imageFileMap[fullPath] = file
-                            val bitmap = withContext(Dispatchers.IO) {
-                                Glide.with(this@EditorActivity)
-                                    .asBitmap()
-                                    .load(file.uri)
-                                    .apply(RequestOptions().override(800, 600).diskCacheStrategy(DiskCacheStrategy.ALL))
-                                    .submit()
-                                    .get()
+                            if (!imageBitmapMap.containsKey(fullPath)) {
+                                imageFileMap[fullPath] = file
+                                val bitmap = withContext(Dispatchers.IO) {
+                                    Glide.with(this@EditorActivity)
+                                        .asBitmap()
+                                        .load(file.uri)
+                                        .apply(
+                                            RequestOptions().override(800, 600)
+                                                .diskCacheStrategy(DiskCacheStrategy.ALL)
+                                        )
+                                        .submit()
+                                        .get()
+                                }
+                                imageBitmapMap[fullPath] = bitmap
                             }
-                            imageBitmapMap[fullPath] = bitmap
                             // Ne pas initialiser imageDataMap[fullPath] ici pour ne pas écraser les zones déjà présentes
-                            logDebug("LoadImages", "Image chargée: $fullPath, taille: ${bitmap.width}x${bitmap.height}")
-
+                            val bitmap = imageBitmapMap[fullPath]
+                            logDebug("LoadImages", "Image chargée: $fullPath, taille: ${bitmap?.width}x${bitmap?.height}")
                             // Synchroniser le cache à chaque chargement d'image
                             withContext(Dispatchers.Main) {
                                 binding.drawingView.imageBitmapMap = imageBitmapMap
                             }
                             if (debugLogs) Log.d("EditorActivity", "Image trouvée: $fullPath")
-                            loadedImagesCount++ // Incrémenter pour l'affichage du chargement
+                            loadedImagesCount = minOf(loadedImagesCount + 1, totalImagesToLoad) // Incrémenter pour l'affichage du chargement, sans dépasser total
                             if (loadedImagesCount % 10 == 0) {
                                 logDebug("EditorActivity", "Chargées : $loadedImagesCount / $totalImagesToLoad")
                             }
@@ -834,7 +850,7 @@ class EditorActivity : BaseActivity() {
                                 "Failed to load image: $fullPath",
                                 e
                             )
-                            loadedImagesCount++ // Même si échec, on incrémente pour la barre de chargement
+                            loadedImagesCount = minOf(loadedImagesCount + 1, totalImagesToLoad) // Même si échec, on incrémente pour la barre de chargement, sans dépasser total
                         } finally {
                             semaphore.release()
                         }
@@ -871,6 +887,7 @@ class EditorActivity : BaseActivity() {
         try {
             if (!::imagesInfoText.isInitialized) return
             if (totalImagesToLoad > 0) {
+                val safeLoadedCount = minOf(loadedImagesCount, totalImagesToLoad)
                 val progressPercent = (loadedImagesCount * 100) / totalImagesToLoad
                 loadingProgressBar.progress = progressPercent
                 imagesInfoText.text = getString(R.string.loading_progress, loadedImagesCount, totalImagesToLoad)
@@ -925,9 +942,7 @@ class EditorActivity : BaseActivity() {
 
     override fun onDestroy() {
         saveZones()  // Sauvegarde automatique avant destruction
-        for (bitmap in imageBitmapMap.values) {
-            bitmap.recycle()
-        }
+        imageBitmapMap.values.forEach { if (!it.isRecycled) it.recycle() }
         imageBitmapMap.clear()
         super.onDestroy()
         imageLoadingScope.cancel()
@@ -1228,12 +1243,22 @@ class EditorActivity : BaseActivity() {
                 }
             }
 
+            // Fix: always initialize imageRootNode to a valid node, not a String
+            imageRootNode = ImageGroupNode("Racine", null, mutableListOf(), mutableListOf())
+
             logDebug("EnterEditMode", "currentFolderUri vérifié : $currentFolderUri")
             // Bloc refait pour gestion du dossier et suppression de la synchro prématurée
             if (currentFolderUri != null) {
                 val folder = DocumentFile.fromTreeUri(this, currentFolderUri!!)
                 if (folder != null && folder.exists()) {
+                    if (!hasPersistedPermission(currentFolderUri!!)) {
+                        showSnackbar("Permission expirée, merci de re-sélectionner le dossier.")
+                        openFolderPicker()
+                        return
+                    }
                     logDebug("EnterEditMode", "Dossier accessible → chargement des images")
+                    groupedImages.clear()
+                    imageAdapter.updateData(emptyList())
                     requestFolderAccess(currentFolderUri!!)
                 } else {
                     logDebug("EnterEditMode", "Dossier introuvable ou inaccessible → demander à l’utilisateur")
@@ -1293,5 +1318,10 @@ class EditorActivity : BaseActivity() {
     }*/
     // CONFIG END - showConfigDialog
 
+
+    private fun hasPersistedPermission(uri: Uri): Boolean {
+        val persistedUris = contentResolver.persistedUriPermissions
+        return persistedUris.any { it.uri == uri && it.isReadPermission && it.isWritePermission }
+    }
 
 }
