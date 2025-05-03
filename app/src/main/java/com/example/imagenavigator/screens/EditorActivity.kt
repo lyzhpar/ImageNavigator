@@ -149,11 +149,9 @@ class EditorActivity : BaseActivity() {
                     currentFolderUri = uri
                     val adventureFromIntent = intent.getStringExtra("adventureName")
                     if (adventureFromIntent != null) {
-                        loadAdventureData(adventureFromIntent)
-                        lifecycleScope.launch(Dispatchers.IO) {
-                            synchronizeFolder()
-                        }
-                    } else {
+                        enterEditMode(adventureFromIntent)
+                    }
+                    else {
                         loadImagesFromFolder(uri, true)
                     }
                 }
@@ -272,13 +270,11 @@ class EditorActivity : BaseActivity() {
     //}
 
     private fun loadAdventureData(name: String) {
-        // Lire le fichier d'aventure
         val file = File(filesDir, "${name}_zones.json")
         if (file.exists()) {
             val json = file.readText()
             val adventureData = GsonBuilder().create().fromJson(json, AdventureData::class.java)
 
-            // Remplir imageDataMap avec les Zones reconverties
             imageDataMap.clear()
             adventureData.images.forEach { image ->
                 val zones = image.zones.map { it.toZone() }.toMutableList()
@@ -286,62 +282,24 @@ class EditorActivity : BaseActivity() {
             }
 
             startImagePath = adventureData.startImagePath
-            Log.d("EditorActivity", "Image de départ chargée : $startImagePath")
-
-            // Mettre à jour le titre de l'aventure
             currentAdventureName = adventureData.adventureTitle
             adventureNameTextView.text = currentAdventureName
 
-            // Charger l'URI du dossier à partir des données d'aventure
             val folderUriString = adventureData.folderUri
             if (folderUriString.isNullOrEmpty()) {
-                showSnackbar("Le dossier initial n’a pas été enregistré ou a été perdu. Veuillez le sélectionner à nouveau pour restaurer les images et les zones.")
+                showSnackbar("Le dossier initial est manquant. Merci de le re-sélectionner.")
                 openFolderPicker()
                 return
             }
             currentFolderUri = Uri.parse(folderUriString)
-            // Charger les images depuis le dossier si l'URI est valide
+
             currentFolderUri?.let {
                 requestFolderAccess(it)
             }
 
-            // Vérifier la cohérence du dossier et informer l'utilisateur
             checkFolderConsistencyAndProceed(folderUriString)
-
-            // Charger les images depuis le fichier JSON
-            val allImageFiles = adventureData.images.map { it.imageName }
-
-            // Initialiser les maps pour les images et les zones
-            imageBitmapMap.clear()
-
-            // Charger les images dans l'interface
-            imageLoadingScope.launch(Dispatchers.Main) {
-                for (path in allImageFiles) {
-                    val uri = getUriForImage(path)  // Fonction qui retourne l'URI de chaque image
-                    if (uri != null) {
-                        val inputStream = contentResolver.openInputStream(uri)
-                        if (inputStream != null) {
-                            val options = BitmapFactory.Options().apply { inSampleSize = 4 }
-                            val bitmap = BitmapFactory.decodeStream(inputStream, null, options)
-                            inputStream.close()
-                            if (bitmap != null) {
-                                imageBitmapMap[path] = bitmap
-                            }
-                        }
-                    }
-                    // Synchroniser le cache à chaque chargement d'image
-                    binding.drawingView.imageBitmapMap = imageBitmapMap
-                }
-
-                // Recréer l'arbre d'images et mettre à jour l'adapter
-                val allImages = imageBitmapMap.map { (path, bitmap) -> bitmap to path }
-                imageRootNode = ImageGroupTreeBuilder.buildImageGroupTree(allImages)
-                imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
-                updateBottomBarInfo()  // Mettre à jour les informations de la barre inférieure
-            }
         } else {
-            // Fichier d'aventure non trouvé, demander à l'utilisateur de créer un nom
-            showSnackbar("Fichier d'aventure introuvable.")
+            showSnackbar("Fichier d’aventure introuvable.")
             promptAdventureName()
         }
     }
@@ -351,6 +309,11 @@ class EditorActivity : BaseActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityEditorBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        if (binding.syncOverlay.visibility == View.VISIBLE) {
+            Log.d("SyncFolder", "Synchronisation déjà en cours, on ignore l’appel.")
+            return
+        }
 
         // --- Initialisation du bouton Supprimer (deleteButton) ---
         deleteButton = Button(this).apply {
@@ -440,14 +403,7 @@ class EditorActivity : BaseActivity() {
         val buttonSave = binding.bottomBar.buttonSave
         //val buttonRenameAdventure = binding.bottomBar.buttonRenameAdventure
         if (adventureFromIntent != null) {
-            currentAdventureName = adventureFromIntent
-            binding.headerAdventure.adventureNameTextView.text = currentAdventureName
-            // Initialisation du champ imagesInfoText AVANT openFolderPicker/loadAdventureData
-            imagesInfoText = binding.bottomBar.root.findViewById(R.id.textImageCount)
-            openFolderPicker()
-            adventure = generateAdventureData()
-            currentAdventureJsonUri = Uri.fromFile(File(filesDir, "$currentAdventureName.json"))
-            return
+            enterEditMode(adventureFromIntent)
         }
 
         // Listeners sur les boutons
@@ -680,6 +636,10 @@ class EditorActivity : BaseActivity() {
     }
 
     private fun updateWorldAndUnlinkedCounts() {
+        if (!::imageRootNode.isInitialized) {
+            Log.w("EditorActivity", "imageRootNode non initialisé → on saute updateWorldAndUnlinkedCounts()")
+            return
+        }
         val worldCount = imageRootNode.children.count { it.name != "Racine" }
         val linkedImageNames = imageDataMap
             .flatMap { it.value }
@@ -1218,15 +1178,15 @@ class EditorActivity : BaseActivity() {
         } else {
             AlertDialog.Builder(this)
                 .setTitle("Attention")
-                .setMessage("L’aventure utilisait le dossier enregistré :\n\n$adventureFolderUri\n\nVoulez-vous utiliser ce dossier ou garder le nouveau ?")
-                .setPositiveButton("Utiliser l’ancien") { _, _ ->
+                .setMessage("L’aventure utilise ce dossier :\n\n$adventureFolderUri\n\nVoulez-vous le réutiliser ou conserver le nouveau ?")
+                .setPositiveButton("Réutiliser l’ancien") { _, _ ->
                     currentFolderUri = Uri.parse(adventureFolderUri)
                     lifecycleScope.launch(Dispatchers.IO) {
                         synchronizeFolder()
                     }
                 }
                 .setNegativeButton("Garder le nouveau") { _, _ ->
-                    showSnackbar("⚠ Nouveau dossier utilisé, synchronisation en cours…")
+                    showSnackbar("⚠ Nouveau dossier sélectionné, synchronisation en cours…")
                     lifecycleScope.launch(Dispatchers.IO) {
                         synchronizeFolder()
                     }
@@ -1234,6 +1194,13 @@ class EditorActivity : BaseActivity() {
                 .show()
         }
     }
+
+    fun enterEditMode(adventureName: String) {
+        currentAdventureName = adventureName
+        currentAdventureJsonUri = Uri.fromFile(File(filesDir, "$currentAdventureName.json"))
+        loadAdventureData(adventureName)
+    }
+
 
 
     // CONFIG START - showConfigDialog
@@ -1268,5 +1235,3 @@ class EditorActivity : BaseActivity() {
 
 
 }
-
-
