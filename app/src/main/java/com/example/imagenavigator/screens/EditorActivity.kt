@@ -435,12 +435,12 @@ class EditorActivity : BaseActivity() {
         }
 
         // Accès aux boutons dans la BottomBar
-        val buttonSaveAdventure = binding.bottomBar.buttonSaveAdventure
-        val buttonRenameAdventure = binding.bottomBar.buttonRenameAdventure
+        //val buttonSaveAdventure = binding.bottomBar.buttonSaveAdventure
+        //val buttonRenameAdventure = binding.bottomBar.buttonRenameAdventure
 
         // Listeners sur les boutons
-        buttonSaveAdventure.setOnClickListener { saveZones() }
-        buttonRenameAdventure.setOnClickListener { showRenameAdventureDialog() }
+        //buttonSaveAdventure.setOnClickListener { saveZones() }
+        //buttonRenameAdventure.setOnClickListener { showRenameAdventureDialog() }
 
         // Initialisation : on attend que l'utilisateur donne un nom
         promptAdventureName()
@@ -687,7 +687,7 @@ class EditorActivity : BaseActivity() {
         val unlinkedCount = imageBitmapMap.keys.count { it !in linkedImageNames }
 
         worldsInfoText.text = "Mondes : $worldCount"
-        findViewById<TextView>(R.id.textUnlinkedCount).text = "Non liées : $unlinkedCount"
+        //findViewById<TextView>(R.id.textUnlinkedCount).text = "Non liées : $unlinkedCount"
     }
 
     private fun isGroupPath(fullPath: String): Boolean {
