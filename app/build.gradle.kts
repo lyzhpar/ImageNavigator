@@ -1,3 +1,7 @@
+import org.gradle.kotlin.dsl.annotationProcessor
+import org.gradle.kotlin.dsl.implementation
+
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -40,6 +44,9 @@ android {
     }
 }
 
+val implementation = null
+val annotationProcessor = Unit
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
@@ -52,4 +59,6 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
     annotationProcessor ("com.github.bumptech.glide:compiler:4.12.0")
     implementation ("com.google.code.gson:gson:2.10.1")
+    implementation ("com.github.bumptech.glide:glide:4.16.0'")
+    annotationProcessor ("com.github.bumptech.glide:compiler:4.16.0'")
 }

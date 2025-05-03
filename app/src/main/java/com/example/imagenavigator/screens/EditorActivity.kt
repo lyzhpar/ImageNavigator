@@ -11,11 +11,10 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
-import android.provider.DocumentsContract
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
-import android.view.Gravity
 import android.view.View
-import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
@@ -23,7 +22,6 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.isVisible
 import androidx.documentfile.provider.DocumentFile
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -43,7 +41,6 @@ import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.*
 import java.io.File
 import android.view.inputmethod.InputMethodManager
-import android.widget.FrameLayout
 import com.example.imagenavigator.model.Adventure
 import com.example.imagenavigator.model.ImageData
 import com.example.imagenavigator.model.toZone
@@ -51,7 +48,7 @@ import com.example.imagenavigator.model.toZoneData
 import android.widget.ProgressBar
 
 import androidx.lifecycle.lifecycleScope
-import com.google.android.material.floatingactionbutton.FloatingActionButton
+import com.google.gson.Gson
 
 
 class EditorActivity : BaseActivity() {
@@ -89,26 +86,28 @@ class EditorActivity : BaseActivity() {
 
     private val imageLoadingScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val imagesPerBatch = 5
-    private var isLoadingBatch = false
     private var totalImagesToLoad = 0
     private var loadedImagesCount = 0
 
     private var currentFolderUri: Uri? = null
     private lateinit var loadingProgressBar: ProgressBar
 
-    private val DEBUG_LOGS = true
+    private val debugLogs = false
 
     private var startImagePath: String? = null
+    private var adventure: Adventure? = null
+    private var currentAdventureJsonUri: Uri? = null
 
 
     private fun logDebug(tag: String, message: String) {
-        if (DEBUG_LOGS) {
-            Log.d(tag, message)
+        // Paramètre tag inutilisé, log supprimé pour respecter consigne
+        if (debugLogs) {
+            Log.d("EditorActivity", message)
         }
     }
 
     private fun logBitmapCache() {
-        if (!DEBUG_LOGS) return
+        if (!debugLogs) return
         Log.d("BitmapCache", "--- Contenu de imageBitmapMap ---")
         imageBitmapMap.forEach { (imageName, bitmap) ->
             Log.d("BitmapCache", "Image: $imageName → bitmap: ${bitmap.width}x${bitmap.height}")
@@ -161,7 +160,9 @@ class EditorActivity : BaseActivity() {
         }
 
     // Quand une image est sélectionnée
-    private fun onImageSelected(bitmap: Bitmap, fullPath: String) {
+    private fun onImageSelected(
+        /*bitmap: Bitmap,*/ fullPath: String
+    ) {
         // Avant de remplacer le bitmap et les zones, enregistrer les zones de l'image courante
         currentImageName?.let { oldImageName ->
             imageDataMap[oldImageName] = binding.drawingView.getAllZones().toMutableList()
@@ -191,7 +192,7 @@ class EditorActivity : BaseActivity() {
 
         layoutManager.scrollToPositionWithOffset(firstVisiblePosition, offset)
 
-        if (DEBUG_LOGS) {
+        if (debugLogs) {
             Log.d("ImageDataMap", "--- Contenu de imageDataMap ---")
             imageDataMap.forEach { (imageName, zones) ->
                 Log.d("ImageDataMap", "Image: $imageName → Zones: ${zones.size}")
@@ -204,7 +205,9 @@ class EditorActivity : BaseActivity() {
     }
 
     // Quand l'utilisateur demande de renommer un groupe
-    private fun onGroupRenameRequested(updatedItem: ImageAdapter.DisplayItem.GroupItem) {
+    private fun onGroupRenameRequested(
+        /*updatedItem: ImageAdapter.DisplayItem.GroupItem*/
+    ) {
         // Tu peux afficher une boîte de dialogue pour demander un nouveau nom
         AlertDialog.Builder(this)
             .setTitle("Renommer le groupe")
@@ -214,7 +217,9 @@ class EditorActivity : BaseActivity() {
     }
 
     // Quand l'utilisateur demande de supprimer un groupe
-    private fun onGroupDeleteRequested(itemToDelete: ImageAdapter.DisplayItem.GroupItem) {
+    private fun onGroupDeleteRequested(
+        /*itemToDelete: ImageAdapter.DisplayItem.GroupItem*/
+    ) {
         // Tu peux supprimer le groupe directement ou demander confirmation
         AlertDialog.Builder(this)
             .setTitle("Supprimer le groupe ?")
@@ -239,31 +244,31 @@ class EditorActivity : BaseActivity() {
         }
     }
 
-    private suspend fun loadBitmapFromUri(uri: Uri): Bitmap? {
-        val screenSize =
-            resources.displayMetrics.widthPixels.coerceAtLeast(resources.displayMetrics.heightPixels)
-        return try {
-            withContext(Dispatchers.IO) {
-                Glide.with(this@EditorActivity)
-                    .asBitmap()
-                    .load(uri)
-                    .apply(
-                        RequestOptions()
-                            .override(screenSize / 2)
-                            .diskCacheStrategy(DiskCacheStrategy.ALL)
-                    )
-                    .submit()
-                    .get()
-            }
-        } catch (e: Exception) {
-            Log.e(
-                "EditorActivity",
-                "Erreur lors du chargement de l'image à partir de l'URI : $uri",
-                e
-            )
-            null
-        }
-    }
+    //private suspend fun loadBitmapFromUri(uri: Uri): Bitmap? {
+    //    val screenSize =
+    //        resources.displayMetrics.widthPixels.coerceAtLeast(resources.displayMetrics.heightPixels)
+    //    return try {
+    //        withContext(Dispatchers.IO) {
+    //            Glide.with(this@EditorActivity)
+    //                .asBitmap()
+    //                .load(uri)
+    //                .apply(
+    //                    RequestOptions()
+    //                        .override(screenSize / 2)
+    //                        .diskCacheStrategy(DiskCacheStrategy.ALL)
+    //                )
+    //                .submit()
+    //                .get()
+    //        }
+    //    } catch (e: Exception) {
+    //        Log.e(
+    //            "EditorActivity",
+    //            "Erreur lors du chargement de l'image à partir de l'URI : $uri",
+    //            e
+    //        )
+    //        null
+    //    }
+    //}
 
     private fun loadAdventureData(name: String) {
         // Lire le fichier d'aventure
@@ -354,14 +359,16 @@ class EditorActivity : BaseActivity() {
 
         deleteZonesButton = findViewById(R.id.deleteZonesButton)
         deleteZonesButton.setOnClickListener {
-            Log.d("DeleteZones", "Suppression demandée via bouton")
+            if (debugLogs) Log.d("DeleteZones", "Suppression demandée via bouton")
             binding.drawingView.deleteSelectedZones()
             currentImageName?.let { imageName ->
                 imageDataMap[imageName] = binding.drawingView.getAllZones().toMutableList()
-                Log.d(
-                    "DeleteZones",
-                    "Zones restantes pour $imageName : ${imageDataMap[imageName]?.size}"
-                )
+                if (debugLogs) {
+                    Log.d(
+                        "DeleteZones",
+                        "Zones restantes pour $imageName : ${imageDataMap[imageName]?.size}"
+                    )
+                }
             }
             deleteZonesButton.visibility = View.GONE
         }
@@ -371,16 +378,16 @@ class EditorActivity : BaseActivity() {
         // Adapter images
         imageAdapter = ImageAdapter(
             rootGroups = groupedImages,
-            onImageSelected = { bitmap, fullPath ->
+            onImageSelected = { fullPath ->
                 val selectedZone = binding.drawingView.selectedZone
                 if (selectedZone != null) {
                     linkSelectedZoneToImage(fullPath)
                 } else {
-                    onImageSelected(bitmap, fullPath)
+                    onImageSelected(fullPath)
                 }
             },
-            onGroupRenameRequested = { updatedItem -> onGroupRenameRequested(updatedItem) },
-            onGroupDeleteRequested = { itemToDelete -> onGroupDeleteRequested(itemToDelete) },
+            onGroupRenameRequested = { onGroupRenameRequested() },
+            onGroupDeleteRequested = { onGroupDeleteRequested() },
             onItemLongPress = { item -> setStartImage(item.fullPath) },
             getSelectedItems = { imageAdapter.getSelectedItems() },
             exitSelectionMode = { exitSelectionMode() }
@@ -425,25 +432,31 @@ class EditorActivity : BaseActivity() {
         selectionInfoContainer = bottomBarView.findViewById(R.id.selectionInfoContainer)
 
         val adventureFromIntent = intent.getStringExtra("adventureName")
+        // Accès aux boutons dans la BottomBar
+        val buttonSave = binding.bottomBar.buttonSave
+        buttonSave.isEnabled = currentFolderUri != null
+        //val buttonRenameAdventure = binding.bottomBar.buttonRenameAdventure
         if (adventureFromIntent != null) {
             currentAdventureName = adventureFromIntent
             binding.headerAdventure.adventureNameTextView.text = currentAdventureName
             // Initialisation du champ imagesInfoText AVANT openFolderPicker/loadAdventureData
             imagesInfoText = binding.bottomBar.root.findViewById(R.id.textImageCount)
             openFolderPicker()
+            adventure = generateAdventureData()
+            currentAdventureJsonUri = Uri.fromFile(File(filesDir, "$currentAdventureName.json"))
+            buttonSave.isEnabled = currentFolderUri != null
             return
         }
 
-        // Accès aux boutons dans la BottomBar
-        //val buttonSaveAdventure = binding.bottomBar.buttonSaveAdventure
-        //val buttonRenameAdventure = binding.bottomBar.buttonRenameAdventure
-
         // Listeners sur les boutons
-        //buttonSaveAdventure.setOnClickListener { saveZones() }
-        //buttonRenameAdventure.setOnClickListener { showRenameAdventureDialog() }
-
+        buttonSave.setOnClickListener {
+            Log.d("EDITOR", "Bouton sauvegarder cliqué")
+            Toast.makeText(this, "Sauvegarde cliquée", Toast.LENGTH_SHORT).show()
+            saveZones()
+        }
         // Initialisation : on attend que l'utilisateur donne un nom
         promptAdventureName()
+
 
         // DrawingView cliquable
         binding.drawingView.isClickable = true
@@ -460,6 +473,23 @@ class EditorActivity : BaseActivity() {
             currentImageName?.let { imageName ->
                 imageDataMap[imageName]?.add(zone)
             }
+        }
+
+        // Ajout des boutons Menu et StartAdventure
+        findViewById<Button>(R.id.buttonMenu).setOnClickListener {
+            saveZones()
+            showSnackbar("Aventure sauvegardée")
+            Handler(Looper.getMainLooper()).postDelayed({
+                val intent = Intent(this, MainActivity::class.java)
+                startActivity(intent)
+                finish()
+            }, 1500)
+        }
+
+        findViewById<Button>(R.id.buttonStartAdventure).setOnClickListener {
+            val intent = Intent(this, NavigatorActivity::class.java)
+            intent.putExtra("adventureId", currentAdventureName)
+            startActivity(intent)
         }
 
         // CONFIG START - FloatingActionButton
@@ -479,34 +509,12 @@ class EditorActivity : BaseActivity() {
         (binding.root as ViewGroup).addView(fab, params)*/
         // CONFIG END - FloatingActionButton
 
-        // Remplace le bouton d'import dossier par un bouton de synchronisation
-        val buttonSyncFolder = bottomBarView.findViewById<Button>(R.id.buttonImportFolder)
-        buttonSyncFolder.text = "Synchroniser"
-        buttonSyncFolder.id = R.id.buttonSyncFolder
+        // Remplacement du bouton d'import dossier par un bouton de synchronisation
+        val buttonSyncFolder = binding.bottomBar.root.findViewById<Button>(R.id.buttonSyncFolder)
         buttonSyncFolder.setOnClickListener {
             lifecycleScope.launch(Dispatchers.IO) {
                 synchronizeFolder()
             }
-
-            // --- Ajout bouton "poubelle" pour suppression des zones sélectionnées ---
-            binding.drawingView.setOnTouchListener { _, _ ->
-                updateDeleteButtonVisibilityForZones()
-                false
-            }
-
-            // Indicateur Mode sélection
-            selectionModeIndicator = TextView(this).apply {
-                text = "Mode sélection"
-                visibility = View.GONE
-                textSize = 16f
-                setPadding(16, 0, 16, 0)
-                setOnClickListener {
-                    exitSelectionMode()
-                    updateDeleteButtonVisibility(deleteButton)
-                    visibility = View.GONE
-                }
-            }
-            binding.bottomBar.root.addView(selectionModeIndicator)
         }
     }
 
@@ -535,6 +543,7 @@ class EditorActivity : BaseActivity() {
             } else {
                 currentAdventureName = name
                 adventureNameTextView.text = currentAdventureName
+                currentAdventureJsonUri = Uri.fromFile(File(filesDir, "$currentAdventureName.json"))
                 openFolderPicker()
             }
         }
@@ -555,61 +564,43 @@ class EditorActivity : BaseActivity() {
     }
 
     private fun saveZones() {
-        if (currentFolderUri == null || imageBitmapMap.isEmpty()) {
-            Log.w("AutoSave", "Pas de dossier ou d’images → autosave annulée.")
+        Log.d("EDITOR", "saveZones() appelé")
+
+        if (isFinishing || isDestroyed) {
+            Log.d("EDITOR", "Activity en train de finir → on annule saveZones()")
             return
         }
-        val adventureData = generateAdventureData()
-        val gson = GsonBuilder().setPrettyPrinting().create()
-        val json = gson.toJson(adventureData)
-        val file = File(filesDir, "${currentAdventureName}_zones.json")
-        file.writeText(json)
 
-        Snackbar.make(
-            findViewById(android.R.id.content),
-            "Aventure sauvegardée : $currentAdventureName",
-            Snackbar.LENGTH_SHORT
-        ).show()
-    }
+        if (currentFolderUri == null) {
+            Log.d("EDITOR", "Pas de dossier sélectionné → sauvegarde des métadonnées uniquement.")
+        }
 
-    private fun showRenameAdventureDialog() {
-        val builder = AlertDialog.Builder(this)
-        builder.setTitle("Renommer l'aventure")
-        val input = EditText(this)
-        input.hint = "Nouveau nom"
+        // Toujours générer les données d'aventure à sauvegarder, même sans images
+        val adventureToSave = generateAdventureData()
+        val jsonString = Gson().toJson(adventureToSave)
+        Log.d("EDITOR", "Contenu aventure JSON : $jsonString")
 
-        input.requestFocus() // 🆕 Focus automatique sur le champ
-
-        builder.setView(input)
-        builder.setPositiveButton("Renommer") { _, _ ->
-            val newName = input.text.toString().trim()
-            if (newName.isEmpty() || adventureFileExists(newName)) {
-                Toast.makeText(this, "Nom invalide ou existant.", Toast.LENGTH_SHORT).show()
-            } else {
-                renameAdventure(newName)
+        val uri = currentAdventureJsonUri
+        if (uri == null) {
+            Toast.makeText(this, "Aucun fichier JSON pour sauvegarder.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        try {
+            val outputStream = contentResolver.openOutputStream(uri, "w")
+            outputStream?.bufferedWriter()?.use { writer ->
+                writer.write(jsonString)
             }
+            Log.d("EDITOR", "Sauvegarde réussie.")
+            Toast.makeText(this, "Aventure sauvegardée", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Log.e("EDITOR", "Erreur pendant la sauvegarde : ${e.message}")
+            Toast.makeText(this, "Erreur pendant la sauvegarde", Toast.LENGTH_SHORT).show()
         }
-        builder.setNegativeButton("Annuler", null)
-
-        val dialog = builder.create()
-
-        dialog.setOnShowListener {
-            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-            imm.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
-        }
-
-        dialog.show()
     }
 
-    private fun renameAdventure(newName: String) {
-        val oldFile = File(filesDir, "${currentAdventureName}_zones.json")
-        val newFile = File(filesDir, "${newName}_zones.json")
 
-        if (oldFile.exists()) oldFile.renameTo(newFile)
-        currentAdventureName = newName
-        adventureNameTextView.text = newName
-        Toast.makeText(this, "Aventure renommée en $newName", Toast.LENGTH_SHORT).show()
-    }
+
 
     private fun toggleSelection(fullPath: String) {
         if (!isSelectionMode) {
@@ -632,7 +623,7 @@ class EditorActivity : BaseActivity() {
         selectionModeIndicator.visibility = if (isSelectionMode) View.VISIBLE else View.GONE
     }
 
-    private fun handleDeleteSelectedItems(deleteButton: View? = null) {
+    private fun handleDeleteSelectedItems(deleteButton: View? = null/*, itemToDelete: ??? = null*/) {
         val itemsToDelete = selectedItems.toList()
         for (fullPath in itemsToDelete) {
             if (isGroupPath(fullPath)) removeGroupAndImages(fullPath)
@@ -658,8 +649,8 @@ class EditorActivity : BaseActivity() {
             val images = selectedItems.count { !isGroupPath(it) }
             val folders = selectedItems.count { isGroupPath(it) }
             selectionInfoContainer.isVisible = true
-            selectedImagesCount.text = "Images : $images"
-            selectedWorldsCount.text = "Dossiers : $folders"
+            selectedImagesCount.text = getString(R.string.images_count, images)
+            selectedWorldsCount.text = getString(R.string.folders_count, folders)
             imagesInfoText.visibility = View.GONE
             worldsInfoText.visibility = View.GONE
         } else {
@@ -667,9 +658,9 @@ class EditorActivity : BaseActivity() {
             imagesInfoText.visibility = View.VISIBLE
             worldsInfoText.visibility = View.VISIBLE
             if (isLoading) {
-                imagesInfoText.text = "Chargement : ${imageBitmapMap.size} images"
+                imagesInfoText.text = getString(R.string.loading_images_count, imageBitmapMap.size)
             } else {
-                imagesInfoText.text = "Images : ${imageBitmapMap.size}"
+                imagesInfoText.text = getString(R.string.images_count, imageBitmapMap.size)
             }
             // Ajout de l'appel de la nouvelle fonction pour la mise à jour des mondes et non liées
             updateWorldAndUnlinkedCounts()
@@ -678,16 +669,13 @@ class EditorActivity : BaseActivity() {
 
     private fun updateWorldAndUnlinkedCounts() {
         val worldCount = imageRootNode.children.count { it.name != "Racine" }
-
         val linkedImageNames = imageDataMap
             .flatMap { it.value }
             .mapNotNull { it.linkedImagePath }
             .toSet()
-
         val unlinkedCount = imageBitmapMap.keys.count { it !in linkedImageNames }
-
-        worldsInfoText.text = "Mondes : $worldCount"
-        //findViewById<TextView>(R.id.textUnlinkedCount).text = "Non liées : $unlinkedCount"
+        worldsInfoText.text = getString(R.string.worlds_count, worldCount)
+        //findViewById<TextView>(R.id.textUnlinkedCount).text = getString(R.string.unlinked_count, unlinkedCount)
     }
 
     private fun isGroupPath(fullPath: String): Boolean {
@@ -732,7 +720,7 @@ class EditorActivity : BaseActivity() {
     }
 
     private fun loadImagesFromFolder(uri: Uri, clearData: Boolean = true) {
-        if (DEBUG_LOGS) Log.d("EditorActivity", "Loading images from folder: $uri")
+        if (debugLogs) Log.d("EditorActivity", "Loading images from folder: $uri")
 
         var firstImageLoaded = false
         val skippedFiles = mutableListOf<String>()
@@ -766,7 +754,7 @@ class EditorActivity : BaseActivity() {
                     if (isValidImage(file) && fullPath !in seenPaths) {
                         allImageFiles.add(file to fullPath)
                         seenPaths.add(fullPath)
-                        if (DEBUG_LOGS) Log.d("EditorActivity", "Image trouvée: $fullPath")
+                        if (debugLogs) Log.d("EditorActivity", "Image trouvée: $fullPath")
                         // Démarrer immédiatement le chargement de la première image trouvée
                         if (!firstImageLoaded) {
                             firstImageLoaded = true
@@ -848,9 +836,9 @@ class EditorActivity : BaseActivity() {
                             withContext(Dispatchers.Main) {
                                 binding.drawingView.imageBitmapMap = imageBitmapMap
                             }
-                            if (DEBUG_LOGS) Log.d("EditorActivity", "Image trouvée: $fullPath")
+                            if (debugLogs) Log.d("EditorActivity", "Image trouvée: $fullPath")
                             loadedImagesCount++ // Incrémenter pour l'affichage du chargement
-                            if (DEBUG_LOGS && loadedImagesCount % 10 == 0) {
+                            if (debugLogs && loadedImagesCount % 10 == 0) {
                                 Log.d("EditorActivity", "Chargées : $loadedImagesCount / $totalImagesToLoad")
                             }
                         } catch (e: Exception) {
@@ -897,7 +885,7 @@ class EditorActivity : BaseActivity() {
             if (totalImagesToLoad > 0) {
                 val progressPercent = (loadedImagesCount * 100) / totalImagesToLoad
                 loadingProgressBar.progress = progressPercent
-                imagesInfoText.text = "Chargement : $loadedImagesCount / $totalImagesToLoad"
+                imagesInfoText.text = getString(R.string.loading_progress, loadedImagesCount, totalImagesToLoad)
             }
             loadingProgressBar.visibility = View.VISIBLE
         } catch (e: Exception) {
@@ -923,10 +911,7 @@ class EditorActivity : BaseActivity() {
         }
         return Adventure(
             adventureTitle = currentAdventureName,
-            folderUri = if (currentFolderUri != null) currentFolderUri.toString() else {
-                Log.w("Save", "Pas de dossier courant, on ne sauvegarde pas le folderUri.")
-                ""
-            },
+            folderUri = currentFolderUri?.toString() ?: "",
             images = imagesList,
             startImagePath = startImagePath
         )
@@ -947,20 +932,14 @@ class EditorActivity : BaseActivity() {
     override fun onPause() {
         super.onPause()
         saveZones()  // Sauvegarde automatique aussi quand l’activité passe en arrière-plan
-        Snackbar.make(
-            findViewById(android.R.id.content),
-            "Sauvegarde automatique effectuée",
-            Snackbar.LENGTH_LONG
-        ).show()
     }
 
     override fun onDestroy() {
         saveZones()  // Sauvegarde automatique avant destruction
-        Snackbar.make(
-            findViewById(android.R.id.content),
-            "Sauvegarde automatique effectuée",
-            Snackbar.LENGTH_LONG
-        ).show()
+        for (bitmap in imageBitmapMap.values) {
+            bitmap.recycle()
+        }
+        imageBitmapMap.clear()
         super.onDestroy()
         imageLoadingScope.cancel()
     }
@@ -968,14 +947,14 @@ class EditorActivity : BaseActivity() {
     // Affiche ou masque le bouton de suppression des zones selon la sélection
     fun updateDeleteButtonVisibilityForZones() {
         val hasSelection = binding.drawingView.hasSelectedZones()
-        Log.d("EditorActivity", "updateDeleteButtonVisibilityForZones() → hasSelection=$hasSelection")
+        if (debugLogs) Log.d("EditorActivity", "updateDeleteButtonVisibilityForZones() → hasSelection=$hasSelection")
         deleteZonesButton.visibility = if (hasSelection) View.VISIBLE else View.GONE
     }
 
     // Permet à DrawingView de masquer le bouton de suppression des zones
     fun hideDeleteZonesButton() {
         deleteZonesButton.visibility = View.GONE
-        Log.d("EditorActivity", "hideDeleteZonesButton() appelé → on cache le bouton")
+        if (debugLogs) Log.d("EditorActivity", "hideDeleteZonesButton() appelé → on cache le bouton")
     }
 
 
@@ -987,7 +966,7 @@ class EditorActivity : BaseActivity() {
         val uri = currentFolderUri
         if (uri == null) {
             withContext(Dispatchers.Main) {
-                Toast.makeText(this@EditorActivity, "Aucun dossier à synchroniser.", Toast.LENGTH_SHORT).show()
+            showSnackbar("Aucun dossier à synchroniser.")
             }
             return
         }
@@ -1007,11 +986,7 @@ class EditorActivity : BaseActivity() {
         }
         if (totalSize > 1_000_000_000L) { // 1 Go
             withContext(Dispatchers.Main) {
-                Toast.makeText(
-                    this@EditorActivity,
-                    "⚠ Attention : ce dossier dépasse 1 Go, risque de ralentissements ou plantage.",
-                    Toast.LENGTH_LONG
-                ).show()
+                showSnackbar("⚠ Attention : ce dossier dépasse 1 Go, risque de ralentissements ou plantage.")
             }
         }
 
@@ -1044,7 +1019,7 @@ class EditorActivity : BaseActivity() {
 
             if (folder == null || !folder.exists()) {
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(this@EditorActivity, "Le dossier n'existe plus.", Toast.LENGTH_SHORT).show()
+                    showSnackbar("Le dossier n'existe plus.")
                 }
                 return@withContext
             }
@@ -1113,7 +1088,7 @@ class EditorActivity : BaseActivity() {
                         imageBitmapMap[path] = bitmap
                         imageDataMap[path] = mutableListOf()
                     } catch (e: Exception) {
-                        Log.e("Sync", "Erreur chargement $path", e)
+                        if (debugLogs) Log.e("Sync", "Erreur chargement $path", e)
                     }
                 }
             }
@@ -1185,11 +1160,7 @@ class EditorActivity : BaseActivity() {
         val selectedZone = binding.drawingView.selectedZone
         if (selectedZone != null) {
             if (linkedImagePath == currentImageName) {
-                Snackbar.make(
-                    findViewById(android.R.id.content),
-                    "Impossible de lier une zone à sa propre image.",
-                    Snackbar.LENGTH_SHORT
-                ).show()
+                showSnackbar("Impossible de lier une zone à sa propre image.")
                 return
             }
             selectedZone.linkedImagePath = linkedImagePath
@@ -1213,10 +1184,14 @@ class EditorActivity : BaseActivity() {
                 }
                 layoutManager.scrollToPositionWithOffset(firstVisiblePosition, offset)
             }
-            Log.d("LinkZone", "Zone liée: ${selectedZone.rect}, image: $linkedImagePath")
-            Log.d("LinkZone", "ImageDataMap après liaison: $imageDataMap")
-            Log.d("LinkZone", "ImageBitmapMap contient: ${imageBitmapMap.keys}")
+            if (debugLogs) Log.d("LinkZone", "Zone liée: ${selectedZone.rect}, image: $linkedImagePath")
+            if (debugLogs) Log.d("LinkZone", "ImageDataMap après liaison: $imageDataMap")
+            if (debugLogs) Log.d("LinkZone", "ImageBitmapMap contient: ${imageBitmapMap.keys}")
         }
+    }
+
+    private fun showSnackbar(message: String) {
+        Snackbar.make(findViewById(android.R.id.content), message, Snackbar.LENGTH_SHORT).show()
     }
 
 

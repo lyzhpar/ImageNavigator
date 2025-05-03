@@ -1,15 +1,16 @@
 <resources>
+    <string name="images_count">Images : %1$d</string>
+    <string name="folders_count">Dossiers : %1$d</string>
+    <string name="loading_images_count">Chargement : %1$d images</string>
+    <string name="loading_progress">Chargement : %1$d / %2$d</string>
+    <string name="worlds_count">Mondes : %1$d</string>
+    <string name="unlinked_count">Non liées : %1$d</string>
+    <string name="cannot_link_to_self">Impossible de lier une zone à sa propre image.</string>
+    <string name="folder_not_exist">Dossier inexistant</string>
+    <string name="too_large_folder_warning">⚠ Attention : ce dossier dépasse 1 Go, risque de ralentissements ou plantage.</string>
+    <string name="no_folder_to_sync">Aucun dossier à synchroniser.</string>
+    <string name="adventure_saved">Aventure sauvegardée</string>
     <string name="app_name">ImageNavigator</string>
-    <string name="save_button_text">Sauvegarder et lancer</string>
-    <string name="nav_image_description">Image principale du navigateur</string>
-    <string name="back_button_description">Bouton de retour en arrière</string>
-    <string name="delete_zone_button_text">Supprimer la zone</string>
-    <string name="expand_collapse_icon">Déplier ou replier</string>
-    <string name="nom_aventure">Nom de l\'aventure</string>
-    <string name="save_adventure">Sauvegarder l\'aventure</string>
-    <string name="rename_adventure">Renommer l\'aventure</string>
-    <string name="back">Retour arrière</string>
-
-
-
+    <string name="nom_aventure">Nom aventure</string>
+    <string name="expand_collapse_icon">Icône développer/réduire</string>
 </resources>

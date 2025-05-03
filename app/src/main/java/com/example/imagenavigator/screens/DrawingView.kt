@@ -134,8 +134,6 @@ class DrawingView @JvmOverloads constructor(
             return
         }
 
-        Log.d("DrawingView", "onDraw avec bitmap = ${bitmap != null}")
-
         val dstRect = getImageDisplayRect(bitmap)
 
         // Dessiner l’image
