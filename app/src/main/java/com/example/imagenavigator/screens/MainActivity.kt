@@ -46,8 +46,10 @@ class MainActivity : BaseActivity() {
             },
             onAdventureEdit = { adventureName ->
                 // Lance l’éditeur en mode édition (EditorActivity détectera adventureName et appellera enterEditMode)
+                Log.d("AdventureAdapter", "Lancement de l’édition pour $adventureName")
                 val intent = Intent(this, EditorActivity::class.java)
                 intent.putExtra("adventureName", adventureName)
+                Log.d("MainActivity", "Intent envoyé à EditorActivity avec adventureName=$adventureName")
                 startActivity(intent)
             },
 

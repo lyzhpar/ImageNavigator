@@ -93,7 +93,7 @@ class EditorActivity : BaseActivity() {
     private var currentFolderUri: Uri? = null
     private lateinit var loadingProgressBar: ProgressBar
 
-    private val debugLogs = false
+    private val debugLogs = true
 
     private var startImagePath: String? = null
     private var adventure: Adventure? = null
@@ -103,7 +103,7 @@ class EditorActivity : BaseActivity() {
     private fun logDebug(tag: String, message: String) {
         // Paramètre tag inutilisé, log supprimé pour respecter consigne
         if (debugLogs) {
-            Log.d("EditorActivity", message)
+            Log.d(tag, message)
         }
     }
 
@@ -130,7 +130,8 @@ class EditorActivity : BaseActivity() {
     // Demander l'accès au dossier
     private fun requestFolderAccess(uri: Uri) {
         // Charger directement les images depuis le dossier sans relancer de sélecteur
-        loadImagesFromFolder(uri)
+        // En mode édition, il ne faut pas effacer imageDataMap (clearData = false)
+        loadImagesFromFolder(uri, clearData = false)
     }
 
     private fun setStartImage(fullPath: String) {
@@ -191,16 +192,14 @@ class EditorActivity : BaseActivity() {
 
         layoutManager.scrollToPositionWithOffset(firstVisiblePosition, offset)
 
-        if (debugLogs) {
-            Log.d("ImageDataMap", "--- Contenu de imageDataMap ---")
-            imageDataMap.forEach { (imageName, zones) ->
-                Log.d("ImageDataMap", "Image: $imageName → Zones: ${zones.size}")
-                zones.forEach { zone ->
-                    Log.d("ImageDataMap", "   Zone rect: ${zone.rect} linkedImagePath: ${zone.linkedImagePath}")
-                }
+        logDebug("ImageDataMap", "--- Contenu de imageDataMap ---")
+        imageDataMap.forEach { (imageName, zones) ->
+            logDebug("ImageDataMap", "Image: $imageName → Zones: ${zones.size}")
+            zones.forEach { zone ->
+                logDebug("ImageDataMap", "   Zone rect: ${zone.rect} linkedImagePath: ${zone.linkedImagePath}")
             }
-            logDebug("ImageDataMap", "-------------------------------")
         }
+        logDebug("ImageDataMap", "-------------------------------")
     }
 
     // Quand l'utilisateur demande de renommer un groupe
@@ -297,7 +296,10 @@ class EditorActivity : BaseActivity() {
                 requestFolderAccess(it)
             }
 
-            checkFolderConsistencyAndProceed(folderUriString)
+            // Synchronisation du dossier après chargement des zones et images
+            lifecycleScope.launch(Dispatchers.IO) {
+                synchronizeFolder()
+            }
         } else {
             showSnackbar("Fichier d’aventure introuvable.")
             promptAdventureName()
@@ -399,12 +401,18 @@ class EditorActivity : BaseActivity() {
         selectionInfoContainer = bottomBarView.findViewById(R.id.selectionInfoContainer)
 
         val adventureFromIntent = intent.getStringExtra("adventureName")
+        if (adventureFromIntent != null) {
+            enterEditMode(adventureFromIntent)
+            if (intent.getBooleanExtra("editMode", false)) {
+                showSnackbar("Mode édition activé pour $adventureFromIntent")
+            }
+        } else {
+            promptAdventureName()
+        }
+
         // Accès aux boutons dans la BottomBar
         val buttonSave = binding.bottomBar.buttonSave
         //val buttonRenameAdventure = binding.bottomBar.buttonRenameAdventure
-        if (adventureFromIntent != null) {
-            enterEditMode(adventureFromIntent)
-        }
 
         // Listeners sur les boutons
         buttonSave.setOnClickListener {
@@ -412,8 +420,6 @@ class EditorActivity : BaseActivity() {
             Toast.makeText(this, "Sauvegarde cliquée", Toast.LENGTH_SHORT).show()
             saveZones()
         }
-        // Initialisation : on attend que l'utilisateur donne un nom
-        promptAdventureName()
 
 
         // DrawingView cliquable
@@ -495,7 +501,7 @@ class EditorActivity : BaseActivity() {
         builder.setView(input)
         builder.setCancelable(false)
         builder.setPositiveButton("Valider") { _, _ ->
-            val name = input.text.toString().trim()
+            val name = input.text.toString().trim().replace("\n", "")
             if (name.isEmpty() || adventureFileExists(name)) {
                 Toast.makeText(this, "Nom invalide ou existant.", Toast.LENGTH_SHORT).show()
                 promptAdventureName()
@@ -515,7 +521,7 @@ class EditorActivity : BaseActivity() {
 
         input.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_DONE) {
-                val name = input.text.toString().trim()
+                val name = input.text.toString().trim().replace("\n", "")
                 if (name.isEmpty() || adventureFileExists(name)) {
                     Toast.makeText(this, "Nom invalide ou existant.", Toast.LENGTH_SHORT).show()
                     promptAdventureName()
@@ -541,6 +547,8 @@ class EditorActivity : BaseActivity() {
     }
 
     private fun saveZones() {
+        val file = File(filesDir, "${currentAdventureName}_zones.json")
+        logDebug("SaveZones", "Enregistrement de l’aventure : $currentAdventureName → ${file.absolutePath}")
         if (imageBitmapMap.isEmpty()) {
             Log.w("SaveZones", "Aucune image à sauvegarder → opération annulée.")
             Snackbar.make(
@@ -556,7 +564,7 @@ class EditorActivity : BaseActivity() {
         val adventureData = generateAdventureData()
         val gson = GsonBuilder().setPrettyPrinting().create()
         val json = gson.toJson(adventureData)
-        val file = File(filesDir, "${currentAdventureName}_zones.json")
+        logDebug("SaveZones", "Contenu JSON enregistré:\n$json")
         file.writeText(json)
 
         Log.d("SaveZones", "Aventure sauvegardée sous ${file.absolutePath}")
@@ -726,7 +734,7 @@ class EditorActivity : BaseActivity() {
                     if (isValidImage(file) && fullPath !in seenPaths) {
                         allImageFiles.add(file to fullPath)
                         seenPaths.add(fullPath)
-                        if (debugLogs) Log.d("EditorActivity", "Image trouvée: $fullPath")
+                        logDebug("EditorActivity", "Image trouvée: $fullPath")
                         // Démarrer immédiatement le chargement de la première image trouvée
                         if (!firstImageLoaded) {
                             firstImageLoaded = true
@@ -746,7 +754,9 @@ class EditorActivity : BaseActivity() {
                                             .get()
                                     }
                                     imageBitmapMap[fullPath] = bitmap
-                                    imageDataMap[fullPath] = mutableListOf()
+                                    if (clearData && !imageDataMap.containsKey(fullPath)) {
+                                        imageDataMap[fullPath] = mutableListOf()
+                                    }
                                     loadedImagesCount++
                                     withContext(Dispatchers.Main) {
                                         imageAdapter.addImage(bitmap, fullPath)
@@ -803,17 +813,21 @@ class EditorActivity : BaseActivity() {
                                     .get()
                             }
                             imageBitmapMap[fullPath] = bitmap
-                            imageDataMap[fullPath] = mutableListOf()  // Initialiser les zones vides
+                            // Ne pas initialiser imageDataMap[fullPath] ici pour ne pas écraser les zones déjà présentes
+                            logDebug("LoadImages", "Image chargée: $fullPath, taille: ${bitmap.width}x${bitmap.height}")
+
                             // Synchroniser le cache à chaque chargement d'image
                             withContext(Dispatchers.Main) {
                                 binding.drawingView.imageBitmapMap = imageBitmapMap
                             }
                             if (debugLogs) Log.d("EditorActivity", "Image trouvée: $fullPath")
                             loadedImagesCount++ // Incrémenter pour l'affichage du chargement
-                            if (debugLogs && loadedImagesCount % 10 == 0) {
-                                Log.d("EditorActivity", "Chargées : $loadedImagesCount / $totalImagesToLoad")
+                            if (loadedImagesCount % 10 == 0) {
+                                logDebug("EditorActivity", "Chargées : $loadedImagesCount / $totalImagesToLoad")
                             }
                         } catch (e: Exception) {
+                            // Initialiser les zones vides uniquement en cas d'échec
+                            imageDataMap[fullPath] = mutableListOf()
                             skippedFiles.add(fullPath)
                             Log.e(
                                 "EditorActivity",
@@ -847,6 +861,7 @@ class EditorActivity : BaseActivity() {
                 }
                 updateBottomBarInfo(isLoading = false)  // Mise à jour de la barre inférieure
                 binding.bottomBar.buttonSave.isEnabled = true
+                logDebug("LoadImages", "Chargement des images terminé → éditeur prêt")
             }
         }
     }
@@ -921,23 +936,25 @@ class EditorActivity : BaseActivity() {
     // Affiche ou masque le bouton de suppression des zones selon la sélection
     fun updateDeleteButtonVisibilityForZones() {
         val hasSelection = binding.drawingView.hasSelectedZones()
-        if (debugLogs) Log.d("EditorActivity", "updateDeleteButtonVisibilityForZones() → hasSelection=$hasSelection")
+        logDebug("EditorActivity", "updateDeleteButtonVisibilityForZones() → hasSelection=$hasSelection")
         deleteZonesButton.visibility = if (hasSelection) View.VISIBLE else View.GONE
     }
 
     // Permet à DrawingView de masquer le bouton de suppression des zones
     fun hideDeleteZonesButton() {
         deleteZonesButton.visibility = View.GONE
-        if (debugLogs) Log.d("EditorActivity", "hideDeleteZonesButton() appelé → on cache le bouton")
+        logDebug("EditorActivity", "hideDeleteZonesButton() appelé → on cache le bouton")
     }
 
 
     // --- Synchronisation du dossier ---
     private suspend fun synchronizeFolder() {
+        val uri = currentFolderUri
+        logDebug("SyncFolder", "Début de synchronizeFolder pour URI: $uri")
         // --- Déclarations globales pour la fonction ---
         lateinit var newGroupImages: MutableMap<String, MutableList<String>>
         lateinit var previousGroupImages: MutableMap<String, MutableList<String>>
-        val uri = currentFolderUri
+        logDebug("SyncFolder", "Fin de synchronizeFolder, mise à jour de l’UI")
         if (uri == null) {
             withContext(Dispatchers.Main) {
             showSnackbar("Aucun dossier à synchroniser.")
@@ -1062,7 +1079,7 @@ class EditorActivity : BaseActivity() {
                         imageBitmapMap[path] = bitmap
                         imageDataMap[path] = mutableListOf()
                     } catch (e: Exception) {
-                        if (debugLogs) Log.e("Sync", "Erreur chargement $path", e)
+                        logDebug("Sync", "Erreur chargement $path : ${e.message}")
                     }
                 }
             }
@@ -1070,6 +1087,9 @@ class EditorActivity : BaseActivity() {
             imageRootNode = ImageGroupTreeBuilder.buildImageGroupTree(
                 imageBitmapMap.map { (path, bmp) -> bmp to path }
             )
+            imageDataMap.forEach { (imageName, zones) ->
+                logDebug("SyncFolder", "Après synchro - Image: $imageName → Zones count: ${zones.size}")
+            }
             groupedImages.clear()
             groupedImages.addAll(ImageGroup.fromTree(imageRootNode))
         }
@@ -1158,9 +1178,9 @@ class EditorActivity : BaseActivity() {
                 }
                 layoutManager.scrollToPositionWithOffset(firstVisiblePosition, offset)
             }
-            if (debugLogs) Log.d("LinkZone", "Zone liée: ${selectedZone.rect}, image: $linkedImagePath")
-            if (debugLogs) Log.d("LinkZone", "ImageDataMap après liaison: $imageDataMap")
-            if (debugLogs) Log.d("LinkZone", "ImageBitmapMap contient: ${imageBitmapMap.keys}")
+            logDebug("LinkZone", "Zone liée: ${selectedZone.rect}, image: $linkedImagePath")
+            logDebug("LinkZone", "ImageDataMap après liaison: $imageDataMap")
+            logDebug("LinkZone", "ImageBitmapMap contient: ${imageBitmapMap.keys}")
         }
     }
 
@@ -1168,37 +1188,77 @@ class EditorActivity : BaseActivity() {
         Snackbar.make(findViewById(android.R.id.content), message, Snackbar.LENGTH_SHORT).show()
     }
 
-    // Vérifie la cohérence du dossier d'aventure et propose d'utiliser l'ancien ou le nouveau dossier
-    private fun checkFolderConsistencyAndProceed(adventureFolderUri: String) {
-        if (currentFolderUri?.toString() == adventureFolderUri) {
-            showSnackbar("✅ Aventure chargée avec succès !")
-            lifecycleScope.launch(Dispatchers.IO) {
-                synchronizeFolder()
-            }
-        } else {
-            AlertDialog.Builder(this)
-                .setTitle("Attention")
-                .setMessage("L’aventure utilise ce dossier :\n\n$adventureFolderUri\n\nVoulez-vous le réutiliser ou conserver le nouveau ?")
-                .setPositiveButton("Réutiliser l’ancien") { _, _ ->
-                    currentFolderUri = Uri.parse(adventureFolderUri)
-                    lifecycleScope.launch(Dispatchers.IO) {
-                        synchronizeFolder()
-                    }
-                }
-                .setNegativeButton("Garder le nouveau") { _, _ ->
-                    showSnackbar("⚠ Nouveau dossier sélectionné, synchronisation en cours…")
-                    lifecycleScope.launch(Dispatchers.IO) {
-                        synchronizeFolder()
-                    }
-                }
-                .show()
-        }
-    }
+    // checkFolderConsistencyAndProceed supprimée (plus utilisée)
 
     fun enterEditMode(adventureName: String) {
+        logDebug("EnterEditMode", "Entrée dans le mode édition pour $adventureName")
         currentAdventureName = adventureName
+        logDebug("EnterEditMode", "currentAdventureName défini à $currentAdventureName")
         currentAdventureJsonUri = Uri.fromFile(File(filesDir, "$currentAdventureName.json"))
-        loadAdventureData(adventureName)
+        logDebug("EnterEditMode", "currentAdventureJsonUri défini à $currentAdventureJsonUri")
+        val file = File(filesDir, "${adventureName}_zones.json")
+        logDebug("EnterEditMode", "Vérification du fichier : ${file.absolutePath}")
+        if (file.exists()) {
+            val json = file.readText()
+            logDebug("EnterEditMode", "Fichier trouvé, parsing JSON pour $adventureName")
+            val adventureData = GsonBuilder().create().fromJson(json, AdventureData::class.java)
+            val folderUriString = adventureData.folderUri
+            currentFolderUri = if (!folderUriString.isNullOrEmpty()) Uri.parse(folderUriString) else null
+            if (currentFolderUri != null) {
+                logDebug("EnterEditMode", "FolderUri récupéré : $currentFolderUri")
+            }
+
+            adventureNameTextView.text = adventureData.adventureTitle
+            logDebug("EnterEditMode", "Titre affiché mis à jour : ${adventureData.adventureTitle}")
+            startImagePath = adventureData.startImagePath
+
+            // Chargement des zones pour chaque image
+            imageDataMap.clear()
+            adventureData.images.forEach { image ->
+                val zones = image.zones.map { it.toZone() }.toMutableList()
+                imageDataMap[image.imageName] = zones
+            }
+            logDebug("EnterEditMode", "Chargement des images et zones terminé, images=${imageDataMap.size}")
+            logDebug("EnterEditMode", "Zones chargées avant le chargement des images.")
+            // Ajout : log du nombre de zones pour chaque image
+            imageDataMap.forEach { (imageName, zones) ->
+                logDebug("EnterEditMode", "Image: $imageName → Zones count: ${zones.size}")
+                zones.forEach { zone ->
+                    logDebug("EnterEditMode", "   Zone rect: ${zone.rect}, linkedImagePath: ${zone.linkedImagePath}")
+                }
+            }
+
+            logDebug("EnterEditMode", "currentFolderUri vérifié : $currentFolderUri")
+            // Bloc refait pour gestion du dossier et suppression de la synchro prématurée
+            if (currentFolderUri != null) {
+                val folder = DocumentFile.fromTreeUri(this, currentFolderUri!!)
+                if (folder != null && folder.exists()) {
+                    logDebug("EnterEditMode", "Dossier accessible → chargement des images")
+                    requestFolderAccess(currentFolderUri!!)
+                } else {
+                    logDebug("EnterEditMode", "Dossier introuvable ou inaccessible → demander à l’utilisateur")
+                    showSnackbar("Attention : le dossier de l’aventure n’est plus accessible. Merci de le sélectionner à nouveau.")
+                    openFolderPicker()
+                }
+            } else {
+                logDebug("EnterEditMode", "Pas de dossier → demander à l’utilisateur")
+                showSnackbar("Veuillez sélectionner un dossier d’images.")
+                openFolderPicker()
+            }
+            logDebug("EnterEditMode", "Mode édition prêt, synchro non encore lancée")
+            // Affiche automatiquement la première image et ses zones après chargement de l'aventure
+            lifecycleScope.launch(Dispatchers.Main) {
+                val firstImagePath = imageDataMap.keys.firstOrNull()
+                if (firstImagePath != null) {
+                    onImageSelected(firstImagePath)
+                }
+            }
+        } else {
+            logDebug("EnterEditMode", "Aventure introuvable, création d’une nouvelle aventure")
+            showSnackbar("Aventure introuvable, création d’une nouvelle.")
+            logDebug("EnterEditMode", "promptAdventureName() appelé car fichier introuvable")
+            promptAdventureName()
+        }
     }
 
 

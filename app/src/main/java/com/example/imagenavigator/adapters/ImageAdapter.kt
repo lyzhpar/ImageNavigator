@@ -260,45 +260,53 @@ class ImageAdapter(
 
 
         fun bind(item: DisplayItem) {
-            when (item) {
-                is DisplayItem.ImageItem -> {
-                    var displayBitmap = item.bitmap
+            if (item is DisplayItem.ImageItem) {
+                var displayBitmap = item.bitmap
 
-                    // Si l'image a des zones liées, dessiner les rectangles verts dessus
-                    val zones = imageZonesMap[item.fullPath]
-                    if (!zones.isNullOrEmpty()) {
-                        val mutableBitmap = try {
-                            item.bitmap.copy(Bitmap.Config.ARGB_8888, true)
-                        } catch (e: Exception) {
-                            item.bitmap
-                        }
-                        val canvas = android.graphics.Canvas(mutableBitmap)
-                        // Opacité et couleur vert
-                        val paint = android.graphics.Paint().apply { color = Color.argb(60, 0, 255, 0) }
+                if (displayBitmap.isRecycled) {
+                    Log.e("ImageAdapter", "Bitmap recyclé détecté pour ${item.fullPath}, on saute le bind")
+                    return
+                }
 
-                        for (zone in zones) {
-                            if (zone.linkedImagePath != null) {
-                                val rect = zone.rect
-                                val left = rect.left * mutableBitmap.width
-                                val top = rect.top * mutableBitmap.height
-                                val right = rect.right * mutableBitmap.width
-                                val bottom = rect.bottom * mutableBitmap.height
-                                canvas.drawRect(left, top, right, bottom, paint)
-                            }
-                        }
-                        displayBitmap = mutableBitmap
+                // Si l'image a des zones liées, dessiner les rectangles verts dessus
+                val zones = imageZonesMap[item.fullPath]
+                if (!zones.isNullOrEmpty()) {
+                    val mutableBitmap = try {
+                        item.bitmap.copy(Bitmap.Config.ARGB_8888, true)
+                    } catch (e: Exception) {
+                        item.bitmap
                     }
+                    val canvas = android.graphics.Canvas(mutableBitmap)
+                    // Opacité et couleur vert
+                    val paint = android.graphics.Paint().apply { color = Color.argb(60, 0, 255, 0) }
 
+                    for (zone in zones) {
+                        if (zone.linkedImagePath != null) {
+                            val rect = zone.rect
+                            val left = rect.left * mutableBitmap.width
+                            val top = rect.top * mutableBitmap.height
+                            val right = rect.right * mutableBitmap.width
+                            val bottom = rect.bottom * mutableBitmap.height
+                            canvas.drawRect(left, top, right, bottom, paint)
+                        }
+                    }
+                    displayBitmap = mutableBitmap
+                }
+
+                Log.d("ImageAdapter", "Bind image: ${item.fullPath}")
+
+                if (!displayBitmap.isRecycled) {
                     Glide.with(imageView.context)
                         .load(displayBitmap)
                         .override(400, 250)
                         .centerCrop()
                         .thumbnail(Glide.with(imageView.context).load(displayBitmap).override(40, 25))
                         .into(imageView)
+                } else {
+                    imageView.setImageDrawable(null)
                 }
-                is DisplayItem.GroupItem -> {
-                    imageView.setImageResource(R.drawable.folder_icon)
-                }
+            } else if (item is DisplayItem.GroupItem) {
+                imageView.setImageResource(R.drawable.folder_icon)
             }
 
             if (selectedItems.contains(item.fullPath)) {
