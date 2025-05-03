@@ -1279,6 +1279,8 @@ class EditorActivity : BaseActivity() {
                 }
             }
         } else {
+            imageBitmapMap.values.forEach { if (!it.isRecycled) it.recycle() }
+            imageBitmapMap.clear()
             logDebug("EnterEditMode", "Aventure introuvable, création d’une nouvelle aventure")
             showSnackbar("Aventure introuvable, création d’une nouvelle.")
             logDebug("EnterEditMode", "promptAdventureName() appelé car fichier introuvable")
