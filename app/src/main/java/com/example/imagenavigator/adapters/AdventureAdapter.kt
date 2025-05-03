@@ -15,7 +15,9 @@ import android.content.Context
 class AdventureAdapter(
     private val onAdventureClick: (String) -> Unit,
     private val onAdventureEdit: (String) -> Unit,
-    private val onAdventureDelete: (String) -> Unit
+    private val onAdventureDelete: (String) -> Unit,
+    private val onAdventureRename: (String) -> Unit
+
 ) : RecyclerView.Adapter<AdventureAdapter.AdventureViewHolder>() {
 
     private val adventures = mutableListOf<String>()
@@ -45,7 +47,7 @@ class AdventureAdapter(
         private val adventureName: TextView = itemView.findViewById(R.id.adventureName)
         private val overlayContainer: View = itemView.findViewById(R.id.overlayContainer)
         private val buttonEdit: Button = itemView.findViewById(R.id.buttonEdit)
-        private val buttonPlay: Button = itemView.findViewById(R.id.buttonPlay)
+        private val buttonRename: Button = itemView.findViewById(R.id.buttonRename)
         private val buttonDelete: Button = itemView.findViewById(R.id.buttonDelete)
 
         fun bind(name: String) {
@@ -69,10 +71,11 @@ class AdventureAdapter(
                 onAdventureEdit(name)
             }
 
-            buttonPlay.setOnClickListener {
-                logAndToast(itemView.context, "Launch adventure: $name")
+
+            buttonRename.setOnClickListener {
+                logAndToast(itemView.context, "Rename adventure: $name")
                 overlayContainer.visibility = View.GONE
-                onAdventureClick(name)
+                onAdventureRename(name)
             }
 
             buttonDelete.setOnClickListener {

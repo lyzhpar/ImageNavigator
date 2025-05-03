@@ -15,6 +15,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.View
+import android.view.inputmethod.EditorInfo
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
@@ -48,7 +49,7 @@ import com.example.imagenavigator.model.toZoneData
 import android.widget.ProgressBar
 
 import androidx.lifecycle.lifecycleScope
-import com.google.gson.Gson
+import kotlin.toString
 
 
 class EditorActivity : BaseActivity() {
@@ -294,7 +295,7 @@ class EditorActivity : BaseActivity() {
             // Charger l'URI du dossier à partir des données d'aventure
             val folderUriString = adventureData.folderUri
             if (folderUriString.isNullOrEmpty()) {
-                Toast.makeText(this, "Le dossier initial n’a pas été enregistré ou a été perdu. Veuillez le sélectionner à nouveau pour restaurer les images et les zones.", Toast.LENGTH_LONG).show()
+                showSnackbar("Le dossier initial n’a pas été enregistré ou a été perdu. Veuillez le sélectionner à nouveau pour restaurer les images et les zones.")
                 openFolderPicker()
                 return
             }
@@ -303,6 +304,9 @@ class EditorActivity : BaseActivity() {
             currentFolderUri?.let {
                 requestFolderAccess(it)
             }
+
+            // Vérifier la cohérence du dossier et informer l'utilisateur
+            checkFolderConsistencyAndProceed(folderUriString)
 
             // Charger les images depuis le fichier JSON
             val allImageFiles = adventureData.images.map { it.imageName }
@@ -337,7 +341,7 @@ class EditorActivity : BaseActivity() {
             }
         } else {
             // Fichier d'aventure non trouvé, demander à l'utilisateur de créer un nom
-            Toast.makeText(this, "Fichier d'aventure introuvable.", Toast.LENGTH_SHORT).show()
+            showSnackbar("Fichier d'aventure introuvable.")
             promptAdventureName()
         }
     }
@@ -434,7 +438,6 @@ class EditorActivity : BaseActivity() {
         val adventureFromIntent = intent.getStringExtra("adventureName")
         // Accès aux boutons dans la BottomBar
         val buttonSave = binding.bottomBar.buttonSave
-        buttonSave.isEnabled = currentFolderUri != null
         //val buttonRenameAdventure = binding.bottomBar.buttonRenameAdventure
         if (adventureFromIntent != null) {
             currentAdventureName = adventureFromIntent
@@ -444,7 +447,6 @@ class EditorActivity : BaseActivity() {
             openFolderPicker()
             adventure = generateAdventureData()
             currentAdventureJsonUri = Uri.fromFile(File(filesDir, "$currentAdventureName.json"))
-            buttonSave.isEnabled = currentFolderUri != null
             return
         }
 
@@ -530,8 +532,9 @@ class EditorActivity : BaseActivity() {
         builder.setTitle("Nouvelle aventure")
         val input = EditText(this)
         input.hint = "Nom de l'aventure"
-
-        input.requestFocus() // 🆕 Met le focus sur le champ
+        input.setSingleLine(true)
+        input.imeOptions = EditorInfo.IME_ACTION_DONE
+        input.requestFocus()
 
         builder.setView(input)
         builder.setCancelable(false)
@@ -550,9 +553,27 @@ class EditorActivity : BaseActivity() {
 
         val dialog = builder.create()
         dialog.setOnShowListener {
-            // 🆕 Force aussi l'ouverture du clavier au bon moment
             val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
             imm.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
+        }
+
+        input.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                val name = input.text.toString().trim()
+                if (name.isEmpty() || adventureFileExists(name)) {
+                    Toast.makeText(this, "Nom invalide ou existant.", Toast.LENGTH_SHORT).show()
+                    promptAdventureName()
+                } else {
+                    currentAdventureName = name
+                    adventureNameTextView.text = currentAdventureName
+                    currentAdventureJsonUri = Uri.fromFile(File(filesDir, "$currentAdventureName.json"))
+                    openFolderPicker()
+                    dialog.dismiss()
+                }
+                true
+            } else {
+                false
+            }
         }
 
         dialog.show()
@@ -564,39 +585,30 @@ class EditorActivity : BaseActivity() {
     }
 
     private fun saveZones() {
-        Log.d("EDITOR", "saveZones() appelé")
-
-        if (isFinishing || isDestroyed) {
-            Log.d("EDITOR", "Activity en train de finir → on annule saveZones()")
+        if (imageBitmapMap.isEmpty()) {
+            Log.w("SaveZones", "Aucune image à sauvegarder → opération annulée.")
+            Snackbar.make(
+                findViewById(android.R.id.content),
+                "Rien à sauvegarder (aucune image chargée).",
+                Snackbar.LENGTH_SHORT
+            ).show()
             return
         }
-
-        if (currentFolderUri == null) {
-            Log.d("EDITOR", "Pas de dossier sélectionné → sauvegarde des métadonnées uniquement.")
+        if (currentAdventureName.isEmpty()) {
+            currentAdventureName = "AventureSansNom"
         }
+        val adventureData = generateAdventureData()
+        val gson = GsonBuilder().setPrettyPrinting().create()
+        val json = gson.toJson(adventureData)
+        val file = File(filesDir, "${currentAdventureName}_zones.json")
+        file.writeText(json)
 
-        // Toujours générer les données d'aventure à sauvegarder, même sans images
-        val adventureToSave = generateAdventureData()
-        val jsonString = Gson().toJson(adventureToSave)
-        Log.d("EDITOR", "Contenu aventure JSON : $jsonString")
-
-        val uri = currentAdventureJsonUri
-        if (uri == null) {
-            Toast.makeText(this, "Aucun fichier JSON pour sauvegarder.", Toast.LENGTH_SHORT).show()
-            return
-        }
-        try {
-            val outputStream = contentResolver.openOutputStream(uri, "w")
-            outputStream?.bufferedWriter()?.use { writer ->
-                writer.write(jsonString)
-            }
-            Log.d("EDITOR", "Sauvegarde réussie.")
-            Toast.makeText(this, "Aventure sauvegardée", Toast.LENGTH_SHORT).show()
-        } catch (e: Exception) {
-            e.printStackTrace()
-            Log.e("EDITOR", "Erreur pendant la sauvegarde : ${e.message}")
-            Toast.makeText(this, "Erreur pendant la sauvegarde", Toast.LENGTH_SHORT).show()
-        }
+        Log.d("SaveZones", "Aventure sauvegardée sous ${file.absolutePath}")
+        Snackbar.make(
+            findViewById(android.R.id.content),
+            "Aventure sauvegardée : $currentAdventureName",
+            Snackbar.LENGTH_SHORT
+        ).show()
     }
 
 
@@ -874,6 +886,7 @@ class EditorActivity : BaseActivity() {
                     ).show()
                 }
                 updateBottomBarInfo(isLoading = false)  // Mise à jour de la barre inférieure
+                binding.bottomBar.buttonSave.isEnabled = true
             }
         }
     }
@@ -887,6 +900,7 @@ class EditorActivity : BaseActivity() {
                 loadingProgressBar.progress = progressPercent
                 imagesInfoText.text = getString(R.string.loading_progress, loadedImagesCount, totalImagesToLoad)
             }
+            binding.bottomBar.buttonSave.isEnabled = true
             loadingProgressBar.visibility = View.VISIBLE
         } catch (e: Exception) {
             Log.e("EditorActivity", "Erreur UI update: ${e.message}")
@@ -1194,6 +1208,33 @@ class EditorActivity : BaseActivity() {
         Snackbar.make(findViewById(android.R.id.content), message, Snackbar.LENGTH_SHORT).show()
     }
 
+    // Vérifie la cohérence du dossier d'aventure et propose d'utiliser l'ancien ou le nouveau dossier
+    private fun checkFolderConsistencyAndProceed(adventureFolderUri: String) {
+        if (currentFolderUri?.toString() == adventureFolderUri) {
+            showSnackbar("✅ Aventure chargée avec succès !")
+            lifecycleScope.launch(Dispatchers.IO) {
+                synchronizeFolder()
+            }
+        } else {
+            AlertDialog.Builder(this)
+                .setTitle("Attention")
+                .setMessage("L’aventure utilisait le dossier enregistré :\n\n$adventureFolderUri\n\nVoulez-vous utiliser ce dossier ou garder le nouveau ?")
+                .setPositiveButton("Utiliser l’ancien") { _, _ ->
+                    currentFolderUri = Uri.parse(adventureFolderUri)
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        synchronizeFolder()
+                    }
+                }
+                .setNegativeButton("Garder le nouveau") { _, _ ->
+                    showSnackbar("⚠ Nouveau dossier utilisé, synchronisation en cours…")
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        synchronizeFolder()
+                    }
+                }
+                .show()
+        }
+    }
+
 
     // CONFIG START - showConfigDialog
     // --- Boîte de dialogue de configuration de l’éditeur ---
@@ -1227,4 +1268,5 @@ class EditorActivity : BaseActivity() {
 
 
 }
+
 

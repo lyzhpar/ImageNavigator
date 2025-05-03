@@ -4,7 +4,7 @@ package com.example.imagenavigator.model
 
 
 data class Adventure(
-    val adventureTitle: String,
+    var adventureTitle: String,
     val folderUri: String,
     val images: List<ImageData>,
     val startImagePath: String? = null

@@ -1,7 +1,6 @@
 package com.example.imagenavigator.screens
 
 import android.content.Intent
-import android.content.pm.ActivityInfo
 import android.os.Bundle
 import android.content.res.Configuration
 import android.util.Log
@@ -9,6 +8,8 @@ import android.widget.Toast
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.imagenavigator.adapters.AdventureAdapter
 import com.example.imagenavigator.databinding.ActivityMainBinding
+import com.example.imagenavigator.model.Adventure
+import com.google.gson.GsonBuilder
 import java.io.File
 
 /**
@@ -47,6 +48,10 @@ class MainActivity : BaseActivity() {
                 val intent = Intent(this, EditorActivity::class.java)
                 intent.putExtra("adventureName", adventureName)
                 startActivity(intent)
+            },
+
+            onAdventureRename = { adventureName ->
+                showRenameDialog(adventureName)
             },
             onAdventureDelete = { adventureName ->
                 deleteAdventureFile(adventureName)
@@ -104,4 +109,59 @@ class MainActivity : BaseActivity() {
             Toast.makeText(this, "L'application fonctionne uniquement en mode paysage.", Toast.LENGTH_SHORT).show()
         }
     }
+
+
+    private fun showRenameDialog(oldName: String) {
+        val editText = android.widget.EditText(this)
+        editText.setText(oldName)
+        editText.setSingleLine(true)
+        editText.imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_DONE
+
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Renommer l’aventure")
+            .setView(editText)
+            .setPositiveButton("Renommer") { _, _ ->
+                val newName = editText.text.toString()
+                renameAdventureFile(oldName, newName)
+            }
+            .setNegativeButton("Annuler", null)
+            .create()
+
+        editText.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE) {
+                val newName = editText.text.toString()
+                renameAdventureFile(oldName, newName)
+                dialog.dismiss()
+                true
+            } else {
+                false
+            }
+        }
+
+        dialog.show()
+    }
+
+    private fun renameAdventureFile(oldName: String, newName: String) {
+        val oldFile = File(filesDir, "${oldName}_zones.json")
+        val newFile = File(filesDir, "${newName}_zones.json")
+        if (oldFile.exists()) {
+            if (newFile.exists()) {
+                Toast.makeText(this, "Un fichier portant ce nom existe déjà.", Toast.LENGTH_SHORT).show()
+            } else {
+                val gson = GsonBuilder().setPrettyPrinting().create()
+                val adventure = gson.fromJson(oldFile.readText(), Adventure::class.java)
+                adventure.adventureTitle = newName
+                val updatedJson = gson.toJson(adventure)
+                val renamed = oldFile.renameTo(newFile)
+                if (renamed) {
+                    newFile.writeText(updatedJson)
+                    Toast.makeText(this, "Aventure renommée en $newName", Toast.LENGTH_SHORT).show()
+                    loadAdventureList()
+                } else {
+                    Toast.makeText(this, "Erreur lors du renommage.", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
 }
