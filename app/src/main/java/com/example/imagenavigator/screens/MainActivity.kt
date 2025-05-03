@@ -1,5 +1,7 @@
 package com.example.imagenavigator.screens
 
+import android.net.Uri
+
 import android.content.Intent
 import android.os.Bundle
 import android.content.res.Configuration
@@ -7,8 +9,9 @@ import android.util.Log
 import android.widget.Toast
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.imagenavigator.adapters.AdventureAdapter
+import com.example.imagenavigator.adapters.Adventure
 import com.example.imagenavigator.databinding.ActivityMainBinding
-import com.example.imagenavigator.model.Adventure
+import com.example.imagenavigator.model.Adventure as ModelAdventure
 import com.google.gson.GsonBuilder
 import java.io.File
 
@@ -27,7 +30,8 @@ class MainActivity : BaseActivity() {
 
         // Initialiser l'adapter (onAdventureClick)
         adventureAdapter = AdventureAdapter(
-            onAdventureClick = { adventureName ->
+            onAdventureClick = { adventureName, folderUriString ->
+                val folderUri = folderUriString?.let { Uri.parse(it) }
                 val file = File(filesDir, "${adventureName}_zones.json")
                 if (file.exists()) {
                     val fileUri = androidx.core.content.FileProvider.getUriForFile(
@@ -35,21 +39,21 @@ class MainActivity : BaseActivity() {
                         "${packageName}.fileprovider",
                         file
                     )
-
                     val intent = Intent(this, NavigatorActivity::class.java)
                     intent.putExtra("adventureJsonUri", fileUri)
+                    intent.putExtra("folderUri", folderUri?.toString())
                     intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) // Très important pour donner accès au fichier
                     startActivity(intent)
                 } else {
                     Toast.makeText(this, "Fichier d'aventure introuvable.", Toast.LENGTH_SHORT).show()
                 }
             },
-            onAdventureEdit = { adventureName ->
-                // Lance l’éditeur en mode édition (EditorActivity détectera adventureName et appellera enterEditMode)
+            onAdventureEdit = { adventureName, folderUri ->
                 Log.d("AdventureAdapter", "Lancement de l’édition pour $adventureName")
-                val intent = Intent(this, EditorActivity::class.java)
-                intent.putExtra("adventureName", adventureName)
-                Log.d("MainActivity", "Intent envoyé à EditorActivity avec adventureName=$adventureName")
+                val intent = Intent(this, EditorActivity::class.java).apply {
+                    putExtra("adventureName", adventureName)
+                    putExtra("folderUri", folderUri?.toString())
+                }
                 startActivity(intent)
             },
 
@@ -98,11 +102,22 @@ class MainActivity : BaseActivity() {
             file.extension == "json" && file.name.endsWith("_zones.json")
         } ?: emptyArray()
 
-        val adventureNames = adventureFiles.map { file ->
-            file.name.removeSuffix("_zones.json")
+        val gson = GsonBuilder().setPrettyPrinting().create()
+        val adventures = adventureFiles.mapNotNull { file ->
+            try {
+                val adventure = gson.fromJson(file.readText(), ModelAdventure::class.java)
+                adventure
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Erreur lors du parsing de ${file.name}: ${e.message}")
+                null
+            }
         }
-
-        adventureAdapter.submitList(adventureNames)
+        adventureAdapter.submitList(adventures.map {
+            Adventure(
+                name = it.adventureTitle,
+                folderUri = it.folderUri
+            )
+        })
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -152,7 +167,7 @@ class MainActivity : BaseActivity() {
                 Toast.makeText(this, "Un fichier portant ce nom existe déjà.", Toast.LENGTH_SHORT).show()
             } else {
                 val gson = GsonBuilder().setPrettyPrinting().create()
-                val adventure = gson.fromJson(oldFile.readText(), Adventure::class.java)
+                val adventure = gson.fromJson(oldFile.readText(), ModelAdventure::class.java)
                 adventure.adventureTitle = newName
                 val updatedJson = gson.toJson(adventure)
                 val renamed = oldFile.renameTo(newFile)

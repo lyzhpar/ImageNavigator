@@ -130,6 +130,10 @@ class EditorActivity : BaseActivity() {
     // Demander l'accès au dossier
     private fun requestFolderAccess(uri: Uri) {
         // Avant de charger, reset l'adapter et l'arbre racine et recycle les bitmaps
+        if (!hasPersistedPermission(uri)) {
+            showSnackbar("Permission expirée sur le dossier sélectionné.")
+            return
+        }
         imageAdapter.updateData(emptyList())
         imageRootNode = ImageGroupNode("Racine", null, mutableListOf(), mutableListOf())
         imageBitmapMap.values.forEach { if (!it.isRecycled) it.recycle() }
@@ -413,6 +417,12 @@ class EditorActivity : BaseActivity() {
         val adventureFromIntent = intent.getStringExtra("adventureName")
         if (adventureFromIntent != null) {
             enterEditMode(adventureFromIntent)
+            currentFolderUri?.let {
+                if (!hasPersistedPermission(it)) {
+                    showSnackbar("Permission expirée, merci de re-sélectionner le dossier.")
+                    openFolderPicker()
+                }
+            }
             if (intent.getBooleanExtra("editMode", false)) {
                 showSnackbar("Mode édition activé pour $adventureFromIntent")
             }
@@ -1218,7 +1228,21 @@ class EditorActivity : BaseActivity() {
             logDebug("EnterEditMode", "Fichier trouvé, parsing JSON pour $adventureName")
             val adventureData = GsonBuilder().create().fromJson(json, AdventureData::class.java)
             val folderUriString = adventureData.folderUri
-            currentFolderUri = if (!folderUriString.isNullOrEmpty()) Uri.parse(folderUriString) else null
+            // Patch: check folderUriString starts with content://
+            currentFolderUri = if (!folderUriString.isNullOrEmpty() && folderUriString.startsWith("content://")) Uri.parse(folderUriString) else null
+
+            if (currentFolderUri == null) {
+                showSnackbar("Erreur : dossier manquant. Merci de le sélectionner.")
+                openFolderPicker()
+                return
+            }
+
+            if (!hasPersistedPermission(currentFolderUri!!)) {
+                showSnackbar("Permission expirée, merci de re-sélectionner le dossier.")
+                openFolderPicker()
+                return
+            }
+
             if (currentFolderUri != null) {
                 logDebug("EnterEditMode", "FolderUri récupéré : $currentFolderUri")
             }
@@ -1249,10 +1273,23 @@ class EditorActivity : BaseActivity() {
             logDebug("EnterEditMode", "currentFolderUri vérifié : $currentFolderUri")
             // Bloc refait pour gestion du dossier et suppression de la synchro prématurée
             if (currentFolderUri != null) {
-                val folder = DocumentFile.fromTreeUri(this, currentFolderUri!!)
-                if (folder != null && folder.exists()) {
+                try {
+                    val folder = DocumentFile.fromTreeUri(this, currentFolderUri!!)
+                    if (folder == null) {
+                        logDebug("EnterEditMode", "DocumentFile.fromTreeUri a retourné null")
+                        showSnackbar("Erreur d’accès au dossier. Merci de le sélectionner à nouveau.")
+                        openFolderPicker()
+                        return
+                    }
                     if (!hasPersistedPermission(currentFolderUri!!)) {
+                        logDebug("EnterEditMode", "Permission persistante manquante")
                         showSnackbar("Permission expirée, merci de re-sélectionner le dossier.")
+                        openFolderPicker()
+                        return
+                    }
+                    if (!folder.exists()) {
+                        logDebug("EnterEditMode", "Le dossier n’existe plus sur le stockage")
+                        showSnackbar("Le dossier d’aventure a été supprimé ou déplacé. Merci de le sélectionner à nouveau.")
                         openFolderPicker()
                         return
                     }
@@ -1260,9 +1297,9 @@ class EditorActivity : BaseActivity() {
                     groupedImages.clear()
                     imageAdapter.updateData(emptyList())
                     requestFolderAccess(currentFolderUri!!)
-                } else {
-                    logDebug("EnterEditMode", "Dossier introuvable ou inaccessible → demander à l’utilisateur")
-                    showSnackbar("Attention : le dossier de l’aventure n’est plus accessible. Merci de le sélectionner à nouveau.")
+                } catch (e: Exception) {
+                    logDebug("EnterEditMode", "Erreur inattendue lors de l’accès au dossier: ${e.message}")
+                    showSnackbar("Erreur inattendue. Merci de re-sélectionner le dossier.")
                     openFolderPicker()
                 }
             } else {
@@ -1275,6 +1312,11 @@ class EditorActivity : BaseActivity() {
             lifecycleScope.launch(Dispatchers.Main) {
                 val firstImagePath = imageDataMap.keys.firstOrNull()
                 if (firstImagePath != null) {
+                    // Patch: skip if bitmap not ready
+                    if (!imageBitmapMap.containsKey(firstImagePath)) {
+                        logDebug("EnterEditMode", "Le bitmap pour $firstImagePath n’est pas encore chargé → on saute l’affichage initial")
+                        return@launch
+                    }
                     onImageSelected(firstImagePath)
                 }
             }
@@ -1287,38 +1329,6 @@ class EditorActivity : BaseActivity() {
             promptAdventureName()
         }
     }
-
-
-
-    // CONFIG START - showConfigDialog
-    // --- Boîte de dialogue de configuration de l’éditeur ---
-    /*private fun showConfigDialog() {
-        val view = layoutInflater.inflate(R.layout.dialog_editor_config, null)
-        val widthSlider = view.findViewById<android.widget.SeekBar>(R.id.sliderThumbnailWidth)
-        val heightSlider = view.findViewById<android.widget.SeekBar>(R.id.sliderThumbnailHeight)
-        val alphaSlider = view.findViewById<android.widget.SeekBar>(R.id.sliderThumbnailAlpha)
-        val switchShowThumbs = view.findViewById<android.widget.CheckBox>(R.id.switchShowThumbnails)
-
-        val config = binding.drawingView.editorConfig
-        widthSlider.progress = config.thumbnailWidth
-        heightSlider.progress = config.thumbnailHeight
-        alphaSlider.progress = config.thumbnailAlpha
-        switchShowThumbs.isChecked = config.showLinkedThumbnails
-
-        AlertDialog.Builder(this)
-            .setTitle("Configuration de l’éditeur")
-            .setView(view)
-            .setPositiveButton("OK") { _, _ ->
-                config.thumbnailWidth = widthSlider.progress
-                config.thumbnailHeight = heightSlider.progress
-                config.thumbnailAlpha = alphaSlider.progress
-                config.showLinkedThumbnails = switchShowThumbs.isChecked
-                binding.drawingView.invalidate()
-            }
-            .setNegativeButton("Annuler", null)
-            .show()
-    }*/
-    // CONFIG END - showConfigDialog
 
 
     private fun hasPersistedPermission(uri: Uri): Boolean {

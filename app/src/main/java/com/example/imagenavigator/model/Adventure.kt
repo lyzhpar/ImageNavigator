@@ -21,8 +21,8 @@ data class ZoneData(
 )
 
 data class RectData(
-    val left: Float,
-    val top: Float,
-    val right: Float,
-    val bottom: Float
+    var left: Float,
+    var top: Float,
+    var right: Float,
+    var bottom: Float
 )
