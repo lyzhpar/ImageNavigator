@@ -261,12 +261,15 @@ class ImageAdapter(
 
         fun bind(item: DisplayItem) {
             if (item is DisplayItem.ImageItem) {
-                var displayBitmap = item.bitmap
+                val displayBitmap = item.bitmap
 
                 if (displayBitmap.isRecycled) {
-                    Log.e("ImageAdapter", "Bitmap recyclé détecté pour ${item.fullPath}, on saute le bind")
+                    Log.w("ImageAdapter", "Bitmap recyclé détecté pour ${item.fullPath}, on skip")
+                    imageView.setImageDrawable(null)
                     return
                 }
+
+                var bitmapToDisplay = displayBitmap
 
                 // Si l'image a des zones liées, dessiner les rectangles verts dessus
                 val zones = imageZonesMap[item.fullPath]
@@ -290,17 +293,17 @@ class ImageAdapter(
                             canvas.drawRect(left, top, right, bottom, paint)
                         }
                     }
-                    displayBitmap = mutableBitmap
+                    bitmapToDisplay = mutableBitmap
                 }
 
                 Log.d("ImageAdapter", "Bind image: ${item.fullPath}")
 
-                if (!displayBitmap.isRecycled) {
+                if (!bitmapToDisplay.isRecycled) {
                     Glide.with(imageView.context)
-                        .load(displayBitmap)
+                        .load(bitmapToDisplay)
                         .override(400, 250)
                         .centerCrop()
-                        .thumbnail(Glide.with(imageView.context).load(displayBitmap).override(40, 25))
+                        .thumbnail(Glide.with(imageView.context).load(bitmapToDisplay).override(40, 25))
                         .into(imageView)
                 } else {
                     imageView.setImageDrawable(null)
@@ -332,4 +335,10 @@ class ImageAdapter(
             }
         }
     }
+
+    // Permet de forcer le rafraîchissement complet du RecyclerView
+    fun forceRefresh() {
+        notifyDataSetChanged()
+    }
 }
+
