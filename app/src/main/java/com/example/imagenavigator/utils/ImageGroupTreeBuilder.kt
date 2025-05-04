@@ -4,44 +4,31 @@ import android.graphics.Bitmap
 import android.util.Log
 
 object ImageGroupTreeBuilder {
-    fun buildImageGroupTree(imagePaths: List<Pair<Bitmap, String>>): ImageGroupNode {
-        val root = ImageGroupNode(name = "Racine")
-        val rootGroupNode = ImageGroupNode(name = "Racine", parent = root)
+    fun buildImageGroupTree(images: List<Pair<Bitmap?, String>>): ImageGroupNode {
+        val root = ImageGroupNode("Racine", null, mutableListOf(), mutableListOf())
 
-        for ((bitmap, fullPath) in imagePaths) {
+        for ((bitmap, fullPath) in images) {
             Log.d("TreeBuilder", "Ajout image: $fullPath")
-            val parts = fullPath.split("/").filter { it != "Racine" }
-            if (parts.size == 1) {
-                rootGroupNode.images.add(bitmap to fullPath)
-                continue
-            }
-            var currentNode = root
+            val parts = fullPath.split("/").filter { it.isNotBlank() && it != "Racine" }
+            if (parts.isEmpty()) continue
 
+            var currentNode = root
             for (i in 0 until parts.size - 1) {
                 val part = parts[i].trim()
                 val existingChild = currentNode.children.find { it.name == part }
                 if (existingChild != null) {
                     currentNode = existingChild
                 } else {
-                    val newNode = ImageGroupNode(
-                        name = part,
-                        parent = currentNode
-                    )
+                    val newNode = ImageGroupNode(name = part, parent = currentNode)
                     Log.d("TreeBuilder", "Création noeud: name=$part | fullPath=${newNode.fullPath}")
                     currentNode.children.add(newNode)
                     currentNode = newNode
                 }
             }
-
             currentNode.images.add(bitmap to fullPath)
         }
 
         sortNodeRecursively(root)
-
-        if (rootGroupNode.images.isNotEmpty()) {
-            root.children.add(0, rootGroupNode)
-        }
-
         return root
     }
 

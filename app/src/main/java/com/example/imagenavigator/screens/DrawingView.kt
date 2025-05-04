@@ -49,10 +49,12 @@ class DrawingView @JvmOverloads constructor(
 
     var onTapListener: (() -> Unit)? = null
 
+    var onZoneSelected: (() -> Unit)? = null
+
     var selectedZone: Zone? = null
     private val fadeHandler = Handler(Looper.getMainLooper())
-    // Map pour associer les chemins d'images aux bitmaps
-    var imageBitmapMap = mutableMapOf<String, Bitmap>()
+    // Map pour associer les chemins d'images aux bitmaps (valeurs nulles autorisées)
+    var imageBitmapMap = mutableMapOf<String, Bitmap?>()
     var currentImageName: String? = null
 
     private val selectedZonesMulti = mutableSetOf<Zone>()
@@ -151,8 +153,8 @@ class DrawingView @JvmOverloads constructor(
             // Afficher la vignette 50% transparente de l’image liée au-dessus de chaque zone, taille fixe
             zone.linkedImagePath?.let { linkedPath ->
                 val linkedBitmap = imageBitmapMap[linkedPath]
-                linkedBitmap?.let { bmp ->
-                    if (!bmp.isRecycled && editorConfig.showLinkedThumbnails) {
+                linkedBitmap?.takeIf { it.isRecycled.not() }?.let { bmp ->
+                    if (editorConfig.showLinkedThumbnails) {
                         Log.d("LoadImages", "Image chargée: $linkedPath, taille: ${bmp.width}x${bmp.height}")
                         drawLinkedThumbnail(canvas, bmp, absRect)
                     }
@@ -221,12 +223,8 @@ class DrawingView @JvmOverloads constructor(
         gestureDetector.onTouchEvent(event)
 
         val bitmap = imageBitmap
-        if (bitmap != null && bitmap.isRecycled) {
-            Log.e("DrawingView", "Bitmap recyclé détecté dans onTouchEvent, retour anticipé")
-            return true
-        }
-
-        if (bitmap == null) {
+        if (bitmap == null || bitmap.isRecycled) {
+            Log.e("DrawingView", "Bitmap nul ou recyclé détecté dans onTouchEvent, retour anticipé")
             return true
         }
 
@@ -273,6 +271,7 @@ class DrawingView @JvmOverloads constructor(
 
                             if (absRect.contains(touchX, touchY)) {
                                 selectedZone = zone
+                                onZoneSelected?.invoke()
                                 Log.d("DrawingView", "Zone sélectionnée : ${zone.rect.left}, ${zone.rect.top}, ${zone.rect.right}, ${zone.rect.bottom}")
                                 invalidate()
                                 // Ajout : mettre à jour la visibilité du bouton suppression après sélection
@@ -284,6 +283,7 @@ class DrawingView @JvmOverloads constructor(
                         if (!foundZone) {
                             // Tap en dehors des zones désélectionne la zone
                             selectedZone = null
+                            onZoneSelected?.invoke()
                             invalidate()
                             // Ajout : mettre à jour la visibilité du bouton suppression après désélection
                             (context as? EditorActivity)?.updateDeleteButtonVisibilityForZones()
@@ -366,13 +366,8 @@ class DrawingView @JvmOverloads constructor(
             Log.d("DrawingView", "Aucune image liée à cette zone.")
             return false
         }
-        val bitmap = try {
-            android.graphics.BitmapFactory.decodeFile(path)
-        } catch (e: Exception) {
-            Log.e("DrawingView", "Erreur lors du décodage de l'image liée : $path", e)
-            null
-        }
-        if (bitmap == null) {
+        val exists = imageBitmapMap.containsKey(path)
+        if (!exists) {
             Log.d("DrawingView", "Image liée introuvable ou invalide : $path")
             return false
         }

@@ -60,9 +60,8 @@ class EditorActivity : BaseActivity() {
     private lateinit var binding: ActivityEditorBinding
     private lateinit var imageAdapter: ImageAdapter
 
-    private val groupedImages = mutableListOf<ImageGroup>()
     var imageDataMap = mutableMapOf<String, MutableList<Zone>>()
-    var imageBitmapMap = mutableMapOf<String, Bitmap>()
+    var imageBitmapMap = mutableMapOf<String, Bitmap?>()
     private lateinit var imageRootNode: ImageGroupNode
     private var currentImageName: String? = null
 
@@ -124,7 +123,7 @@ class EditorActivity : BaseActivity() {
         if (!debugLogs) return
         Log.d("BitmapCache", "--- Contenu de imageBitmapMap ---")
         imageBitmapMap.forEach { (imageName, bitmap) ->
-            Log.d("BitmapCache", "Image: $imageName → bitmap: ${bitmap.width}x${bitmap.height}")
+            Log.d("BitmapCache", "Image: $imageName → bitmap: ${bitmap?.width}x${bitmap?.height}")
         }
         Log.d("BitmapCache", "---------------------------------")
     }
@@ -199,63 +198,64 @@ class EditorActivity : BaseActivity() {
         }
 
     // Quand une image est sélectionnée
-    private fun onImageSelected(
-        /*bitmap: Bitmap,*/ fullPath: String
-    ) {
+    private fun onImageSelected(fullPath: String) {
         if (isBusy) {
             showSnackbar("Chargement en cours, patiente un instant…")
             return
         }
-        // Avant de remplacer le bitmap et les zones, enregistrer les zones de l'image courante
+
+        // Sauvegarder les zones actuelles
         currentImageName?.let { oldImageName ->
             imageDataMap[oldImageName] = binding.drawingView.getAllZones().toMutableList()
         }
 
-        logBitmapCache()
-        if (!imageBitmapMap.containsKey(fullPath) || imageBitmapMap[fullPath]?.isRecycled == true) {
-            Log.e("EditorActivity", "Bitmap null ou recyclé détecté pour $fullPath, on ignore le bind")
-            showSnackbar("Image non disponible (bitmap recyclé ou absent).")
-            return
+        // Libérer le bitmap précédent et vider la map
+        imageBitmapMap[currentImageName]?.let { bmp ->
+            if (!bmp.isRecycled) bmp.recycle()
         }
-        if (imageBitmapMap[fullPath]?.isRecycled == true) {
-            Log.e("EditorActivity", "Bitmap recyclé détecté pour $fullPath, on ignore le bind")
-            showSnackbar("Image non disponible (bitmap recyclé).")
-            return
-        }
-        // Remplacement : accès direct au bitmap chargé
-        if (imageBitmapMap[fullPath]?.isRecycled == true) {
-            Log.e("EditorActivity", "Bitmap recyclé détecté pour $fullPath, on ignore le bind")
-            return
-        }
-        binding.drawingView.imageBitmap = imageBitmapMap[fullPath]
-        binding.drawingView.setZonesForCurrentImage(imageDataMap[fullPath] ?: emptyList())
-        currentImageName = fullPath
+        imageBitmapMap.clear()
 
-        // Toujours synchroniser le cache des bitmaps avec le DrawingView
-        binding.drawingView.imageBitmapMap = imageBitmapMap
+        // Charger le nouveau bitmap (en arrière-plan)
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val file = imageFileMap[fullPath]
+                if (file == null) {
+                    withContext(Dispatchers.Main) { showSnackbar("Image introuvable.") }
+                    return@launch
+                }
 
-        // --- Empêcher le saut de scroll lors du rafraîchissement des vignettes ---
+                val bitmap = Glide.with(this@EditorActivity)
+                    .asBitmap()
+                    .load(file.uri)
+                    .submit()
+                    .get()
+
+                withContext(Dispatchers.Main) {
+                    imageBitmapMap[fullPath] = bitmap
+                    binding.drawingView.imageBitmap = bitmap
+                    binding.drawingView.setZonesForCurrentImage(imageDataMap[fullPath] ?: emptyList())
+                    currentImageName = fullPath
+                }
+            } catch (e: Exception) {
+                Log.e("onImageSelected", "Erreur lors du chargement de l'image : $fullPath", e)
+                withContext(Dispatchers.Main) {
+                    showSnackbar("Erreur lors du chargement de l'image.")
+                }
+            }
+        }
+
+        // Préserver le scroll des vignettes
         val layoutManager = binding.recyclerViewThumbnails.layoutManager as LinearLayoutManager
         val firstVisiblePosition = layoutManager.findFirstVisibleItemPosition()
         val offset = layoutManager.findViewByPosition(firstVisiblePosition)?.top ?: 0
 
-        // Mettre à jour les zones dans l'adapter (pour les vignettes)
-        val imageZonesMap = imageDataMap.mapValues { entry ->
-            entry.value.map { it.toZoneData() }
+        // Rafraîchir les zones des vignettes
+        imageAdapter.imageZonesMap = imageDataMap.mapValues { it.value.map { zone -> zone.toZoneData() } }
+        val index = imageAdapter.currentList.indexOfFirst { it.fullPath == fullPath }
+        if (index >= 0) {
+            imageAdapter.notifyItemChanged(index)
         }
-        imageAdapter.imageZonesMap = imageZonesMap
-        imageAdapter.notifyDataSetChanged()
-
         layoutManager.scrollToPositionWithOffset(firstVisiblePosition, offset)
-
-        logDebug("ImageDataMap", "--- Contenu de imageDataMap ---")
-        imageDataMap.forEach { (imageName, zones) ->
-            logDebug("ImageDataMap", "Image: $imageName → Zones: ${zones.size}")
-            zones.forEach { zone ->
-                logDebug("ImageDataMap", "   Zone rect: ${zone.rect} linkedImagePath: ${zone.linkedImagePath}")
-            }
-        }
-        logDebug("ImageDataMap", "-------------------------------")
     }
 
     // Quand l'utilisateur demande de renommer un groupe
@@ -415,8 +415,10 @@ class EditorActivity : BaseActivity() {
 
         // Adapter images
         imageAdapter = ImageAdapter(
-            rootGroups = groupedImages,
+            rootGroups = emptyList(),
             onImageSelected = { fullPath ->
+                // Ajout d'un log pour vérifier la zone sélectionnée
+                Log.d("ZoneLink", "selectedZone: ${binding.drawingView.selectedZone}")
                 val selectedZone = binding.drawingView.selectedZone
                 if (selectedZone != null) {
                     linkSelectedZoneToImage(fullPath)
@@ -428,7 +430,8 @@ class EditorActivity : BaseActivity() {
             onGroupDeleteRequested = { onGroupDeleteRequested() },
             onItemLongPress = { item -> setStartImage(item.fullPath) },
             getSelectedItems = { imageAdapter.getSelectedItems() },
-            exitSelectionMode = { exitSelectionMode() }
+            exitSelectionMode = { exitSelectionMode() },
+            imageFileMap = imageFileMap
         )
 
         binding.recyclerViewThumbnails.apply {
@@ -499,7 +502,7 @@ class EditorActivity : BaseActivity() {
                 }
                 Glide.get(this@EditorActivity).clearMemory()
                 CoroutineScope(Dispatchers.IO).launch { Glide.get(applicationContext).clearDiskCache() }
-                imageBitmapMap.values.forEach { if (!it.isRecycled) it.recycle() }
+                imageBitmapMap.values.forEach { it?.let { bmp -> if (!bmp.isRecycled) bmp.recycle() } }
                 imageBitmapMap.clear()
                 saveZones()
 
@@ -531,6 +534,12 @@ class EditorActivity : BaseActivity() {
                 deleteButton.isEnabled = false
             }
         }
+
+        binding.drawingView.onZoneSelected = {
+            updateDeleteButtonVisibilityForZones()
+            refreshThumbnailZones()
+        }
+
         // Ajout d'une zone nouvellement créée à imageDataMap pour l'image courante
         binding.drawingView.onZoneCreated = { zone ->
             currentImageName?.let { imageName ->
@@ -708,7 +717,17 @@ class EditorActivity : BaseActivity() {
         }
         selectedItems.clear()
         exitSelectionMode()
-        imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
+        // Ajout explicite du groupe Racine en haut de la liste
+        val imageGroups = mutableListOf<ImageGroup>()
+        val racineGroup = ImageGroup(
+            name = "Racine",
+            images = imageRootNode.images,
+            children = listOf(),
+            fullPath = null
+        )
+        imageGroups.add(racineGroup)
+        imageGroups.addAll(ImageGroup.fromTree(imageRootNode))
+        imageAdapter.updateData(imageGroups)
         deleteButton?.let { updateDeleteButtonVisibility(it) }
         updateBottomBarInfo()
     }
@@ -734,7 +753,7 @@ class EditorActivity : BaseActivity() {
             selectionInfoContainer.isVisible = false
             imagesInfoText.visibility = View.VISIBLE
             worldsInfoText.visibility = View.VISIBLE
-            imagesInfoText.text = getString(R.string.images_count, imageBitmapMap.size)
+            imagesInfoText.text = getString(R.string.images_count, imageDataMap.size)
             updateWorldAndUnlinkedCounts()
         }
     }
@@ -801,7 +820,7 @@ class EditorActivity : BaseActivity() {
         if (debugLogs) Log.d("EditorActivity", "Loading images from folder: $uri")
 
         if (clearData) {
-            imageBitmapMap.values.forEach { if (!it.isRecycled) it.recycle() }
+            imageBitmapMap.values.forEach { it?.let { bmp -> if (!bmp.isRecycled) bmp.recycle() } }
             imageBitmapMap.clear()
             imageDataMap.clear()
             imageRootNode = ImageGroupNode("Racine", null, mutableListOf(), mutableListOf())
@@ -844,50 +863,24 @@ class EditorActivity : BaseActivity() {
                         // Nouveau filtre doublon : n'ajoute que si seenPaths.add(fullPath) == true
                         if (seenPaths.add(fullPath)) {
                             allImageFiles.add(file to fullPath)
-                            //logDebug("EditorActivity", "Image trouvée: $fullPath")
-                            if (!firstImageLoaded) {
-                                firstImageLoaded = true
-                                imageFileMap[fullPath] = file
-                                imageLoadingScope.launch {
-                                    try {
-                                        val bitmap = withContext(Dispatchers.IO) {
-                                            Glide.with(this@EditorActivity)
-                                                .asBitmap()
-                                                .load(file.uri)
-                                                .apply(RequestOptions().diskCacheStrategy(DiskCacheStrategy.ALL))
-                                                .submit()
-                                                .get()
-                                        }
-                                        imageBitmapMap[fullPath] = bitmap
-                                        if (clearData && !imageDataMap.containsKey(fullPath)) {
-                                            imageDataMap[fullPath] = mutableListOf()
-                                        }
-                                        loadedImagesCount++
-                                        withContext(Dispatchers.Main) {
-                                            // Vérifie si l'image est déjà présente dans l'adapter avant d'ajouter
-                                            if (!imageAdapter.currentList.any { it.fullPath == fullPath }) {
-                                                imageAdapter.addImage(bitmap!!, fullPath)
-                                            }
-
-
-                                            updateLoadingProgress()
-                                        }
-                                    } catch (e: Exception) {
-                                        Log.e("EditorActivity", "Erreur au chargement anticipé de la première image", e)
-                                    }
-                                }
+                            imageFileMap[fullPath] = file
+                            // Ajout : on marque l'image dans imageBitmapMap comme "connue" (null)
+                            imageBitmapMap[fullPath] = null
+                            if (!imageDataMap.containsKey(fullPath)) {
+                                imageDataMap[fullPath] = mutableListOf()
                             }
                         } else {
                             Log.v("EditorActivity", "Doublon ignoré: $fullPath")
                         }
                     }
                 }
-                logDebug("AppDebug", "Nombre total d'images trouvées : ${allImageFiles.size}")
             }
             // Log final pour allImageFiles
             // (après le dernier appel traverse)
 
             folder.listFiles()?.forEach { traverse(it) }
+            logDebug("AppDebug", "Nombre total d'images trouvées : ${allImageFiles.size}")
+
             logDebug("EditorActivity", "allImageFiles final: ${allImageFiles.map { it.second }}")
             allImageFiles.sortWith(compareBy({ it.second.count { c -> c == '/' } }, { it.second }))
 
@@ -895,10 +888,6 @@ class EditorActivity : BaseActivity() {
             val dedupedImageFiles = allImageFiles.distinctBy { it.second }.filter { seenPaths.add(it.second) }
             totalImagesToLoad = dedupedImageFiles.size
             loadedImagesCount = 0
-
-            // Garde le clear uniquement si demandé
-            // (suppression du clear ici, déjà fait plus haut si clearData)
-            // allImageFiles.sortBy { it.second }
 
             val semaphore = Semaphore(5)
             val batches = dedupedImageFiles.chunked(imagesPerBatch)
@@ -917,6 +906,7 @@ class EditorActivity : BaseActivity() {
                             // Nouveau : vérifie l'absence dans imageBitmapMap avant ajout
                             if (!imageBitmapMap.containsKey(fullPath)) {
                                 imageFileMap[fullPath] = file
+                                // On ne stocke plus dans imageBitmapMap ici (suppression de imageBitmapMap[fullPath] = bitmap)
                                 val bitmap = withContext(Dispatchers.IO) {
                                     Glide.with(this@EditorActivity)
                                         .asBitmap()
@@ -925,17 +915,14 @@ class EditorActivity : BaseActivity() {
                                         .submit()
                                         .get()
                                 }
-                                imageBitmapMap[fullPath] = bitmap
+                                // Suppression de imageBitmapMap[fullPath] = bitmap ici (on ne remplit plus la map ici)
                             }
-                            val bitmap = imageBitmapMap[fullPath]
-                            logDebug("LoadImages", "Image chargée: $fullPath, taille: ${bitmap?.width}x${bitmap?.height}")
                             withContext(Dispatchers.Main) {
                                 binding.drawingView.imageBitmapMap = imageBitmapMap
                                 // Vérifie si l'image est déjà présente dans l'adapter avant d'ajouter (toujours)
                                 if (!imageAdapter.currentList.any { it.fullPath == fullPath }) {
-                                    imageAdapter.addImage(bitmap!!, fullPath)
+                                    imageAdapter.addImage(fullPath)
                                 }
-
                             }
                             if (debugLogs) Log.d("EditorActivity", "Image trouvée: $fullPath")
                             loadedImagesCount = minOf(loadedImagesCount + 1, totalImagesToLoad)
@@ -961,13 +948,21 @@ class EditorActivity : BaseActivity() {
 
             // UI update block: only once after all batches
             withContext(Dispatchers.Main) {
-                imageRootNode = ImageGroupTreeBuilder.buildImageGroupTree(imageBitmapMap.map { (path, bmp) -> bmp to path })
-                imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
-                updateLoadingProgress()
-            }
-
-            withContext(Dispatchers.Main) {
-                loadedImagesCount = totalImagesToLoad
+                imageRootNode = ImageGroupTreeBuilder.buildImageGroupTree(
+                    imageDataMap.map { Pair<Bitmap?, String>(null, it.key) }
+                )
+                // Ajout explicite du groupe Racine en haut de la liste
+                val imageGroups = mutableListOf<ImageGroup>()
+                val racineGroup = ImageGroup(
+                    name = "Racine",
+                    images = imageRootNode.images,
+                    children = listOf(),
+                    fullPath = null
+                )
+                imageGroups.add(racineGroup)
+                imageGroups.addAll(ImageGroup.fromTree(imageRootNode))
+                imageAdapter.updateData(imageGroups)
+                imageAdapter.notifyDataSetChanged()
                 updateLoadingProgress()
                 loadingProgressBar.visibility = View.GONE
                 if (skippedFiles.isNotEmpty()) {
@@ -1054,7 +1049,7 @@ class EditorActivity : BaseActivity() {
             hasJustSaved = true
         }
         imageLoadingScope.cancel()
-        imageBitmapMap.values.forEach { if (!it.isRecycled) it.recycle() }
+        imageBitmapMap.values.forEach { it?.let { bmp -> if (!bmp.isRecycled) bmp.recycle() } }
         imageBitmapMap.clear()
         Glide.get(this).clearMemory()
         lifecycleScope.launch(Dispatchers.IO) { Glide.get(applicationContext).clearDiskCache() }
@@ -1212,14 +1207,12 @@ class EditorActivity : BaseActivity() {
                 }
             }
 
-            imageRootNode = ImageGroupTreeBuilder.buildImageGroupTree(
-                imageBitmapMap.map { (path, bmp) -> bmp to path }
-            )
+            val bitmapPathPairs = imageDataMap.map { (path, _) -> Pair(null as Bitmap?, path) }
+            imageRootNode = ImageGroupTreeBuilder.buildImageGroupTree(bitmapPathPairs)
+
             imageDataMap.forEach { (imageName, zones) ->
                 logDebug("SyncFolder", "Après synchro - Image: $imageName → Zones count: ${zones.size}")
             }
-            groupedImages.clear()
-            groupedImages.addAll(ImageGroup.fromTree(imageRootNode))
         }
 
         addedGroups = addedGroups.distinct().toSet()
@@ -1230,7 +1223,8 @@ class EditorActivity : BaseActivity() {
 
 
         withContext(Dispatchers.Main) {
-            imageAdapter.updateData(groupedImages)
+            val imageGroups = ImageGroup.fromTree(imageRootNode)
+            imageAdapter.updateData(imageGroups)
             binding.recyclerViewThumbnails.adapter = imageAdapter
             currentImageName?.let { path ->
                 imageBitmapMap[path]?.let { bitmap ->
@@ -1303,8 +1297,8 @@ class EditorActivity : BaseActivity() {
                 showSnackbar("Impossible de lier une zone à sa propre image.")
                 return
             }
-            if (imageBitmapMap[linkedImagePath]?.isRecycled == true) {
-                showSnackbar("Impossible de lier à une image non disponible.")
+            if (!imageDataMap.containsKey(linkedImagePath)) {
+                showSnackbar("Impossible de lier à une image inconnue.")
                 return
             }
             selectedZone.linkedImagePath = linkedImagePath
@@ -1321,8 +1315,7 @@ class EditorActivity : BaseActivity() {
                     entry.value.map { it.toZoneData() }
                 }
                 imageAdapter.imageZonesMap = imageZonesMap
-                val fullPath = imageName
-                val index = imageAdapter.currentList.indexOfFirst { it.fullPath == fullPath }
+                val index = imageAdapter.currentList.indexOfFirst { it.fullPath == linkedImagePath }
                 if (index >= 0) {
                     imageAdapter.notifyItemChanged(index)
                 }
@@ -1414,7 +1407,6 @@ class EditorActivity : BaseActivity() {
                         return
                     }
                     logDebug("EnterEditMode", "Dossier accessible → chargement des images")
-                    groupedImages.clear()
                     imageAdapter.updateData(emptyList())
                     requestFolderAccess(currentFolderUri!!, clearData = false)
                 } catch (e: Exception) {
@@ -1431,7 +1423,7 @@ class EditorActivity : BaseActivity() {
             // Affiche automatiquement la première image et ses zones après chargement de l'aventure
 
         } else {
-            imageBitmapMap.values.forEach { if (!it.isRecycled) it.recycle() }
+            imageBitmapMap.values.forEach { it?.let { bmp -> if (!bmp.isRecycled) bmp.recycle() } }
             imageBitmapMap.clear()
             currentFolderUri = null
             logDebug("EnterEditMode", "Aventure introuvable, création d’une nouvelle aventure")
