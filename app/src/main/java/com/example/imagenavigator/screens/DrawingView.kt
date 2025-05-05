@@ -73,6 +73,7 @@ class DrawingView @JvmOverloads constructor(
         zones.addAll(newZones)
         clearSelectedZones()
         (context as? EditorActivity)?.updateDeleteButtonVisibilityForZones()
+        Log.d("ZonesForCurrentImage", "Zones actuelles → count=${zones.size}, liste=${zones.map { it.rect }}")
         invalidate()
     }
 
@@ -128,7 +129,10 @@ class DrawingView @JvmOverloads constructor(
     private var startY = 0f
 
    override fun onDraw(canvas: Canvas) {
-        super.onDraw(canvas)
+       Log.d("onDraw", "Zones actuelles → count=${zones.size}, liste=${zones.map { it.rect }}")
+
+       super.onDraw(canvas)
+       //Log.d("DrawingView", "onDraw appelé - image courante: ${currentImage?.name}")
 
         val bitmap = imageBitmap
         if (bitmap == null || bitmap.isRecycled) {
@@ -156,6 +160,8 @@ class DrawingView @JvmOverloads constructor(
                 linkedBitmap?.takeIf { it.isRecycled.not() }?.let { bmp ->
                     if (editorConfig.showLinkedThumbnails) {
                         Log.d("LoadImages", "Image chargée: $linkedPath, taille: ${bmp.width}x${bmp.height}")
+                        Log.d("DebugOnDraw", "Tentative de dessiner une vignette pour $linkedPath")
+                        Log.d("DebugOnDraw", "Zone ${zone.rect} avec linkedImagePath=${zone.linkedImagePath}")
                         drawLinkedThumbnail(canvas, bmp, absRect)
                     }
                 }
@@ -188,6 +194,7 @@ class DrawingView @JvmOverloads constructor(
     }
 
     private fun drawLinkedThumbnail(canvas: Canvas, bmp: Bitmap, absRect: RectF) {
+        Log.d("DebugThumbnail", "Appel de drawLinkedThumbnail pour ${absRect}, bitmap = $bmp, recyclé = ${bmp.isRecycled}")
         if (bmp.isRecycled) {
             Log.e("DrawingView", "Bitmap recyclé détecté pour la vignette, on saute le draw")
             return
@@ -348,11 +355,14 @@ class DrawingView @JvmOverloads constructor(
             }
             Log.d("Debug", "Avant liaison : selectedZone=$selectedZone, selectedZonesMulti=$selectedZonesMulti")
             it.linkedImagePath = imagePath
+            Log.d("assignLinked", "Zones actuelles → count=${zones.size}, liste=${zones.map { it.rect }}")
             selectedZone = null
             selectedZonesMulti.clear()
             invalidate()
             (context as? EditorActivity)?.hideDeleteZonesButton()
             Log.d("Debug", "Après liaison : selectedZone=$selectedZone, selectedZonesMulti=$selectedZonesMulti")
+            Log.d("DebugLink", "assignLinkedImageToSelectedZone → zone=$selectedZone, imagePath=$imagePath")
+
         }
     }
 
@@ -362,6 +372,7 @@ class DrawingView @JvmOverloads constructor(
      */
     fun hasLinkedImage(): Boolean {
         val path = selectedZone?.linkedImagePath
+        Log.d("DebugHasLink", "hasLinkedImage → path=$path, présentDansMap=${imageBitmapMap.containsKey(path)}")
         if (path.isNullOrEmpty()) {
             Log.d("DrawingView", "Aucune image liée à cette zone.")
             return false
