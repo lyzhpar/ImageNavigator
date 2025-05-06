@@ -211,6 +211,7 @@ class NavigatorActivity : BaseActivity() {
     }
 
     private fun navigateToImage(targetPath: String) {
+        currentImageName?.let { historyStack.add(it) }
         Log.d("NavigatorActivity", "Navigation vers : $targetPath")
         if (currentImageName != targetPath) {
             currentImageName = targetPath
