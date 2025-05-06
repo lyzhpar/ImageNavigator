@@ -54,7 +54,6 @@ class NavigatorActivity : BaseActivity() {
             goBack()
         }
 
-
         // Configure le clic sur les zones
         binding.overlayView.onZoneClicked = { targetPath ->
             navigateToImage(targetPath)
@@ -208,7 +207,6 @@ class NavigatorActivity : BaseActivity() {
 
     private fun navigateToImage(targetPath: String) {
         Log.d("NavigatorActivity", "Navigation vers : $targetPath")
-        currentImageName?.let { historyStack.add(it) }
         if (currentImageName != targetPath) {
             currentImageName = targetPath
             showCurrentImage()
