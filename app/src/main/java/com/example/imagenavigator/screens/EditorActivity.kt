@@ -421,7 +421,7 @@ class EditorActivity : BaseActivity() {
                 Log.d("ZoneLink", "selectedZone: ${binding.drawingView.selectedZone}")
                 val selectedZone = binding.drawingView.selectedZone
                 if (selectedZone != null) {
-                    linkSelectedZoneToImage(fullPath)
+                    binding.drawingView.assignLinkedImageToSelectedZone(fullPath)
                 } else {
                     onImageSelected(fullPath)
                 }

@@ -8,10 +8,7 @@ import android.view.View
 import com.example.imagenavigator.model.Zone
 import android.util.Log
 import android.view.GestureDetector
-import android.os.Handler
-import android.os.Looper
 import com.google.android.material.snackbar.Snackbar
-import kotlin.math.absoluteValue
 
 /**
  * Vue personnalisée qui permet d'afficher une image et de dessiner des zones rectangulaires
@@ -52,7 +49,6 @@ class DrawingView @JvmOverloads constructor(
     var onZoneSelected: (() -> Unit)? = null
 
     var selectedZone: Zone? = null
-    private val fadeHandler = Handler(Looper.getMainLooper())
     // Map pour associer les chemins d'images aux bitmaps (valeurs nulles autorisées)
     var imageBitmapMap = mutableMapOf<String, Bitmap?>()
     var currentImageName: String? = null
@@ -153,10 +149,11 @@ class DrawingView @JvmOverloads constructor(
             val absRight = dstRect.left + r.right * dstRect.width()
             val absBottom = dstRect.top + r.bottom * dstRect.height()
             val absRect = RectF(absLeft, absTop, absRight, absBottom)
-
+            Log.d("DebugOnDraw", "On est juste avant la tentative de dessinder une vignette !")
             // Afficher la vignette 50% transparente de l’image liée au-dessus de chaque zone, taille fixe
             zone.linkedImagePath?.let { linkedPath ->
                 val linkedBitmap = imageBitmapMap[linkedPath]
+                Log.d("DebugOnDraw", "On est un peu après...")
                 linkedBitmap?.takeIf { it.isRecycled.not() }?.let { bmp ->
                     if (editorConfig.showLinkedThumbnails) {
                         Log.d("LoadImages", "Image chargée: $linkedPath, taille: ${bmp.width}x${bmp.height}")
