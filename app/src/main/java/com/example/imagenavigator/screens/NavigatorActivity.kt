@@ -59,8 +59,13 @@ class NavigatorActivity : BaseActivity() {
             navigateToImage(targetPath)
         }
 
+
+
         loadAdventure(jsonUri)
     }
+
+
+
 
     private fun loadAdventure(jsonUri: Uri) {
         try {
