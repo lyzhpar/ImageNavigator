@@ -132,13 +132,13 @@ class EditorActivity : BaseActivity() {
     // Demander l'accès au dossier
     private fun requestFolderAccess(uri: Uri, clearData: Boolean = false) {
         logDebug("FolderAccess", "Début requestFolderAccess(uri=$uri, clearData=$clearData)")
-        if (uri == currentFolderUri && !clearData) {
+        /*if (uri == currentFolderUri && !clearData) {
             logDebug(
                 "RequestFolderAccess",
                 "Même dossier déjà chargé → on saute le reset et le reload"
             )
             return
-        }
+        }*/
 
         if (!hasPersistedPermission(uri)) {
             showSnackbar("⚠ Attention : permission non persistante, tentative quand même.")
@@ -159,6 +159,7 @@ class EditorActivity : BaseActivity() {
 
         isBusy = true
         currentFolderUri = uri
+        Log.d("LoadImagesFromFolder", "Entrée !!!")
         loadImagesFromFolder(uri, clearData)
     }
 
