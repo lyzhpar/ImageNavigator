@@ -1,5 +1,6 @@
 package com.example.imagenavigator.screens
 
+import android.R.attr.bitmap
 import android.content.Context
 import android.graphics.*
 import android.util.AttributeSet
@@ -18,6 +19,9 @@ class DrawingView @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null
 ) : View(context, attrs) {
 
+    // Contrôle pour éviter les reloads multiples tant que le bitmap n'est pas revenu
+    private var isReloading = false
+
     //Vignettes de ZONES
     data class EditorConfig(
         var thumbnailWidth: Int = 300,
@@ -32,11 +36,9 @@ class DrawingView @JvmOverloads constructor(
         isClickable = true
         isLongClickable = true
     }
-    var imageBitmap: Bitmap? = null
-        set(value) {
-            field = value
-            invalidate()
-        }
+
+    var bitmapProvider: (() -> Bitmap?)? = null
+    var requestReload: ((String) -> Unit)? = null
 
     //Liste des zones visibles pour cette image
     val zones: MutableList<Zone> = mutableListOf()
@@ -49,9 +51,8 @@ class DrawingView @JvmOverloads constructor(
     var onZoneSelected: (() -> Unit)? = null
 
     var selectedZone: Zone? = null
-    // Map pour associer les chemins d'images aux bitmaps (valeurs nulles autorisées)
-    var imageBitmapMap = mutableMapOf<String, Bitmap?>()
     var currentImageName: String? = null
+    var imageExistChecker: ((String) -> Boolean)? = null
 
     private val selectedZonesMulti = mutableSetOf<Zone>()
     fun clearSelectedZones() {
@@ -61,10 +62,29 @@ class DrawingView @JvmOverloads constructor(
     }
 
     /**
+     * Charge un bitmap dans la vue et déclenche un redraw.
+     */
+    fun loadImage(bitmap: Bitmap?) {
+        if (bitmap == null || bitmap.isRecycled) {
+            Log.e("DrawingView", "loadImage → Bitmap invalide, bitmap=$bitmap, isRecycled=${bitmap?.isRecycled}")
+            return
+        }
+        bitmapProvider = { bitmap }
+        isReloading = false
+        invalidate()
+    }
+
+    /**
      * Charge une nouvelle liste de zones à afficher pour l'image courante.
      * Cela remplace toutes les zones actuellement affichées.
      */
     fun setZonesForCurrentImage(newZones: List<Zone>) {
+        val bitmap = bitmapProvider?.invoke()
+        if (bitmap == null || bitmap.isRecycled) {
+            Log.e("DrawingView", "Bitmap invalide → bitmap=$bitmap, isRecycled=${bitmap?.isRecycled}")
+            return
+        }
+        Log.d("DrawingView", "setZonesForCurrentImage → zones=${newZones.map { it.rect }}")
         zones.clear()
         zones.addAll(newZones)
         clearSelectedZones()
@@ -83,7 +103,7 @@ class DrawingView @JvmOverloads constructor(
         }
 
         override fun onLongPress(e: MotionEvent) {
-            val bitmap = imageBitmap ?: return
+            val bitmap = bitmapProvider?.invoke() ?: return
             val dstRect = getImageDisplayRect(bitmap)
             val x = e.x.coerceIn(dstRect.left, dstRect.right)
             val y = e.y.coerceIn(dstRect.top, dstRect.bottom)
@@ -124,18 +144,24 @@ class DrawingView @JvmOverloads constructor(
     private var startX = 0f
     private var startY = 0f
 
-   override fun onDraw(canvas: Canvas) {
-       Log.d("onDraw", "Zones actuelles → count=${zones.size}, liste=${zones.map { it.rect }}")
+    override fun onDraw(canvas: Canvas) {
+        Log.d("onDraw", "Zones actuelles → count=${zones.size}, liste=${zones.map { it.rect }}")
 
-       super.onDraw(canvas)
-       //Log.d("DrawingView", "onDraw appelé - image courante: ${currentImage?.name}")
+        super.onDraw(canvas)
 
-        val bitmap = imageBitmap
+        val bitmap = bitmapProvider?.invoke()
         if (bitmap == null || bitmap.isRecycled) {
-            Log.e("DrawingView", "Bitmap nul ou recyclé, onDraw annulé")
+            Log.e("DrawingView", "onDraw → Bitmap invalide, demande de reload")
+            if (!isReloading) {
+                isReloading = true
+                Log.e("DrawingView", "Bitmap manquant ou recyclé → demande de reload")
+                currentImageName?.let { requestReload?.invoke(it) }
+            }
+            Log.e("DrawingView", "onDraw → Bitmap invalide, bitmap=$bitmap, isRecycled=${bitmap?.isRecycled}")
             return
         }
-
+        isReloading = false
+        Log.d("DrawingView", "onDraw → Bitmap affiché: $bitmap")
         val dstRect = getImageDisplayRect(bitmap)
 
         // Dessiner l’image
@@ -150,20 +176,8 @@ class DrawingView @JvmOverloads constructor(
             val absBottom = dstRect.top + r.bottom * dstRect.height()
             val absRect = RectF(absLeft, absTop, absRight, absBottom)
             Log.d("DebugOnDraw", "On est juste avant la tentative de dessinder une vignette !")
-            // Afficher la vignette 50% transparente de l’image liée au-dessus de chaque zone, taille fixe
-            zone.linkedImagePath?.let { linkedPath ->
-                val linkedBitmap = imageBitmapMap[linkedPath]
-                Log.d("DebugOnDraw", "On est un peu après...")
-                linkedBitmap?.takeIf { it.isRecycled.not() }?.let { bmp ->
-                    if (editorConfig.showLinkedThumbnails) {
-                        Log.d("LoadImages", "Image chargée: $linkedPath, taille: ${bmp.width}x${bmp.height}")
-                        Log.d("DebugOnDraw", "Tentative de dessiner une vignette pour $linkedPath")
-                        Log.d("DebugOnDraw", "Zone ${zone.rect} avec linkedImagePath=${zone.linkedImagePath}")
-                        drawLinkedThumbnail(canvas, bmp, absRect)
-                    }
-                }
-            }
-//TODO:Config couleur zones
+
+            //TODO:Config couleur zones
             val zonePaint = Paint().apply {
                 color = when {
                     zone in selectedZonesMulti -> Color.argb(180, 255, 0, 0) // rouge semi-transparent pour multi-sélection
@@ -178,22 +192,21 @@ class DrawingView @JvmOverloads constructor(
         }
 
         // Dessiner temporairement le rectangle qu'on est en train de tracer
-       drawingRect?.let {
-           val tempPaint = Paint().apply {
-               color = Color.argb(150, 128, 128, 128) // gris semi-transparent
-               style = Paint.Style.FILL
-           }
-           canvas.drawRect(it, tempPaint)
-           canvas.drawRect(it, paintBorder)
-       }
-
+        drawingRect?.let {
+            val tempPaint = Paint().apply {
+                color = Color.argb(150, 128, 128, 128) // gris semi-transparent
+                style = Paint.Style.FILL
+            }
+            canvas.drawRect(it, tempPaint)
+            canvas.drawRect(it, paintBorder)
+        }
         // Plus d'overlay blanc/spotlight ici
     }
 
     private fun drawLinkedThumbnail(canvas: Canvas, bmp: Bitmap, absRect: RectF) {
         Log.d("DebugThumbnail", "Appel de drawLinkedThumbnail pour ${absRect}, bitmap = $bmp, recyclé = ${bmp.isRecycled}")
-        if (bmp.isRecycled) {
-            Log.e("DrawingView", "Bitmap recyclé détecté pour la vignette, on saute le draw")
+        if (bmp.isRecycled || bmp.width == 0 || bmp.height == 0) {
+            Log.e("DrawingView", "Bitmap vignette invalide, draw sauté")
             return
         }
         val thumbnailWidth = editorConfig.thumbnailWidth
@@ -219,6 +232,12 @@ class DrawingView @JvmOverloads constructor(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        val bitmap = bitmapProvider?.invoke()
+        Log.d("DrawingView", "onTouchEvent() → action=${event.action}, bitmap=$bitmap, isRecycled=${bitmap?.isRecycled}")
+        if (bitmap == null || bitmap.isRecycled) {
+            Log.e("DrawingView", "Bitmap nul ou recyclé détecté, onTouchEvent interrompu")
+            return false
+        }
         Log.d("DrawingView", "onTouchEvent: ${event.action}, selectedZone=$selectedZone")
         if (event.action == MotionEvent.ACTION_DOWN && selectedZonesMulti.isNotEmpty()) {
             clearSelectedZones()
@@ -226,17 +245,10 @@ class DrawingView @JvmOverloads constructor(
         }
         gestureDetector.onTouchEvent(event)
 
-        val bitmap = imageBitmap
-        if (bitmap == null || bitmap.isRecycled) {
-            Log.e("DrawingView", "Bitmap nul ou recyclé détecté dans onTouchEvent, retour anticipé")
-            return true
-        }
-
         if (selectedZonesMulti.isNotEmpty()) {
             // Pas de sélection simple en mode sélection multiple
             return true
         }
-
         val dstRect = getImageDisplayRect(bitmap)
         val x = event.x.coerceIn(dstRect.left, dstRect.right)
         val y = event.y.coerceIn(dstRect.top, dstRect.bottom)
@@ -319,6 +331,7 @@ class DrawingView @JvmOverloads constructor(
      * Calcule la zone de l'écran où l'image est affichée.
      */
     private fun getImageDisplayRect(bitmap: Bitmap): RectF {
+        Log.d("DrawingView", "getImageDisplayRect() → width=$width, height=$height, bitmap.width=${bitmap.width}, bitmap.height=${bitmap.height}")
         val viewWidth = width.toFloat()
         val viewHeight = height.toFloat()
         val imageWidth = bitmap.width.toFloat()
@@ -341,6 +354,7 @@ class DrawingView @JvmOverloads constructor(
      */
     fun assignLinkedImageToSelectedZone(imagePath: String) {
         selectedZone?.let {
+            Log.d("DrawingView", "assignLinkedImageToSelectedZone → imagePath=$imagePath, currentImageName=$currentImageName")
             if (imagePath == currentImageName) {
                 Log.d("DrawingView", "Impossible de lier une zone à la même image.")
                 Snackbar.make(
@@ -359,7 +373,6 @@ class DrawingView @JvmOverloads constructor(
             (context as? EditorActivity)?.hideDeleteZonesButton()
             Log.d("Debug", "Après liaison : selectedZone=$selectedZone, selectedZonesMulti=$selectedZonesMulti")
             Log.d("DebugLink", "assignLinkedImageToSelectedZone → zone=$selectedZone, imagePath=$imagePath")
-
         }
     }
 
@@ -369,12 +382,11 @@ class DrawingView @JvmOverloads constructor(
      */
     fun hasLinkedImage(): Boolean {
         val path = selectedZone?.linkedImagePath
-        Log.d("DebugHasLink", "hasLinkedImage → path=$path, présentDansMap=${imageBitmapMap.containsKey(path)}")
         if (path.isNullOrEmpty()) {
             Log.d("DrawingView", "Aucune image liée à cette zone.")
             return false
         }
-        val exists = imageBitmapMap.containsKey(path)
+        val exists = imageExistChecker?.invoke(path) ?: false
         if (!exists) {
             Log.d("DrawingView", "Image liée introuvable ou invalide : $path")
             return false

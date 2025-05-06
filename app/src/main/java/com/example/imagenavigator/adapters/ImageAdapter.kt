@@ -17,16 +17,18 @@ import android.graphics.Color
 import android.graphics.RectF
 import com.example.imagenavigator.model.ZoneData
 import androidx.documentfile.provider.DocumentFile
+import com.bumptech.glide.request.RequestListener
+import com.bumptech.glide.load.engine.GlideException
+import com.bumptech.glide.request.target.Target
+import android.graphics.drawable.Drawable
+import com.bumptech.glide.load.DataSource
+import com.bumptech.glide.load.engine.DiskCacheStrategy
 
 class ImageAdapter(
     private var rootGroups: List<ImageGroup>,
     private val onImageSelected: (String) -> Unit,
-    private val onGroupRenameRequested: () -> Unit,
-    private val onGroupDeleteRequested: () -> Unit,
     private val onItemLongPress: (DisplayItem) -> Unit,
-    private val getSelectedItems: () -> Set<String>,
-    private val exitSelectionMode: () -> Unit,
-    private val imageFileMap: Map<String, DocumentFile>
+    var imageFileMap: Map<String, DocumentFile>
 ) : ListAdapter<ImageAdapter.DisplayItem, RecyclerView.ViewHolder>(DiffCallback()) {
 
     var startImagePath: String? = null
@@ -83,8 +85,8 @@ class ImageAdapter(
         }
 
         // Ensure no duplicate images
-        if (group.images.none { it.second == fullPath }) {
-            group.images.add(Pair(null, fullPath))
+        if (!group.images.contains(fullPath )) {
+            group.images.add(fullPath)
         }
 
         displayItems = flattenGroups(rootGroups)
@@ -101,7 +103,7 @@ class ImageAdapter(
             val key = group.fullPath ?: safeGroupName
             val shouldExpand = key.isBlank() || expandedGroups.contains(key)
             if (shouldExpand) {
-                result.addAll(group.images.map { (_, name) ->
+                result.addAll(group.images.map { name ->
                     DisplayItem.ImageItem(name)
                 })
                 result.addAll(flattenGroups(group.children, level + 1))
@@ -160,6 +162,13 @@ class ImageAdapter(
                     holder.imageView.clearColorFilter() // Retirer le filtre si non liée
                 }
             }
+        }
+    }
+
+    override fun onViewRecycled(holder: RecyclerView.ViewHolder) {
+        super.onViewRecycled(holder)
+        if (holder is ImageViewHolder) {
+            Glide.with(holder.imageView.context).clear(holder.imageView)
         }
     }
 
@@ -222,10 +231,6 @@ class ImageAdapter(
 
             editText.setOnEditorActionListener { _, actionId, _ ->
                 if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE) {
-                    val newName = editText.text.toString().trim()
-                    if (newName.isNotBlank() && newName != item.name) {
-                        onGroupRenameRequested()
-                    }
                     textView.visibility = View.VISIBLE
                     editText.visibility = View.GONE
                     deleteIcon.visibility = View.GONE
@@ -242,10 +247,6 @@ class ImageAdapter(
                     deleteIcon.visibility = View.GONE
                 }
             }
-
-            deleteIcon.setOnClickListener {
-                onGroupDeleteRequested()
-            }
         }
     }
     inner class ImageViewHolder(view: View) : RecyclerView.ViewHolder(view) {
@@ -261,13 +262,52 @@ class ImageAdapter(
                 Log.d("ImageAdapter", "Bind image: ${item.fullPath}")
 
                 val documentFile = imageFileMap[item.fullPath]
-                documentFile?.let {
-                    Glide.with(imageView.context)
-                        .load(it.uri)
-                        .override(400, 250)
-                        .centerCrop()
-                        .thumbnail(0.1f)
-                        .into(imageView)
+                if (documentFile != null && documentFile.exists()) {
+                    val currentFullPath = item.fullPath
+                    var retryCount = 0
+
+                    fun loadImageWithRetry() {
+                        Glide.with(imageView.context)
+                            .load(documentFile.uri)
+                            .override(400, 250)
+                            .centerCrop()
+                            .diskCacheStrategy(DiskCacheStrategy.ALL)
+                            .skipMemoryCache(false)
+                            .listener(object : RequestListener<Drawable> {
+                                override fun onLoadFailed(
+                                    e: GlideException?, model: Any?, target: Target<Drawable>, isFirstResource: Boolean
+                                ): Boolean {
+                                    Log.e("ImageAdapter", "Erreur de chargement image: $currentFullPath, essai $retryCount", e)
+                                    if (retryCount < 3) {
+                                        Glide.get(imageView.context).clearMemory()
+                                        val delay = 500L * (1 shl retryCount)
+                                        retryCount++
+                                        imageView.postDelayed({ loadImageWithRetry() }, delay)
+                                    } else {
+                                        imageView.setImageResource(android.R.drawable.stat_notify_error)
+                                        imageView.setOnClickListener {
+                                            retryCount = 0
+                                            loadImageWithRetry()
+                                        }
+                                    }
+                                    return true
+                                }
+
+                                override fun onResourceReady(
+                                    resource: Drawable, model: Any, target: Target<Drawable>, dataSource: DataSource, isFirstResource: Boolean
+                                ): Boolean {
+                                    if (adapterPosition != RecyclerView.NO_POSITION && currentList[adapterPosition].fullPath == currentFullPath) {
+                                        return false
+                                    }
+                                    return true
+                                }
+                            })
+                            .into(imageView)
+                    }
+
+                    loadImageWithRetry()
+                } else {
+                    android.util.Log.e("ImageAdapter", "DocumentFile invalide ou inexistant: ${item.fullPath}")
                 }
             } else if (item is DisplayItem.GroupItem) {
                 imageView.setImageResource(R.drawable.folder_icon)

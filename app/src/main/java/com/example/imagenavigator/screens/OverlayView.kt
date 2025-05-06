@@ -32,8 +32,9 @@ class OverlayView @JvmOverloads constructor(
     var onLongClickAt: ((Float, Float) -> Unit)? = null
     var showZonesOverlay: Boolean = true // DEBUG: afficher les zones en permanence
 
+
     private val overlayPaint = Paint().apply {
-        color = Color.RED
+        color = Color.argb(60, 255, 255, 255)
         style = Paint.Style.FILL
     }
 

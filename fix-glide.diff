@@ -1,0 +1,79 @@
+diff --git a/app/src/main/java/com/example/imagenavigator/screens/EditorActivity.kt b/app/src/main/java/com/example/imagenavigator/screens/EditorActivity.kt
+index abc1234..def5678 100644
+--- a/app/src/main/java/com/example/imagenavigator/screens/EditorActivity.kt
++++ b/app/src/main/java/com/example/imagenavigator/screens/EditorActivity.kt
+@@ import statements
++import com.bumptech.glide.request.RequestListener
++import com.bumptech.glide.request.target.Target
++import com.bumptech.glide.load.engine.GlideException
++import com.bumptech.glide.load.DataSource
++import android.graphics.Bitmap
++import android.graphics.drawable.Drawable
+
+@@ fun onImageSelected(fullPath: String) {
+-            Glide.with(this@EditorActivity)
+-                .asBitmap()
+-                .load(file.uri)
+-                .listener(object : com.bumptech.glide.request.RequestListener<Bitmap> {
+-                    override fun onResourceReady(
+-                        resource: Bitmap,
+-                        model: Any,
+-                        target: com.bumptech.glide.request.target.Target<Bitmap>?,
+-                        dataSource: com.bumptech.glide.load.DataSource,
+-                        isFirstResource: Boolean
+-                    ): Boolean {
++            Glide.with(this@EditorActivity)
++                .asBitmap()
++                .load(file.uri)
++                .listener(object : RequestListener<Bitmap> {
++                    override fun onResourceReady(
++                        resource: Bitmap?,
++                        model: Any?,
++                        target: Target<Bitmap>?,
++                        dataSource: DataSource?,
++                        isFirstResource: Boolean
++                    ): Boolean {
+                         if (currentImageName == fullPath && resource != null) {
+                             binding.drawingView.imageBitmap = resource
+                             binding.drawingView.setZonesForCurrentImage(imageDataMap[fullPath] ?: emptyList())
+                         }
+                         currentImageName = fullPath
+                         return false
+                     }
+
+-                    override fun onLoadFailed(
+-                        e: com.bumptech.glide.load.engine.GlideException?,
+-                        model: Any,
+-                        target: com.bumptech.glide.request.target.Target<Bitmap>?,
+-                        isFirstResource: Boolean
+-                    ): Boolean {
++                    override fun onLoadFailed(
++                        e: GlideException?,
++                        model: Any?,
++                        target: Target<Bitmap>?,
++                        isFirstResource: Boolean
++                    ): Boolean {
+                         Log.e("GlideError", "Erreur de chargement pour $fullPath à tentative $attempt", e)
+                         if (attempt < maxRetries) {
+                             Handler(Looper.getMainLooper()).post {
+                                 Snackbar.make(
+                                     findViewById(android.R.id.content),
+                                     "Erreur de chargement. Tapez pour réessayer.",
+                                     Snackbar.LENGTH_INDEFINITE
+                                 ).setAction("Réessayer") {
+                                     loadImageWithRetry()
+                                 }.show()
+                             }
+                         } else {
+                             Handler(Looper.getMainLooper()).post {
+                                 Snackbar.make(
+                                     findViewById(android.R.id.content),
+                                     "Erreur critique au chargement de l'image après $attempt tentatives.",
+                                     Snackbar.LENGTH_LONG
+                                 ).show()
+                             }
+                         }
+                         return false
+                     }
+                 })
+                 .submit()

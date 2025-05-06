@@ -1,13 +1,12 @@
 package com.example.imagenavigator.utils
 
-import android.graphics.Bitmap
 import android.util.Log
 
 object ImageGroupTreeBuilder {
-    fun buildImageGroupTree(images: List<Pair<Bitmap?, String>>): ImageGroupNode {
+    fun buildImageGroupTree(images: List<String>): ImageGroupNode {
         val root = ImageGroupNode("Racine", null, mutableListOf(), mutableListOf())
 
-        for ((bitmap, fullPath) in images) {
+        for (fullPath in images) {
             Log.d("TreeBuilder", "Ajout image: $fullPath")
             val parts = fullPath.split("/").filter { it.isNotBlank() && it != "Racine" }
             if (parts.isEmpty()) continue
@@ -25,7 +24,7 @@ object ImageGroupTreeBuilder {
                     currentNode = newNode
                 }
             }
-            currentNode.images.add(bitmap to fullPath)
+            currentNode.images.add(fullPath)
         }
 
         sortNodeRecursively(root)
@@ -35,6 +34,6 @@ object ImageGroupTreeBuilder {
     private fun sortNodeRecursively(node: ImageGroupNode) {
         node.children.sortBy { it.name }
         node.children.forEach { sortNodeRecursively(it) }
-        node.images.sortBy { it.second }
+        node.images.sort()
     }
 }
