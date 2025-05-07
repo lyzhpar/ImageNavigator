@@ -1261,5 +1261,126 @@ class EditorActivity : BaseActivity() {
     // CONFIG END - showConfigDialog
 
 
+    fun enterEditMode(adventureName: String) {
+        logDebug("EnterEditMode", "Entrée dans le mode édition pour $adventureName")
+        currentAdventureName = adventureName
+        logDebug("EnterEditMode", "currentAdventureName défini à $currentAdventureName")
+        currentAdventureJsonUri = Uri.fromFile(File(filesDir, "$currentAdventureName.json"))
+        logDebug("EnterEditMode", "currentAdventureJsonUri défini à $currentAdventureJsonUri")
+        val file = File(filesDir, "${adventureName}_zones.json")
+        logDebug("EnterEditMode", "Vérification du fichier : ${file.absolutePath}")
+        if (file.exists()) {
+            val json = file.readText()
+            logDebug("EnterEditMode", "Fichier trouvé, parsing JSON pour $adventureName")
+            val adventureData = GsonBuilder().create().fromJson(json, AdventureData::class.java)
+            val folderUriString = adventureData.folderUri
+            // Patch: check folderUriString starts with content://
+            currentFolderUri = if (!folderUriString.isNullOrEmpty() && folderUriString.startsWith("content://")) Uri.parse(folderUriString) else null
+
+            if (currentFolderUri == null) {
+                showSnackbar("Erreur : dossier manquant. Merci de le sélectionner.")
+                openFolderPicker()
+                return
+            }
+
+            if (!hasPersistedPermission(currentFolderUri!!)) {
+                showSnackbar("Permission expirée, merci de re-sélectionner le dossier.")
+                openFolderPicker()
+                return
+            }
+
+            if (currentFolderUri != null) {
+                logDebug("EnterEditMode", "FolderUri récupéré : $currentFolderUri")
+            }
+
+            adventureNameTextView.text = adventureData.adventureTitle
+            logDebug("EnterEditMode", "Titre affiché mis à jour : ${adventureData.adventureTitle}")
+            startImagePath = adventureData.startImagePath
+
+            // Chargement des zones pour chaque image
+            imageDataMap.clear()
+            adventureData.images.forEach { image ->
+                val zones = image.zones.map { it.toZone() }.toMutableList()
+                imageDataMap[image.imageName] = zones
+            }
+            logDebug("EnterEditMode", "Chargement des images et zones terminé, images=${imageDataMap.size}")
+            logDebug("EnterEditMode", "Zones chargées avant le chargement des images.")
+            // Ajout : log du nombre de zones pour chaque image
+            imageDataMap.forEach { (imageName, zones) ->
+                logDebug("EnterEditMode", "Image: $imageName → Zones count: ${zones.size}")
+                zones.forEach { zone ->
+                    logDebug("EnterEditMode", "   Zone rect: ${zone.rect}, linkedImagePath: ${zone.linkedImagePath}")
+                }
+            }
+
+            // Fix: always initialize imageRootNode to a valid node, not a String
+            imageRootNode = ImageGroupNode("Racine", null, mutableListOf(), mutableListOf())
+
+            logDebug("EnterEditMode", "currentFolderUri vérifié : $currentFolderUri")
+            // Bloc refait pour gestion du dossier et suppression de la synchro prématurée
+            if (currentFolderUri != null) {
+                try {
+                    val folder = DocumentFile.fromTreeUri(this, currentFolderUri!!)
+                    if (folder == null) {
+                        logDebug("EnterEditMode", "DocumentFile.fromTreeUri a retourné null")
+                        showSnackbar("Erreur d’accès au dossier. Merci de le sélectionner à nouveau.")
+                        openFolderPicker()
+                        return
+                    }
+                    if (!hasPersistedPermission(currentFolderUri!!)) {
+                        logDebug("EnterEditMode", "Permission persistante manquante")
+                        showSnackbar("Permission expirée, merci de re-sélectionner le dossier.")
+                        openFolderPicker()
+                        return
+                    }
+                    if (!folder.exists()) {
+                        logDebug("EnterEditMode", "Le dossier n’existe plus sur le stockage")
+                        showSnackbar("Le dossier d’aventure a été supprimé ou déplacé. Merci de le sélectionner à nouveau.")
+                        openFolderPicker()
+                        return
+                    }
+                    logDebug("EnterEditMode", "Dossier accessible → chargement des images")
+                    groupedImages.clear()
+                    imageAdapter.updateData(emptyList())
+                    requestFolderAccess(currentFolderUri!!)
+                } catch (e: Exception) {
+                    logDebug("EnterEditMode", "Erreur inattendue lors de l’accès au dossier: ${e.message}")
+                    showSnackbar("Erreur inattendue. Merci de re-sélectionner le dossier.")
+                    openFolderPicker()
+                }
+            } else {
+                logDebug("EnterEditMode", "Pas de dossier → demander à l’utilisateur")
+                showSnackbar("Veuillez sélectionner un dossier d’images.")
+                openFolderPicker()
+            }
+            logDebug("EnterEditMode", "Mode édition prêt, synchro non encore lancée")
+            // Affiche automatiquement la première image et ses zones après chargement de l'aventure
+            lifecycleScope.launch(Dispatchers.Main) {
+                val firstImagePath = imageDataMap.keys.firstOrNull()
+                if (firstImagePath != null) {
+                    // Patch: skip if bitmap not ready
+                    if (!imageBitmapMap.containsKey(firstImagePath)) {
+                        logDebug("EnterEditMode", "Le bitmap pour $firstImagePath n’est pas encore chargé → on saute l’affichage initial")
+                        return@launch
+                    }
+                    onImageSelected(firstImagePath)
+                }
+            }
+        } else {
+            imageBitmapMap.values.forEach { if (!it.isRecycled) it.recycle() }
+            imageBitmapMap.clear()
+            logDebug("EnterEditMode", "Aventure introuvable, création d’une nouvelle aventure")
+            logDebug("EnterEditMode", "promptAdventureName() appelé car fichier introuvable")
+            promptAdventureName()
+        }
+    }
+
+
+    private fun hasPersistedPermission(uri: Uri): Boolean {
+        val persistedUris = contentResolver.persistedUriPermissions
+        return persistedUris.any { it.uri == uri && it.isReadPermission && it.isWritePermission }
+    }
+
+
 }
 
