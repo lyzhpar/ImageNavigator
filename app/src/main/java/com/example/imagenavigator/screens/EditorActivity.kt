@@ -11,6 +11,8 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.DocumentsContract
 import android.util.Log
 import android.view.Gravity
@@ -343,6 +345,15 @@ class EditorActivity : BaseActivity() {
         binding = ActivityEditorBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+
+        Log.d("onCreate", "Contenu de imageDataMap : ${imageDataMap.keys}")
+
+
+        if (binding.syncOverlay.visibility == View.VISIBLE) {
+            Log.d("SyncFolder", "Synchronisation déjà en cours, on ignore l’appel.")
+            return
+        }
+
         // --- Initialisation du bouton Supprimer (deleteButton) ---
         deleteButton = Button(this).apply {
             text = "Supprimer"
@@ -354,14 +365,9 @@ class EditorActivity : BaseActivity() {
 
         deleteZonesButton = findViewById(R.id.deleteZonesButton)
         deleteZonesButton.setOnClickListener {
-            Log.d("DeleteZones", "Suppression demandée via bouton")
             binding.drawingView.deleteSelectedZones()
             currentImageName?.let { imageName ->
                 imageDataMap[imageName] = binding.drawingView.getAllZones().toMutableList()
-                Log.d(
-                    "DeleteZones",
-                    "Zones restantes pour $imageName : ${imageDataMap[imageName]?.size}"
-                )
             }
             deleteZonesButton.visibility = View.GONE
         }
@@ -371,7 +377,7 @@ class EditorActivity : BaseActivity() {
         // Adapter images
         imageAdapter = ImageAdapter(
             rootGroups = groupedImages,
-            onImageSelected = { bitmap, fullPath ->
+            onImageSelected = { fullPath ->
                 val selectedZone = binding.drawingView.selectedZone
                 if (selectedZone != null) {
                     linkSelectedZoneToImage(fullPath)
@@ -379,11 +385,9 @@ class EditorActivity : BaseActivity() {
                     onImageSelected(fullPath)
                 }
             },
-            onGroupRenameRequested = { updatedItem -> onGroupRenameRequested(updatedItem) },
-            onGroupDeleteRequested = { itemToDelete -> onGroupDeleteRequested(itemToDelete) },
+
             onItemLongPress = { item -> setStartImage(item.fullPath) },
             getSelectedItems = { imageAdapter.getSelectedItems() },
-            exitSelectionMode = { exitSelectionMode() }
         )
 
         binding.recyclerViewThumbnails.apply {
@@ -423,7 +427,6 @@ class EditorActivity : BaseActivity() {
         selectedImagesCount = bottomBarView.findViewById(R.id.selectedImagesCount)
         selectedWorldsCount = bottomBarView.findViewById(R.id.selectedWorldsCount)
         selectionInfoContainer = bottomBarView.findViewById(R.id.selectionInfoContainer)
-        
 
         val adventureFromIntent = intent.getStringExtra("adventureName")
         if (adventureFromIntent != null) {
@@ -439,17 +442,17 @@ class EditorActivity : BaseActivity() {
             promptAdventureName()
         }
 
-
         // Accès aux boutons dans la BottomBar
-        val buttonSaveAdventure = binding.bottomBar.buttonSaveAdventure
-        val buttonRenameAdventure = binding.bottomBar.buttonRenameAdventure
+        val buttonSave = binding.bottomBar.buttonSave
+        //val buttonRenameAdventure = binding.bottomBar.buttonRenameAdventure
 
         // Listeners sur les boutons
-        buttonSaveAdventure.setOnClickListener { saveZones() }
-        buttonRenameAdventure.setOnClickListener { showRenameAdventureDialog() }
+        buttonSave.setOnClickListener {
+            Log.d("EDITOR", "Bouton sauvegarder cliqué")
+            Toast.makeText(this, "Sauvegarde cliquée", Toast.LENGTH_SHORT).show()
+            saveZones()
+        }
 
-        // Initialisation : on attend que l'utilisateur donne un nom
-        promptAdventureName()
 
         // DrawingView cliquable
         binding.drawingView.isClickable = true
@@ -468,6 +471,25 @@ class EditorActivity : BaseActivity() {
             }
         }
 
+        // Ajout des boutons Menu et StartAdventure
+        findViewById<Button>(R.id.buttonMenu).setOnClickListener {
+            saveZones()
+            Handler(Looper.getMainLooper()).postDelayed({
+                val intent = Intent(this, MainActivity::class.java)
+                startActivity(intent)
+                finish()
+            }, 1500)
+        }
+
+        /*
+        findViewById<Button>(R.id.buttonStartAdventure).setOnClickListener {
+            val intent = Intent(this, NavigatorActivity::class.java)
+            intent.putExtra("adventureId", currentAdventureName)
+            startActivity(intent)
+        }
+
+         */
+
         // CONFIG START - FloatingActionButton
         // Ajout du FloatingActionButton en bas à droite (toujours visible)
         /*val fab = FloatingActionButton(this).apply {
@@ -485,37 +507,15 @@ class EditorActivity : BaseActivity() {
         (binding.root as ViewGroup).addView(fab, params)*/
         // CONFIG END - FloatingActionButton
 
-        // Remplace le bouton d'import dossier par un bouton de synchronisation
-        val buttonSyncFolder = bottomBarView.findViewById<Button>(R.id.buttonImportFolder)
-        buttonSyncFolder.text = "Synchroniser"
-        buttonSyncFolder.id = R.id.buttonSyncFolder
+        // Remplacement du bouton d'import dossier par un bouton de synchronisation
+        val buttonSyncFolder = binding.bottomBar.root.findViewById<Button>(R.id.buttonSyncFolder)
         buttonSyncFolder.setOnClickListener {
             lifecycleScope.launch(Dispatchers.IO) {
                 synchronizeFolder()
             }
-
-            // --- Ajout bouton "poubelle" pour suppression des zones sélectionnées ---
-            binding.drawingView.setOnTouchListener { _, _ ->
-                updateDeleteButtonVisibilityForZones()
-                false
-            }
-
-
-
-            // Indicateur Mode sélection
-            selectionModeIndicator = TextView(this).apply {
-                text = "Mode sélection"
-                visibility = View.GONE
-                textSize = 16f
-                setPadding(16, 0, 16, 0)
-                setOnClickListener {
-                    exitSelectionMode()
-                    updateDeleteButtonVisibility(deleteButton)
-                    visibility = View.GONE
-                }
-            }
-            binding.bottomBar.root.addView(selectionModeIndicator)
         }
+
+
     }
 
 // --- FONCTIONS UTILITAIRES ---
