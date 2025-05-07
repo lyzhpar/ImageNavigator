@@ -31,7 +31,20 @@ class ImageAdapter(
     var imageFileMap: Map<String, DocumentFile>
 ) : ListAdapter<ImageAdapter.DisplayItem, RecyclerView.ViewHolder>(DiffCallback()) {
 
+    fun getDocumentFileForPath(path: String): DocumentFile? {
+        val doc = imageFileMap[path]
+        if (doc == null) {
+            Log.w("ImageAdapter", "getDocumentFileForPath → Pas de DocumentFile pour le chemin : $path")
+        }
+        return doc
+    }
+
+    fun getUriForPath(path: String): android.net.Uri? {
+        return imageFileMap[path]?.uri
+    }
+
     var startImagePath: String? = null
+
 
     private val expandedGroups = mutableSetOf<String>()
     private var displayItems = flattenGroups(rootGroups)
@@ -58,6 +71,7 @@ class ImageAdapter(
             return oldItem == newItem
         }
     }
+
 
     fun getSelectedItems(): Set<String> {
         return selectedItems
@@ -155,12 +169,6 @@ class ImageAdapter(
                     onItemLongPress(item as DisplayItem.ImageItem)
                     true
                 }
-
-                if (startImagePath == item.fullPath) {
-                    holder.imageView.setColorFilter(Color.parseColor("#80FFD700")) // Filtre doré
-                } else {
-                    holder.imageView.clearColorFilter() // Retirer le filtre si non liée
-                }
             }
         }
     }
@@ -257,7 +265,7 @@ class ImageAdapter(
         fun bind(item: DisplayItem) {
             if (item is DisplayItem.ImageItem) {
                 val zones = imageZonesMap[item.fullPath]
-                overlayView?.visibility = if (!zones.isNullOrEmpty() && zones.any { it.linkedImagePath != null }) View.VISIBLE else View.GONE
+                overlayView?.visibility = View.GONE
 
                 Log.d("ImageAdapter", "Bind image: ${item.fullPath}")
 
@@ -313,17 +321,19 @@ class ImageAdapter(
                 imageView.setImageResource(R.drawable.folder_icon)
             }
 
-            if (selectedItems.contains(item.fullPath)) {
-                imageView.setColorFilter(Color.argb(150, 128, 128, 128))
-                checkbox.visibility = View.VISIBLE
-            } else {
-                imageView.clearColorFilter()
-                checkbox.visibility = View.GONE
-            }
-
-            if (startImagePath == item.fullPath) {
-                imageView.setColorFilter(Color.parseColor("#80FFD700")) // Filtre doré pour image de départ
-                checkbox.visibility = View.VISIBLE
+            when {
+                startImagePath == item.fullPath -> {
+                    imageView.setColorFilter(Color.parseColor("#80FFD700")) // doré
+                    checkbox.visibility = View.VISIBLE
+                }
+                selectedItems.contains(item.fullPath) -> {
+                    imageView.setColorFilter(Color.argb(150, 128, 128, 128)) // gris
+                    checkbox.visibility = View.VISIBLE
+                }
+                else -> {
+                    imageView.clearColorFilter()
+                    checkbox.visibility = View.GONE
+                }
             }
 
             itemView.setOnClickListener {

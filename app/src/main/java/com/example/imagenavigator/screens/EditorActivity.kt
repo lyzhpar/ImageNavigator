@@ -61,7 +61,11 @@ class EditorActivity : BaseActivity() {
     private lateinit var binding: ActivityEditorBinding
     private lateinit var imageAdapter: ImageAdapter
 
+
     var imageDataMap = mutableMapOf<String, MutableList<Zone>>()
+    // --- CACHE MINIATURES LIÉES ---
+    // Cache mémoire pour les miniatures des images liées aux zones
+    val linkedThumbnailCache = mutableMapOf<String, Bitmap>()
     private lateinit var imageRootNode: ImageGroupNode
     private var currentImageName: String? = null
 
@@ -170,6 +174,11 @@ class EditorActivity : BaseActivity() {
         imageAdapter.notifyDataSetChanged()
     }
 
+    // Fournit le bitmap pour un chemin donné via l'adaptateur d'images
+    // fun getBitmapForPath(path: String): Bitmap? {
+    //     return imageAdapter.getBitmapForPath(path)
+    // }
+
     // Sélecteur de dossier
     private val folderPickerLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -249,7 +258,29 @@ class EditorActivity : BaseActivity() {
                             "Glide",
                             "onResourceReady appelé pour: $fullPath, bitmap size: ${resource.width}x${resource.height}"
                         )
+                        binding.drawingView.isBitmapReady = true
                         binding.drawingView.invalidate()
+
+                        // --- PRÉCHARGEMENT MINIATURES POUR LES ZONES LIÉES ---
+                        imageDataMap[fullPath]?.forEach { zone ->
+                            zone.linkedImagePath?.let { linkedPath ->
+                                if (!linkedThumbnailCache.containsKey(linkedPath)) {
+                                    imageFileMap[linkedPath]?.uri?.let { uri ->
+                                        Glide.with(this@EditorActivity)
+                                            .asBitmap()
+                                            .load(uri)
+                                            .override(200, 200)
+                                            .into(object : com.bumptech.glide.request.target.CustomTarget<Bitmap>() {
+                                                override fun onResourceReady(resource: Bitmap, transition: com.bumptech.glide.request.transition.Transition<in Bitmap>?) {
+                                                    linkedThumbnailCache[linkedPath] = resource
+                                                    Log.d("ThumbnailCache", "Miniature préchargée : $linkedPath")
+                                                }
+                                                override fun onLoadCleared(placeholder: Drawable?) {}
+                                            })
+                                    }
+                                }
+                            }
+                        }
                         return false
                     }
 
@@ -259,6 +290,7 @@ class EditorActivity : BaseActivity() {
                         target: Target<Bitmap>,
                         isFirstResource: Boolean
                     ): Boolean {
+                        binding.drawingView.isBitmapReady = false
                         Log.e("Glide", "onLoadFailed pour $fullPath à tentative $attempt", e)
                         if (attempt < maxRetries) {
                             Log.w("Glide", "Nouvelle tentative de chargement ($attempt/$maxRetries) pour $fullPath")
@@ -318,6 +350,11 @@ class EditorActivity : BaseActivity() {
         } else {
             null
         }
+    }
+
+    // Fournit l'URI pour un chemin d'image, centralisé pour DrawingView
+    fun getUriForPath(path: String): Uri? {
+        return imageFileMap[path]?.uri
     }
 
 
@@ -491,6 +528,18 @@ class EditorActivity : BaseActivity() {
         val indexMenu = bottomBar.indexOfChild(findViewById(R.id.buttonMenu))
         bottomBar.addView(buttonRefresh, indexMenu + 1)
 
+        // --- BOUTON POUR VIDER LE CACHE MINIATURES ---
+        val buttonClearCache = Button(this).apply {
+            text = "Clear Cache"
+            setOnClickListener {
+                linkedThumbnailCache.values.forEach { it.recycle() }
+                linkedThumbnailCache.clear()
+                Toast.makeText(this@EditorActivity, "Cache miniatures vidé", Toast.LENGTH_SHORT).show()
+                Log.d("ThumbnailCache", "Cache vidé manuellement")
+            }
+        }
+        bottomBar.addView(buttonClearCache)
+
         // Listeners sur les boutons
         buttonSave.setOnClickListener {
             Log.d("EDITOR", "Bouton sauvegarder cliqué")
@@ -502,6 +551,9 @@ class EditorActivity : BaseActivity() {
 
         // DrawingView cliquable
         binding.drawingView.isClickable = true
+        // TODO : Optimiser le système plus tard si on dépasse ~1000 images. Pour l’instant, ça reste simple et ça tourne bien.
+        // Fournit à DrawingView la fonction pour obtenir un URI à partir d'un chemin (helper centralisé)
+        binding.drawingView.getUriForPath = { path -> getSafeUriForPath(path) }
         binding.drawingView.onTapListener = {
             if (isSelectionMode) {
                 updateBottomBarInfo()
@@ -868,13 +920,14 @@ class EditorActivity : BaseActivity() {
                 val progressPercent = (loadedImagesCount * 100) / totalImagesToLoad
                 loadingProgressBar.progress = progressPercent
                 imagesInfoText.text = getString(R.string.loading_progress, safeLoadedCount, totalImagesToLoad)
+                Log.d("EditorActivity", "Progression : $loadedImagesCount/$totalImagesToLoad")
+
             }
             binding.bottomBar.buttonSave.isEnabled = true
             loadingProgressBar.visibility = View.VISIBLE
         } catch (e: Exception) {
             Log.e("EditorActivity", "Erreur UI update: ${e.message}")
         }
-        Log.d("EditorActivity", "Progression : $loadedImagesCount/$totalImagesToLoad")
     }
 
     private fun isValidImage(file: DocumentFile): Boolean {
@@ -1305,4 +1358,12 @@ class EditorActivity : BaseActivity() {
 
 
 
+    // Helper function to always provide a safe Uri (never null)
+    private fun getSafeUriForPath(path: String): Uri {
+        val uri = getUriForPath(path)
+        if (uri == null) {
+            Log.w("EditorActivity", "getSafeUriForPath → Aucun Uri trouvé pour le chemin : $path")
+        }
+        return uri ?: Uri.EMPTY
+    }
 }

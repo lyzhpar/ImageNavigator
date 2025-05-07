@@ -1,6 +1,11 @@
 package com.example.imagenavigator.screens
 
 import android.R.attr.bitmap
+import android.widget.ImageView
+import com.bumptech.glide.Glide
+import com.bumptech.glide.request.target.CustomTarget
+import com.bumptech.glide.request.transition.Transition
+import android.graphics.drawable.Drawable
 import android.content.Context
 import android.graphics.*
 import android.util.AttributeSet
@@ -19,10 +24,18 @@ class DrawingView @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null
 ) : View(context, attrs) {
 
+    // Indique si le bitmap est prêt à être affiché
+    var isBitmapReady = false
+
     // Contrôle pour éviter les reloads multiples tant que le bitmap n'est pas revenu
     private var isReloading = false
 
     //Vignettes de ZONES
+    // Map des bitmaps accessibles par chemin pour affichage des vignettes liées
+    var imageDataMap: Map<String, Bitmap> = emptyMap()
+    var getBitmapForPath: ((String) -> Bitmap?)? = null
+    // Nouveau callback pour obtenir un Uri à partir d'un chemin, fourni par EditorActivity
+    var getUriForPath: ((String) -> android.net.Uri?)? = null
     data class EditorConfig(
         var thumbnailWidth: Int = 300,
         var thumbnailHeight: Int = 200,
@@ -70,6 +83,7 @@ class DrawingView @JvmOverloads constructor(
             return
         }
         bitmapProvider = { bitmap }
+        isBitmapReady = true
         isReloading = false
         invalidate()
     }
@@ -149,9 +163,15 @@ class DrawingView @JvmOverloads constructor(
 
         super.onDraw(canvas)
 
+        if (!isBitmapReady) {
+            Log.d("DrawingView", "onDraw → Bitmap pas encore prêt, on saute le draw")
+            return
+        }
+
         val bitmap = bitmapProvider?.invoke()
         if (bitmap == null || bitmap.isRecycled) {
             Log.e("DrawingView", "onDraw → Bitmap invalide, demande de reload")
+            isBitmapReady = false
             if (!isReloading) {
                 isReloading = true
                 Log.e("DrawingView", "Bitmap manquant ou recyclé → demande de reload")
@@ -175,17 +195,37 @@ class DrawingView @JvmOverloads constructor(
             val absRight = dstRect.left + r.right * dstRect.width()
             val absBottom = dstRect.top + r.bottom * dstRect.height()
             val absRect = RectF(absLeft, absTop, absRight, absBottom)
-            Log.d("DebugOnDraw", "On est juste avant la tentative de dessinder une vignette !")
+            Log.d("DebugOnDraw", "On est juste avant la tentative de dessiner une vignette !")
 
-            // Afficher la vignette 50% transparente de l’image liée au-dessus de chaque zone, taille fixe
-           /* zone.linkedImagePath?.let { linkedPath ->
-                val linkedBitmap = imageDataMap[linkedPath]
-                linkedBitmap?.let { bmp ->
-                    if (editorConfig.showLinkedThumbnails) {
-                        drawLinkedThumbnail(canvas, bmp, absRect)
-                    }
+            // Afficher la vignette 50% transparente de l’image liée au-dessus de chaque zone, taille fixe, via Glide + Uri
+            zone.linkedImagePath?.let { linkedPath ->
+                val uri = getUriForPath?.invoke(linkedPath)
+                if (editorConfig.showLinkedThumbnails && uri != null) {
+                    Log.d("GlideLoad", "Chargement Glide pour uri=$uri, linkedPath=$linkedPath")
+                    Glide.with(context)
+                        .asBitmap()
+                        .load(uri)
+                        .override(editorConfig.thumbnailWidth, editorConfig.thumbnailHeight)
+                        .into(object : CustomTarget<Bitmap>() {
+                            override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
+                                Log.d("GlideLoad", "✅ Glide a chargé la bitmap pour uri=$uri, taille=${resource.width}x${resource.height}")
+                                if (resource.isRecycled || resource.width <= 0 || resource.height <= 0) {
+                                    Log.e("DrawingView", "⚠ Bitmap vignette Glide invalide, width=${resource.width}, height=${resource.height}, draw annulé")
+                                    return
+                                }
+                                try {
+                                    drawLinkedThumbnail(canvas, resource, absRect)
+                                    invalidate()
+                                } catch (e: Exception) {
+                                    Log.e("DrawingView", "❌ Erreur pendant drawLinkedThumbnail (Glide) : ${e.message}", e)
+                                }
+                            }
+                            override fun onLoadCleared(placeholder: Drawable?) {
+                                Log.d("GlideLoad", "⚠ Glide onLoadCleared appelé pour uri=$uri")
+                            }
+                        })
                 }
-            }*/
+            }
 
             //TODO:Config couleur zones
             val zonePaint = Paint().apply {
@@ -217,15 +257,25 @@ class DrawingView @JvmOverloads constructor(
 
 
     private fun drawLinkedThumbnail(canvas: Canvas, bmp: Bitmap, absRect: RectF) {
-        Log.d("DebugThumbnail", "Appel de drawLinkedThumbnail pour ${absRect}, bitmap = $bmp, recyclé = ${bmp.isRecycled}")
-        if (bmp.isRecycled || bmp.width == 0 || bmp.height == 0) {
-            Log.e("DrawingView", "Bitmap vignette invalide, draw sauté")
+        Log.d(
+            "DebugThumbnail",
+            "→ Appel drawLinkedThumbnail pour rect=$absRect, bitmap=$bmp, recyclé=${bmp.isRecycled}"
+        )
+
+        // Sécurisation : ne pas dessiner si la bitmap est recyclée ou invalide
+        if (bmp.isRecycled || bmp.width <= 0 || bmp.height <= 0) {
+            Log.e(
+                "DrawingView",
+                "⚠ Bitmap vignette invalide, width=${bmp.width}, height=${bmp.height}, draw annulé"
+            )
             return
         }
+
         val thumbnailWidth = editorConfig.thumbnailWidth
         val thumbnailHeight = editorConfig.thumbnailHeight
         val srcAspect = bmp.width.toFloat() / bmp.height.toFloat()
         val targetAspect = thumbnailWidth.toFloat() / thumbnailHeight.toFloat()
+
         val srcRect: Rect = if (editorConfig.keepPanoramic && srcAspect > targetAspect) {
             val newWidth = (bmp.height * targetAspect).toInt()
             val left = (bmp.width - newWidth) / 2
@@ -237,11 +287,18 @@ class DrawingView @JvmOverloads constructor(
         } else {
             Rect(0, 0, bmp.width, bmp.height)
         }
+
         val paint = Paint().apply { alpha = editorConfig.thumbnailAlpha }
         val thumbLeft = absRect.left
         val thumbTop = absRect.top - thumbnailHeight
         val thumbRect = RectF(thumbLeft, thumbTop, thumbLeft + thumbnailWidth, thumbTop + thumbnailHeight)
-        canvas.drawBitmap(bmp, srcRect, thumbRect, paint)
+
+        try {
+            canvas.drawBitmap(bmp, srcRect, thumbRect, paint)
+            Log.d("DebugThumbnail", "✅ Vignette dessinée avec succès pour rect=$thumbRect")
+        } catch (e: Exception) {
+            Log.e("DrawingView", "❌ Erreur pendant drawLinkedThumbnail : ${e.message}", e)
+        }
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
