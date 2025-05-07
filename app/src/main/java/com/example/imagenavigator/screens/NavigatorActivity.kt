@@ -54,6 +54,7 @@ class NavigatorActivity : BaseActivity() {
             goBack()
         }
 
+
         // Configure le clic sur les zones
         binding.overlayView.onZoneClicked = { targetPath ->
             navigateToImage(targetPath)

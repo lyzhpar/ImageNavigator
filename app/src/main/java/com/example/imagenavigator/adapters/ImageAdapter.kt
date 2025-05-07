@@ -251,7 +251,9 @@ class ImageAdapter(
         fun bind(item: DisplayItem) {
             if (item is DisplayItem.ImageItem) {
                 val zones = imageZonesMap[item.fullPath]
-                overlayView?.visibility = View.GONE
+                overlayView?.visibility = if (!zones.isNullOrEmpty() && zones.any { it.linkedImagePath != null })
+                    View.VISIBLE
+                else View.GONE
 
                 Log.d("ImageAdapter", "Bind image: ${item.fullPath}")
 

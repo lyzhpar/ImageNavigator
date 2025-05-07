@@ -28,7 +28,7 @@
         android:id="@+id/zoneOverlayView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#80FF0000"
+        android:background="#5000CC00"
         android:visibility="gone"/>
 
 </FrameLayout>
