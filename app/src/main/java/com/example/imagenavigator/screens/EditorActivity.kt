@@ -423,16 +423,24 @@ class EditorActivity : BaseActivity() {
         selectedImagesCount = bottomBarView.findViewById(R.id.selectedImagesCount)
         selectedWorldsCount = bottomBarView.findViewById(R.id.selectedWorldsCount)
         selectionInfoContainer = bottomBarView.findViewById(R.id.selectionInfoContainer)
+        
 
         val adventureFromIntent = intent.getStringExtra("adventureName")
         if (adventureFromIntent != null) {
-            currentAdventureName = adventureFromIntent
-            binding.headerAdventure.adventureNameTextView.text = currentAdventureName
-            // Initialisation du champ imagesInfoText AVANT openFolderPicker/loadAdventureData
-            imagesInfoText = binding.bottomBar.root.findViewById(R.id.textImageCount)
-            openFolderPicker()
-            return
+            enterEditMode(adventureFromIntent)
+            currentFolderUri?.let {
+                if (!hasPersistedPermission(it)) {
+                    showSnackbar("Permission expirée, merci de re-sélectionner le dossier.")
+                    openFolderPicker()
+                }
+            }
+            if (intent.getBooleanExtra("editMode", false)) {
+                showSnackbar("Mode édition activé pour $adventureFromIntent")
+            }
+        } else {
+            promptAdventureName()
         }
+
 
         // Accès aux boutons dans la BottomBar
         val buttonSaveAdventure = binding.bottomBar.buttonSaveAdventure
@@ -493,6 +501,8 @@ class EditorActivity : BaseActivity() {
                 updateDeleteButtonVisibilityForZones()
                 false
             }
+
+
 
             // Indicateur Mode sélection
             selectionModeIndicator = TextView(this).apply {
