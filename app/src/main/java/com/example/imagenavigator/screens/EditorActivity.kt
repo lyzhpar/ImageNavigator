@@ -99,6 +99,8 @@ class EditorActivity : BaseActivity() {
     private val DEBUG_LOGS = true
 
     private var startImagePath: String? = null
+    private var currentAdventureJsonUri: Uri? = null
+
 
 
     private fun logDebug(tag: String, message: String) {
