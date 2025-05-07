@@ -163,7 +163,7 @@ class EditorActivity : BaseActivity() {
         }
 
     // Quand une image est sélectionnée
-    private fun onImageSelected(bitmap: Bitmap, fullPath: String) {
+    private fun onImageSelected(fullPath: String) {
         // Avant de remplacer le bitmap et les zones, enregistrer les zones de l'image courante
         currentImageName?.let { oldImageName ->
             imageDataMap[oldImageName] = binding.drawingView.getAllZones().toMutableList()
@@ -193,16 +193,14 @@ class EditorActivity : BaseActivity() {
 
         layoutManager.scrollToPositionWithOffset(firstVisiblePosition, offset)
 
-        if (DEBUG_LOGS) {
-            Log.d("ImageDataMap", "--- Contenu de imageDataMap ---")
-            imageDataMap.forEach { (imageName, zones) ->
-                Log.d("ImageDataMap", "Image: $imageName → Zones: ${zones.size}")
-                zones.forEach { zone ->
-                    Log.d("ImageDataMap", "   Zone rect: ${zone.rect} linkedImagePath: ${zone.linkedImagePath}")
-                }
+        logDebug("ImageDataMap", "--- Contenu de imageDataMap ---")
+        imageDataMap.forEach { (imageName, zones) ->
+            logDebug("ImageDataMap", "Image: $imageName → Zones: ${zones.size}")
+            zones.forEach { zone ->
+                logDebug("ImageDataMap", "   Zone rect: ${zone.rect} linkedImagePath: ${zone.linkedImagePath}")
             }
-            logDebug("ImageDataMap", "-------------------------------")
         }
+        logDebug("ImageDataMap", "-------------------------------")
     }
 
     // Quand l'utilisateur demande de renommer un groupe
@@ -378,7 +376,7 @@ class EditorActivity : BaseActivity() {
                 if (selectedZone != null) {
                     linkSelectedZoneToImage(fullPath)
                 } else {
-                    onImageSelected(bitmap, fullPath)
+                    onImageSelected(fullPath)
                 }
             },
             onGroupRenameRequested = { updatedItem -> onGroupRenameRequested(updatedItem) },
