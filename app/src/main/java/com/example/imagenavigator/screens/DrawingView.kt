@@ -177,6 +177,16 @@ class DrawingView @JvmOverloads constructor(
             val absRect = RectF(absLeft, absTop, absRight, absBottom)
             Log.d("DebugOnDraw", "On est juste avant la tentative de dessinder une vignette !")
 
+            // Afficher la vignette 50% transparente de l’image liée au-dessus de chaque zone, taille fixe
+           /* zone.linkedImagePath?.let { linkedPath ->
+                val linkedBitmap = imageDataMap[linkedPath]
+                linkedBitmap?.let { bmp ->
+                    if (editorConfig.showLinkedThumbnails) {
+                        drawLinkedThumbnail(canvas, bmp, absRect)
+                    }
+                }
+            }*/
+
             //TODO:Config couleur zones
             val zonePaint = Paint().apply {
                 color = when {
@@ -200,8 +210,11 @@ class DrawingView @JvmOverloads constructor(
             canvas.drawRect(it, tempPaint)
             canvas.drawRect(it, paintBorder)
         }
-        // Plus d'overlay blanc/spotlight ici
     }
+
+
+
+
 
     private fun drawLinkedThumbnail(canvas: Canvas, bmp: Bitmap, absRect: RectF) {
         Log.d("DebugThumbnail", "Appel de drawLinkedThumbnail pour ${absRect}, bitmap = $bmp, recyclé = ${bmp.isRecycled}")
