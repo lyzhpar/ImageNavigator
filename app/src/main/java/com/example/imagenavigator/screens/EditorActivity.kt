@@ -249,6 +249,7 @@ class EditorActivity : BaseActivity() {
                             "Glide",
                             "onResourceReady appelé pour: $fullPath, bitmap size: ${resource.width}x${resource.height}"
                         )
+                        binding.drawingView.isBitmapReady = true
                         binding.drawingView.invalidate()
                         return false
                     }
@@ -259,6 +260,7 @@ class EditorActivity : BaseActivity() {
                         target: Target<Bitmap>,
                         isFirstResource: Boolean
                     ): Boolean {
+                        binding.drawingView.isBitmapReady = false
                         Log.e("Glide", "onLoadFailed pour $fullPath à tentative $attempt", e)
                         if (attempt < maxRetries) {
                             Log.w("Glide", "Nouvelle tentative de chargement ($attempt/$maxRetries) pour $fullPath")

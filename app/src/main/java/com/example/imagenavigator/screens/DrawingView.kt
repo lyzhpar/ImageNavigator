@@ -19,6 +19,8 @@ class DrawingView @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null
 ) : View(context, attrs) {
 
+    // Indique si le bitmap est prêt à être affiché
+    var isBitmapReady = false
     // Contrôle pour éviter les reloads multiples tant que le bitmap n'est pas revenu
     private var isReloading = false
 
@@ -71,6 +73,7 @@ class DrawingView @JvmOverloads constructor(
         }
         bitmapProvider = { bitmap }
         isReloading = false
+        isBitmapReady = true
         invalidate()
     }
 
@@ -149,9 +152,14 @@ class DrawingView @JvmOverloads constructor(
 
         super.onDraw(canvas)
 
+        if (!isBitmapReady) {
+            Log.d("DrawingView", "onDraw → Bitmap pas encore prêt, on saute le draw")
+            return
+        }
         val bitmap = bitmapProvider?.invoke()
         if (bitmap == null || bitmap.isRecycled) {
             Log.e("DrawingView", "onDraw → Bitmap invalide, demande de reload")
+            isBitmapReady = false
             if (!isReloading) {
                 isReloading = true
                 Log.e("DrawingView", "Bitmap manquant ou recyclé → demande de reload")
