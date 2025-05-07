@@ -442,14 +442,6 @@ class EditorActivity : BaseActivity() {
         // 🛠 Accès propre aux éléments du header
         adventureNameTextView = binding.headerAdventure.adventureNameTextView
 
-        // CONFIG START - Header Config Button
-        // --- Ajout bouton Config dans le header ---
-        // Ajoute un bouton config à droite du titre, et le clic sur le titre déclenche aussi la config
-        // binding.headerAdventure.adventureNameTextView.setCompoundDrawablesWithIntrinsicBounds(
-        //    0, 0, android.R.drawable.ic_menu_preferences, 0
-        //)
-        // binding.headerAdventure.adventureNameTextView.setOnClickListener { showConfigDialog() }
-        // CONFIG END - Header Config Button
 
         // Bottom bar
         val bottomBarView = binding.bottomBar.root
