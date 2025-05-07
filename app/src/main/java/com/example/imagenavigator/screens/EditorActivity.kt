@@ -430,12 +430,10 @@ class EditorActivity : BaseActivity() {
             enterEditMode(adventureFromIntent)
             currentFolderUri?.let {
                 if (!hasPersistedPermission(it)) {
-                    showSnackbar("Permission expirée, merci de re-sélectionner le dossier.")
                     openFolderPicker()
                 }
             }
             if (intent.getBooleanExtra("editMode", false)) {
-                showSnackbar("Mode édition activé pour $adventureFromIntent")
             }
         } else {
             promptAdventureName()
@@ -1278,13 +1276,11 @@ class EditorActivity : BaseActivity() {
             currentFolderUri = if (!folderUriString.isNullOrEmpty() && folderUriString.startsWith("content://")) Uri.parse(folderUriString) else null
 
             if (currentFolderUri == null) {
-                showSnackbar("Erreur : dossier manquant. Merci de le sélectionner.")
                 openFolderPicker()
                 return
             }
 
             if (!hasPersistedPermission(currentFolderUri!!)) {
-                showSnackbar("Permission expirée, merci de re-sélectionner le dossier.")
                 openFolderPicker()
                 return
             }
@@ -1323,19 +1319,16 @@ class EditorActivity : BaseActivity() {
                     val folder = DocumentFile.fromTreeUri(this, currentFolderUri!!)
                     if (folder == null) {
                         logDebug("EnterEditMode", "DocumentFile.fromTreeUri a retourné null")
-                        showSnackbar("Erreur d’accès au dossier. Merci de le sélectionner à nouveau.")
                         openFolderPicker()
                         return
                     }
                     if (!hasPersistedPermission(currentFolderUri!!)) {
                         logDebug("EnterEditMode", "Permission persistante manquante")
-                        showSnackbar("Permission expirée, merci de re-sélectionner le dossier.")
                         openFolderPicker()
                         return
                     }
                     if (!folder.exists()) {
                         logDebug("EnterEditMode", "Le dossier n’existe plus sur le stockage")
-                        showSnackbar("Le dossier d’aventure a été supprimé ou déplacé. Merci de le sélectionner à nouveau.")
                         openFolderPicker()
                         return
                     }
@@ -1345,12 +1338,10 @@ class EditorActivity : BaseActivity() {
                     requestFolderAccess(currentFolderUri!!)
                 } catch (e: Exception) {
                     logDebug("EnterEditMode", "Erreur inattendue lors de l’accès au dossier: ${e.message}")
-                    showSnackbar("Erreur inattendue. Merci de re-sélectionner le dossier.")
                     openFolderPicker()
                 }
             } else {
                 logDebug("EnterEditMode", "Pas de dossier → demander à l’utilisateur")
-                showSnackbar("Veuillez sélectionner un dossier d’images.")
                 openFolderPicker()
             }
             logDebug("EnterEditMode", "Mode édition prêt, synchro non encore lancée")
