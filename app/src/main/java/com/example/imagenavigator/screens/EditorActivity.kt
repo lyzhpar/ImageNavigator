@@ -326,6 +326,10 @@ class EditorActivity : BaseActivity() {
         binding = ActivityEditorBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+
+        Log.d("onCreate", "Contenu de imageDataMap : ${imageDataMap.keys}")
+
+
         if (binding.syncOverlay.visibility == View.VISIBLE) {
             Log.d("SyncFolder", "Synchronisation déjà en cours, on ignore l’appel.")
             return
@@ -500,6 +504,8 @@ class EditorActivity : BaseActivity() {
                 synchronizeFolder()
             }
         }
+
+
     }
 
 // --- FONCTIONS UTILITAIRES ---
@@ -566,10 +572,18 @@ class EditorActivity : BaseActivity() {
         return file.exists()
     }
 
-    private fun saveZones() {
+    /*private fun saveZones() {
         val file = File(filesDir, "${currentAdventureName}_zones.json")
         logDebug("SaveZones", "Enregistrement de l’aventure : $currentAdventureName → ${file.absolutePath}")
-        if (imageBitmapMap.isEmpty()) {
+        if (currentAdventureName.isEmpty()) {
+            currentAdventureName = "AventureSansNom"
+        }
+
+        // Ajout de toutes les images, même celles sans zones
+        val adventureData = generateAdventureData()
+
+        // Vérifie qu'il y a bien des images à sauvegarder
+        if (adventureData.images.isEmpty()) {
             Log.w("SaveZones", "Aucune image à sauvegarder → opération annulée.")
             Snackbar.make(
                 findViewById(android.R.id.content),
@@ -578,13 +592,12 @@ class EditorActivity : BaseActivity() {
             ).show()
             return
         }
-        if (currentAdventureName.isEmpty()) {
-            currentAdventureName = "AventureSansNom"
-        }
-        val adventureData = generateAdventureData()
+
         val gson = GsonBuilder().setPrettyPrinting().create()
-        val json = gson.toJson(adventureData)
+        val json = gson.toJson(adventureData) // Convertir l'objet adventureData en JSON
         logDebug("SaveZones", "Contenu JSON enregistré:\n$json")
+
+        // Écrire dans le fichier
         file.writeText(json)
 
         Log.d("SaveZones", "Aventure sauvegardée sous ${file.absolutePath}")
@@ -593,6 +606,53 @@ class EditorActivity : BaseActivity() {
             "Aventure sauvegardée : $currentAdventureName",
             Snackbar.LENGTH_SHORT
         ).show()
+    }*/
+
+
+    /*private fun saveZones() {
+        if (currentFolderUri == null || imageBitmapMap.isEmpty()) {
+            Log.w("AutoSave", "Pas de dossier ou d’images → autosave annulée.")
+            return
+        }
+        val adventureData = generateAdventureData()
+        val gson = GsonBuilder().setPrettyPrinting().create()
+        val json = gson.toJson(adventureData)
+        val file = File(filesDir, "${currentAdventureName}_zones.json")
+        file.writeText(json)
+
+        Snackbar.make(
+            findViewById(android.R.id.content),
+            "Aventure sauvegardée : $currentAdventureName",
+            Snackbar.LENGTH_SHORT
+        ).show()
+    }*/
+
+
+    private fun saveZones() {
+        if (currentFolderUri == null || imageBitmapMap.isEmpty()) {
+            Log.w("AutoSave", "Pas de dossier ou d’images → autosave annulée.")
+            return
+        }
+        Log.d("SaveZones", "Contenu de imageBitmapMap : ${imageBitmapMap.keys}")
+        Log.d("SaveZones", "Contenu de imageDataMap : ${imageDataMap.keys}")
+        Log.d("SaveZones", "Dossier sélectionné : $currentFolderUri")
+        Log.d("SaveZones", "Nombre d'images à sauvegarder : ${imageBitmapMap.size}")
+
+        val adventureData = generateAdventureData()
+        val gson = GsonBuilder().setPrettyPrinting().create()
+        val json = gson.toJson(adventureData)
+
+        Log.d("SaveZones", "Données d'aventure converties en JSON : $json")
+
+        val file = File(filesDir, "${currentAdventureName}_zones.json")
+        file.writeText(json)
+
+        Snackbar.make(
+            findViewById(android.R.id.content),
+            "Aventure sauvegardée : $currentAdventureName",
+            Snackbar.LENGTH_SHORT
+        ).show()
+        Log.d("SaveZones", "Aventure sauvegardée sous ${file.absolutePath}")
     }
 
 
@@ -796,6 +856,11 @@ class EditorActivity : BaseActivity() {
             }
 
             folder.listFiles()?.forEach { traverse(it) }
+
+            // Autres logs de validation
+            Log.d("EditorActivity", "Chargement des fichiers terminé. Nombre d'images à traiter : ${allImageFiles.size}")
+            Log.d("EditorActivity", "Chargement terminé. Nombre d'images chargées : $loadedImagesCount")
+
             // Tri par profondeur puis ordre alphabétique
             allImageFiles.sortWith(
                 compareBy(
@@ -812,6 +877,8 @@ class EditorActivity : BaseActivity() {
                 imageDataMap.clear()
         imageRootNode = ImageGroupNode("Racine", null, mutableListOf(), mutableListOf())
             }
+
+
             allImageFiles.sortBy { it.second }
 
             // Ajout du sémaphore pour limiter le nombre de chargements simultanés
@@ -922,7 +989,7 @@ class EditorActivity : BaseActivity() {
         val imagesList = imageDataMap.map { (path, zones) ->
             ImageData(
                 imageName = path,
-                zones = zones.map { it.toZoneData() }
+                zones = if (zones.isEmpty()) emptyList() else zones.map { it.toZoneData() }
             )
         }
         return Adventure(
