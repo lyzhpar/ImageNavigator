@@ -155,12 +155,6 @@ class ImageAdapter(
                     onItemLongPress(item as DisplayItem.ImageItem)
                     true
                 }
-
-                if (startImagePath == item.fullPath) {
-                    holder.imageView.setColorFilter(Color.parseColor("#80FFD700")) // Filtre doré
-                } else {
-                    holder.imageView.clearColorFilter() // Retirer le filtre si non liée
-                }
             }
         }
     }
@@ -257,7 +251,7 @@ class ImageAdapter(
         fun bind(item: DisplayItem) {
             if (item is DisplayItem.ImageItem) {
                 val zones = imageZonesMap[item.fullPath]
-                overlayView?.visibility = if (!zones.isNullOrEmpty() && zones.any { it.linkedImagePath != null }) View.VISIBLE else View.GONE
+                overlayView?.visibility = View.GONE
 
                 Log.d("ImageAdapter", "Bind image: ${item.fullPath}")
 
@@ -312,33 +306,31 @@ class ImageAdapter(
             } else if (item is DisplayItem.GroupItem) {
                 imageView.setImageResource(R.drawable.folder_icon)
             }
-
-            if (selectedItems.contains(item.fullPath)) {
-                imageView.setColorFilter(Color.argb(150, 128, 128, 128))
-                checkbox.visibility = View.VISIBLE
-            } else {
-                imageView.clearColorFilter()
-                checkbox.visibility = View.GONE
+            when {
+                startImagePath == item.fullPath -> {
+                    imageView.setColorFilter(Color.parseColor("#80FFD700")) // doré
+                    checkbox.visibility = View.VISIBLE
+                }
+                selectedItems.contains(item.fullPath) -> {
+                    imageView.setColorFilter(Color.argb(150, 128, 128, 128)) // gris
+                    checkbox.visibility = View.VISIBLE
+                }
+                else -> {
+                    imageView.clearColorFilter()
+                    checkbox.visibility = View.GONE
+                }
             }
-
-            if (startImagePath == item.fullPath) {
-                imageView.setColorFilter(Color.parseColor("#80FFD700")) // Filtre doré pour image de départ
-                checkbox.visibility = View.VISIBLE
-            }
-
             itemView.setOnClickListener {
                 if (item.fullPath.isNotBlank()) {
                     onImageSelected(item.fullPath)
                 }
             }
-
             itemView.setOnLongClickListener {
                 onItemLongPress(item)
                 true
             }
         }
     }
-
     // Permet de forcer le rafraîchissement complet du RecyclerView
     fun forceRefresh() {
         submitList(displayItems.toList())
