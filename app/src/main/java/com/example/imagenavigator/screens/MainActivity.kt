@@ -1,14 +1,18 @@
 package com.example.imagenavigator.screens
 
+import android.net.Uri
+
 import android.content.Intent
-import android.content.pm.ActivityInfo
 import android.os.Bundle
 import android.content.res.Configuration
 import android.util.Log
 import android.widget.Toast
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.imagenavigator.adapters.AdventureAdapter
+import com.example.imagenavigator.adapters.Adventure
 import com.example.imagenavigator.databinding.ActivityMainBinding
+import com.example.imagenavigator.model.Adventure as ModelAdventure
+import com.google.gson.GsonBuilder
 import java.io.File
 
 /**
@@ -26,7 +30,8 @@ class MainActivity : BaseActivity() {
 
         // Initialiser l'adapter (onAdventureClick)
         adventureAdapter = AdventureAdapter(
-            onAdventureClick = { adventureName ->
+            onAdventureClick = { adventureName, folderUriString ->
+                val folderUri = folderUriString?.let { Uri.parse(it) }
                 val file = File(filesDir, "${adventureName}_zones.json")
                 if (file.exists()) {
                     val fileUri = androidx.core.content.FileProvider.getUriForFile(
@@ -34,19 +39,26 @@ class MainActivity : BaseActivity() {
                         "${packageName}.fileprovider",
                         file
                     )
-
                     val intent = Intent(this, NavigatorActivity::class.java)
                     intent.putExtra("adventureJsonUri", fileUri)
+                    intent.putExtra("folderUri", folderUri?.toString())
                     intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) // Très important pour donner accès au fichier
                     startActivity(intent)
                 } else {
                     Toast.makeText(this, "Fichier d'aventure introuvable.", Toast.LENGTH_SHORT).show()
                 }
             },
-            onAdventureEdit = { adventureName ->
-                val intent = Intent(this, EditorActivity::class.java)
-                intent.putExtra("adventureName", adventureName)
+            onAdventureEdit = { adventureName, folderUri ->
+                Log.d("AdventureAdapter", "Lancement de l’édition pour $adventureName")
+                val intent = Intent(this, EditorActivity::class.java).apply {
+                    putExtra("adventureName", adventureName)
+                    putExtra("folderUri", folderUri?.toString())
+                }
                 startActivity(intent)
+            },
+
+            onAdventureRename = { adventureName ->
+                showRenameDialog(adventureName)
             },
             onAdventureDelete = { adventureName ->
                 deleteAdventureFile(adventureName)
@@ -90,11 +102,22 @@ class MainActivity : BaseActivity() {
             file.extension == "json" && file.name.endsWith("_zones.json")
         } ?: emptyArray()
 
-        val adventureNames = adventureFiles.map { file ->
-            file.name.removeSuffix("_zones.json")
+        val gson = GsonBuilder().setPrettyPrinting().create()
+        val adventures = adventureFiles.mapNotNull { file ->
+            try {
+                val adventure = gson.fromJson(file.readText(), ModelAdventure::class.java)
+                adventure
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Erreur lors du parsing de ${file.name}: ${e.message}")
+                null
+            }
         }
-
-        adventureAdapter.submitList(adventureNames)
+        adventureAdapter.submitList(adventures.map {
+            Adventure(
+                name = it.adventureTitle,
+                folderUri = it.folderUri
+            )
+        })
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -104,4 +127,59 @@ class MainActivity : BaseActivity() {
             Toast.makeText(this, "L'application fonctionne uniquement en mode paysage.", Toast.LENGTH_SHORT).show()
         }
     }
+
+
+    private fun showRenameDialog(oldName: String) {
+        val editText = android.widget.EditText(this)
+        editText.setText(oldName)
+        editText.setSingleLine(true)
+        editText.imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_DONE
+
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Renommer l’aventure")
+            .setView(editText)
+            .setPositiveButton("Renommer") { _, _ ->
+                val newName = editText.text.toString()
+                renameAdventureFile(oldName, newName)
+            }
+            .setNegativeButton("Annuler", null)
+            .create()
+
+        editText.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE) {
+                val newName = editText.text.toString()
+                renameAdventureFile(oldName, newName)
+                dialog.dismiss()
+                true
+            } else {
+                false
+            }
+        }
+
+        dialog.show()
+    }
+
+    private fun renameAdventureFile(oldName: String, newName: String) {
+        val oldFile = File(filesDir, "${oldName}_zones.json")
+        val newFile = File(filesDir, "${newName}_zones.json")
+        if (oldFile.exists()) {
+            if (newFile.exists()) {
+                Toast.makeText(this, "Un fichier portant ce nom existe déjà.", Toast.LENGTH_SHORT).show()
+            } else {
+                val gson = GsonBuilder().setPrettyPrinting().create()
+                val adventure = gson.fromJson(oldFile.readText(), ModelAdventure::class.java)
+                adventure.adventureTitle = newName
+                val updatedJson = gson.toJson(adventure)
+                val renamed = oldFile.renameTo(newFile)
+                if (renamed) {
+                    newFile.writeText(updatedJson)
+                    Toast.makeText(this, "Aventure renommée en $newName", Toast.LENGTH_SHORT).show()
+                    loadAdventureList()
+                } else {
+                    Toast.makeText(this, "Erreur lors du renommage.", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
 }
