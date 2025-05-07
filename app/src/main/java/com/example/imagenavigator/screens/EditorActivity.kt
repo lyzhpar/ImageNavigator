@@ -205,28 +205,6 @@ class EditorActivity : BaseActivity() {
         logDebug("ImageDataMap", "-------------------------------")
     }
 
-    // Quand l'utilisateur demande de renommer un groupe
-    private fun onGroupRenameRequested(updatedItem: ImageAdapter.DisplayItem.GroupItem) {
-        // Tu peux afficher une boîte de dialogue pour demander un nouveau nom
-        AlertDialog.Builder(this)
-            .setTitle("Renommer le groupe")
-            .setMessage("Renommer les groupes est à implémenter.")
-            .setPositiveButton("OK", null)
-            .show()
-    }
-
-    // Quand l'utilisateur demande de supprimer un groupe
-    private fun onGroupDeleteRequested(itemToDelete: ImageAdapter.DisplayItem.GroupItem) {
-        // Tu peux supprimer le groupe directement ou demander confirmation
-        AlertDialog.Builder(this)
-            .setTitle("Supprimer le groupe ?")
-            .setMessage("Veux-tu vraiment supprimer ce groupe et toutes ses images ?")
-            .setPositiveButton("Supprimer") { _, _ ->
-                handleDeleteSelectedItems() // Tu peux aussi faire une fonction spéciale
-            }
-            .setNegativeButton("Annuler", null)
-            .show()
-    }
 
     private fun getUriForImage(path: String): Uri? {
         val adventureFolder = File(
@@ -385,9 +363,6 @@ class EditorActivity : BaseActivity() {
                     onImageSelected(fullPath)
                 }
             },
-
-            onItemLongPress = { item -> setStartImage(item.fullPath) },
-            getSelectedItems = { imageAdapter.getSelectedItems() },
         )
 
         binding.recyclerViewThumbnails.apply {

@@ -19,12 +19,7 @@ import com.example.imagenavigator.model.ZoneData
 
 class ImageAdapter(
     private var rootGroups: List<ImageGroup>,
-    private val onImageSelected: (Bitmap, String) -> Unit,
-    private val onGroupRenameRequested: (DisplayItem.GroupItem) -> Unit,
-    private val onGroupDeleteRequested: (DisplayItem.GroupItem) -> Unit,
-    private val onItemLongPress: (DisplayItem) -> Unit,
-    private val getSelectedItems: () -> Set<String>,
-    private val exitSelectionMode: () -> Unit
+    private val onImageSelected: (String) -> Unit,
 ) : ListAdapter<ImageAdapter.DisplayItem, RecyclerView.ViewHolder>(DiffCallback()) {
 
     var startImagePath: String? = null
@@ -148,7 +143,6 @@ class ImageAdapter(
                 holder.bind(item as DisplayItem.GroupItem)
                 holder.itemView.setOnLongClickListener {
                     Log.d("ImageAdapter", "Long press sur : ${item.fullPath}")
-                    onItemLongPress(item as DisplayItem.GroupItem)
                     true
                 }
             }
@@ -156,7 +150,6 @@ class ImageAdapter(
                 holder.bind(item as DisplayItem.ImageItem)
                 holder.itemView.setOnLongClickListener {
                     Log.d("ImageAdapter", "Long press sur : ${item.fullPath}")
-                    onItemLongPress(item as DisplayItem.ImageItem)
                     true
                 }
 
@@ -209,7 +202,6 @@ class ImageAdapter(
             itemView.setOnClickListener {
                 val key = item.fullPath
                 if (isSelectionMode) {
-                    onItemLongPress(item) // Si en mode sélection, on sélectionne/désélectionne
                 } else {
                     if (expandedGroups.contains(key)) {
                         expandedGroups.remove(key)
@@ -221,16 +213,11 @@ class ImageAdapter(
                 }
             }
 
-            itemView.setOnLongClickListener {
-                onItemLongPress(item)  // Gérer la sélection longue pression
-                true
-            }
 
             editText.setOnEditorActionListener { _, actionId, _ ->
                 if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE) {
                     val newName = editText.text.toString().trim()
                     if (newName.isNotBlank() && newName != item.name) {
-                        onGroupRenameRequested(item.copy(name = newName))
                     }
                     textView.visibility = View.VISIBLE
                     editText.visibility = View.GONE
@@ -249,9 +236,6 @@ class ImageAdapter(
                 }
             }
 
-            deleteIcon.setOnClickListener {
-                onGroupDeleteRequested(item) // Appel avec GroupItem
-            }
         }
     }
     inner class ImageViewHolder(view: View) : RecyclerView.ViewHolder(view) {
@@ -315,14 +299,10 @@ class ImageAdapter(
 
             itemView.setOnClickListener {
                 if (item is DisplayItem.ImageItem) {
-                    onImageSelected(item.bitmap, item.fullPath)
+                    onImageSelected(item.fullPath)
                 }
             }
-
-            itemView.setOnLongClickListener {
-                onItemLongPress(item)
-                true
             }
         }
     }
-}
+

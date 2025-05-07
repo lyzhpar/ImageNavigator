@@ -53,6 +53,31 @@
         android:layout_margin="8dp"
         android:padding="5dp" />
 
+    <Button
+        android:id="@+id/buttonMenu"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="#DDDDDD"
+        android:text="Menu principal"
+        android:contentDescription="Menu principal"
+        android:minWidth="50dp"
+        android:minHeight="30dp"
+        android:layout_margin="8dp"
+        android:padding="5dp" />
+
+    <Button
+        android:id="@+id/buttonStartAdventure"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="#DDDDDD"
+        android:text="Aventure !"
+        android:contentDescription="Aventure"
+        android:minWidth="50dp"
+        android:minHeight="30dp"
+        android:layout_margin="8dp"
+        android:padding="5dp" />
+
+
     <!-- Espace dynamique pour sélection (invisible par défaut) -->
     <LinearLayout
         android:id="@+id/selectionInfoContainer"
