@@ -13,7 +13,9 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.DocumentsContract
 import android.util.Log
+import android.view.Gravity
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.widget.Button
@@ -174,9 +176,7 @@ class EditorActivity : BaseActivity() {
         }
 
     // Quand une image est sélectionnée
-    private fun onImageSelected(
-        /*bitmap: Bitmap,*/ fullPath: String
-    ) {
+    private fun onImageSelected(fullPath: String) {
         // Avant de remplacer le bitmap et les zones, enregistrer les zones de l'image courante
         currentImageName?.let { oldImageName ->
             imageDataMap[oldImageName] = binding.drawingView.getAllZones().toMutableList()
@@ -216,32 +216,6 @@ class EditorActivity : BaseActivity() {
         logDebug("ImageDataMap", "-------------------------------")
     }
 
-    // Quand l'utilisateur demande de renommer un groupe
-    private fun onGroupRenameRequested(
-        /*updatedItem: ImageAdapter.DisplayItem.GroupItem*/
-    ) {
-        // Tu peux afficher une boîte de dialogue pour demander un nouveau nom
-        AlertDialog.Builder(this)
-            .setTitle("Renommer le groupe")
-            .setMessage("Renommer les groupes est à implémenter.")
-            .setPositiveButton("OK", null)
-            .show()
-    }
-
-    // Quand l'utilisateur demande de supprimer un groupe
-    private fun onGroupDeleteRequested(
-        /*itemToDelete: ImageAdapter.DisplayItem.GroupItem*/
-    ) {
-        // Tu peux supprimer le groupe directement ou demander confirmation
-        AlertDialog.Builder(this)
-            .setTitle("Supprimer le groupe ?")
-            .setMessage("Veux-tu vraiment supprimer ce groupe et toutes ses images ?")
-            .setPositiveButton("Supprimer") { _, _ ->
-                handleDeleteSelectedItems() // Tu peux aussi faire une fonction spéciale
-            }
-            .setNegativeButton("Annuler", null)
-            .show()
-    }
 
     private fun getUriForImage(path: String): Uri? {
         val adventureFolder = File(
@@ -256,31 +230,7 @@ class EditorActivity : BaseActivity() {
         }
     }
 
-    //private suspend fun loadBitmapFromUri(uri: Uri): Bitmap? {
-    //    val screenSize =
-    //        resources.displayMetrics.widthPixels.coerceAtLeast(resources.displayMetrics.heightPixels)
-    //    return try {
-    //        withContext(Dispatchers.IO) {
-    //            Glide.with(this@EditorActivity)
-    //                .asBitmap()
-    //                .load(uri)
-    //                .apply(
-    //                    RequestOptions()
-    //                        .override(screenSize / 2)
-    //                        .diskCacheStrategy(DiskCacheStrategy.ALL)
-    //                )
-    //                .submit()
-    //                .get()
-    //        }
-    //    } catch (e: Exception) {
-    //        Log.e(
-    //            "EditorActivity",
-    //            "Erreur lors du chargement de l'image à partir de l'URI : $uri",
-    //            e
-    //        )
-    //        null
-    //    }
-    //}
+
 
     private fun loadAdventureData(name: String) {
         val file = File(filesDir, "${name}_zones.json")
@@ -373,11 +323,7 @@ class EditorActivity : BaseActivity() {
                     onImageSelected(fullPath)
                 }
             },
-            onGroupRenameRequested = { onGroupRenameRequested() },
-            onGroupDeleteRequested = { onGroupDeleteRequested() },
             onItemLongPress = { item -> setStartImage(item.fullPath) },
-            getSelectedItems = { imageAdapter.getSelectedItems() },
-            exitSelectionMode = { exitSelectionMode() }
         )
 
         binding.recyclerViewThumbnails.apply {
@@ -545,25 +491,6 @@ class EditorActivity : BaseActivity() {
             imm.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
         }
 
-        input.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == EditorInfo.IME_ACTION_DONE) {
-                val name = input.text.toString().trim().replace("\n", "")
-                if (name.isEmpty() || adventureFileExists(name)) {
-                    Toast.makeText(this, "Nom invalide ou existant.", Toast.LENGTH_SHORT).show()
-                    promptAdventureName()
-                } else {
-                    currentAdventureName = name
-                    adventureNameTextView.text = currentAdventureName
-                    currentAdventureJsonUri = Uri.fromFile(File(filesDir, "$currentAdventureName.json"))
-                    openFolderPicker()
-                    dialog.dismiss()
-                }
-                true
-            } else {
-                false
-            }
-        }
-
         dialog.show()
     }
 
@@ -652,11 +579,46 @@ class EditorActivity : BaseActivity() {
             "Aventure sauvegardée : $currentAdventureName",
             Snackbar.LENGTH_SHORT
         ).show()
-        Log.d("SaveZones", "Aventure sauvegardée sous ${file.absolutePath}")
     }
 
+    private fun showRenameAdventureDialog() {
+        val builder = AlertDialog.Builder(this)
+        builder.setTitle("Renommer l'aventure")
+        val input = EditText(this)
+        input.hint = "Nouveau nom"
 
+        input.requestFocus() // 🆕 Focus automatique sur le champ
 
+        builder.setView(input)
+        builder.setPositiveButton("Renommer") { _, _ ->
+            val newName = input.text.toString().trim()
+            if (newName.isEmpty() || adventureFileExists(newName)) {
+                Toast.makeText(this, "Nom invalide ou existant.", Toast.LENGTH_SHORT).show()
+            } else {
+                renameAdventure(newName)
+            }
+        }
+        builder.setNegativeButton("Annuler", null)
+
+        val dialog = builder.create()
+
+        dialog.setOnShowListener {
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
+        }
+
+        dialog.show()
+    }
+
+    private fun renameAdventure(newName: String) {
+        val oldFile = File(filesDir, "${currentAdventureName}_zones.json")
+        val newFile = File(filesDir, "${newName}_zones.json")
+
+        if (oldFile.exists()) oldFile.renameTo(newFile)
+        currentAdventureName = newName
+        adventureNameTextView.text = newName
+        Toast.makeText(this, "Aventure renommée en $newName", Toast.LENGTH_SHORT).show()
+    }
 
     private fun toggleSelection(fullPath: String) {
         if (!isSelectionMode) {
@@ -834,9 +796,7 @@ class EditorActivity : BaseActivity() {
                                             .get()
                                     }
                                     imageBitmapMap[fullPath] = bitmap
-                                    if (clearData && !imageDataMap.containsKey(fullPath)) {
-                                        imageDataMap[fullPath] = mutableListOf()
-                                    }
+                                    imageDataMap[fullPath] = mutableListOf()
                                     loadedImagesCount++
                                     withContext(Dispatchers.Main) {
                                         imageAdapter.addImage(bitmap, fullPath)
@@ -905,6 +865,8 @@ class EditorActivity : BaseActivity() {
                                         .get()
                                 }
                                 imageBitmapMap[fullPath] = bitmap
+                                imageDataMap[fullPath] = mutableListOf()  // Initialiser les zones vides
+
                             }
                             // Ne pas initialiser imageDataMap[fullPath] ici pour ne pas écraser les zones déjà présentes
                             val bitmap = imageBitmapMap[fullPath]

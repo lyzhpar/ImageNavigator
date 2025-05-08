@@ -20,11 +20,7 @@ import com.example.imagenavigator.model.ZoneData
 class ImageAdapter(
     private var rootGroups: List<ImageGroup>,
     private val onImageSelected: (String) -> Unit,
-    private val onGroupRenameRequested: () -> Unit,
-    private val onGroupDeleteRequested: () -> Unit,
     private val onItemLongPress: (DisplayItem) -> Unit,
-    private val getSelectedItems: () -> Set<String>,
-    private val exitSelectionMode: () -> Unit
 ) : ListAdapter<ImageAdapter.DisplayItem, RecyclerView.ViewHolder>(DiffCallback()) {
 
     var startImagePath: String? = null
@@ -230,7 +226,6 @@ class ImageAdapter(
                 if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE) {
                     val newName = editText.text.toString().trim()
                     if (newName.isNotBlank() && newName != item.name) {
-                        onGroupRenameRequested()
                     }
                     textView.visibility = View.VISIBLE
                     editText.visibility = View.GONE
@@ -249,9 +244,6 @@ class ImageAdapter(
                 }
             }
 
-            deleteIcon.setOnClickListener {
-                onGroupDeleteRequested()
-            }
         }
     }
     inner class ImageViewHolder(view: View) : RecyclerView.ViewHolder(view) {
