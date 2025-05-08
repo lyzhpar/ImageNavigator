@@ -542,7 +542,7 @@ class EditorActivity : BaseActivity() {
         return file.exists()
     }
 
-    private fun saveZones() {
+   /* private fun saveZones() {
         if (currentFolderUri == null || imageBitmapMap.isEmpty()) {
             Log.w("AutoSave", "Pas de dossier ou d’images → autosave annulée.")
             return
@@ -558,7 +558,35 @@ class EditorActivity : BaseActivity() {
             "Aventure sauvegardée : $currentAdventureName",
             Snackbar.LENGTH_SHORT
         ).show()
+    }*/
+
+    private fun saveZones() {
+        if (currentFolderUri == null || imageBitmapMap.isEmpty()) {
+            Log.w("AutoSave", "Pas de dossier ou d’images → autosave annulée.")
+            return
+        }
+        Log.d("SaveZones", "Contenu de imageBitmapMap : ${imageBitmapMap.keys}")
+        Log.d("SaveZones", "Contenu de imageDataMap : ${imageDataMap.keys}")
+        Log.d("SaveZones", "Dossier sélectionné : $currentFolderUri")
+        Log.d("SaveZones", "Nombre d'images à sauvegarder : ${imageBitmapMap.size}")
+
+        val adventureData = generateAdventureData()
+        val gson = GsonBuilder().setPrettyPrinting().create()
+        val json = gson.toJson(adventureData)
+
+        Log.d("SaveZones", "Données d'aventure converties en JSON : $json")
+
+        val file = File(filesDir, "${currentAdventureName}_zones.json")
+        file.writeText(json)
+
+        Snackbar.make(
+            findViewById(android.R.id.content),
+            "Aventure sauvegardée : $currentAdventureName",
+            Snackbar.LENGTH_SHORT
+        ).show()
+        Log.d("SaveZones", "Aventure sauvegardée sous ${file.absolutePath}")
     }
+
 
     private fun showRenameAdventureDialog() {
         val builder = AlertDialog.Builder(this)
