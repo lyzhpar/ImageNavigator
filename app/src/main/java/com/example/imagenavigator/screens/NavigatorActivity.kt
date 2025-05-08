@@ -1,10 +1,14 @@
 package com.example.imagenavigator.screens
 
+import android.content.Intent
 import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.os.Bundle
+import android.os.Looper
 import android.util.Log
+import android.view.MotionEvent
 import android.widget.Toast
+import androidx.core.os.postDelayed
 import androidx.documentfile.provider.DocumentFile
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.DataSource
@@ -17,6 +21,7 @@ import com.example.imagenavigator.model.Adventure
 import com.example.imagenavigator.model.ZoneData
 import com.google.gson.Gson
 import java.io.InputStreamReader
+import android.os.Handler
 
 class NavigatorActivity : BaseActivity() {
 
@@ -25,6 +30,10 @@ class NavigatorActivity : BaseActivity() {
     private lateinit var folderUri: Uri
     private var currentImageName: String? = null
     private val historyStack = mutableListOf<String>()
+    var downTime = 0L
+    val handler = Handler(Looper.getMainLooper())
+    private lateinit var adventureName: String
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -50,9 +59,47 @@ class NavigatorActivity : BaseActivity() {
             return
         }
 
-        binding.backButton.setOnClickListener {
+        /*binding.backButton.setOnClickListener {
             goBack()
         }
+
+        binding.backButton.setOnLongClickListener {
+            goBackMenu()
+            true
+        }*/
+
+        val longClickRunnable = Runnable {
+            doLongClickAction()
+        }
+
+        val veryLongClickRunnable = Runnable {
+            handler.removeCallbacks(longClickRunnable) // ← empêche le long clic
+            doVeryLongClickAction()
+        }
+
+        binding.backButton.setOnTouchListener { v, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    downTime = System.currentTimeMillis()
+                    handler.postDelayed(longClickRunnable, 1000)
+                    handler.postDelayed(veryLongClickRunnable, 3000)
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    handler.removeCallbacks(longClickRunnable)
+                    handler.removeCallbacks(veryLongClickRunnable)
+
+                    if (System.currentTimeMillis() - downTime < 1000) {
+                        doShortClickAction()
+                    }
+                    v.performClick()
+                    true
+                }
+                else -> false
+            }
+        }
+
+
 
 
         // Configure le clic sur les zones
@@ -77,6 +124,7 @@ class NavigatorActivity : BaseActivity() {
             }
             val reader = InputStreamReader(inputStream, Charsets.UTF_8)
             adventure = Gson().fromJson(reader, Adventure::class.java)
+            adventureName = adventure.adventureTitle
             Log.d("NavigatorActivity", "Adventure chargé : ${adventure.adventureTitle}, images: ${adventure.images.size}")
             reader.close()
             val startImageExists = adventure.images.any { it.imageName.trim() == adventure.startImagePath?.trim() }
@@ -245,7 +293,8 @@ class NavigatorActivity : BaseActivity() {
         return currentFolder.listFiles()?.firstOrNull { !it.isDirectory && it.name == segments.last() }
     }
 
-    private fun goBack() {
+
+    fun doShortClickAction() {
         if (historyStack.isNotEmpty()) {
             currentImageName = historyStack.removeAt(historyStack.size - 1)
             showCurrentImage()
@@ -253,6 +302,34 @@ class NavigatorActivity : BaseActivity() {
             finish()
         }
     }
+
+    fun doLongClickAction() {
+        if (historyStack.isNotEmpty()) {
+            currentImageName = historyStack.first()
+            showCurrentImage()
+        } else {
+            finish()
+        }
+    }
+
+    /*fun doVeryLongClickAction() {
+        val intent = Intent(this, MainActivity::class.java)
+        startActivity(intent)
+        finish()
+    }*/
+
+
+
+    fun doVeryLongClickAction() {
+        val intent = Intent(this, EditorActivity::class.java).apply {
+            putExtra("adventureName", adventureName)
+            putExtra("folderUri", folderUri?.toString())
+        }
+        startActivity(intent)
+    }
+
+
+
 
 
 }

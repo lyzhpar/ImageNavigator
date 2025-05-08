@@ -46,6 +46,7 @@ class ImageAdapter(
 
     sealed class DisplayItem {
         abstract val fullPath: String
+
         data class ImageItem(override val fullPath: String) : DisplayItem()
         data class GroupItem(val name: String, override val fullPath: String) : DisplayItem()
     }
@@ -54,20 +55,12 @@ class ImageAdapter(
         override fun areItemsTheSame(oldItem: DisplayItem, newItem: DisplayItem): Boolean {
             return oldItem.fullPath == newItem.fullPath
         }
+
         override fun areContentsTheSame(oldItem: DisplayItem, newItem: DisplayItem): Boolean {
             return oldItem == newItem
         }
     }
 
-    fun getSelectedItems(): Set<String> {
-        return selectedItems
-    }
-
-    fun exitSelectionMode() {
-        isSelectionMode = false
-        selectedItems.clear()
-        submitList(displayItems)
-    }
 
     fun updateData(newGroups: List<ImageGroup>) {
         rootGroups = newGroups.toMutableList()
@@ -80,12 +73,13 @@ class ImageAdapter(
         var group = rootGroups.find { it.name == mainGroupName }
 
         if (group == null) {
-            group = ImageGroup(name = mainGroupName, images = mutableListOf(), fullPath = mainGroupName)
+            group =
+                ImageGroup(name = mainGroupName, images = mutableListOf(), fullPath = mainGroupName)
             rootGroups = rootGroups + group
         }
 
         // Ensure no duplicate images
-        if (!group.images.contains(fullPath )) {
+        if (!group.images.contains(fullPath)) {
             group.images.add(fullPath)
         }
 
@@ -99,9 +93,11 @@ class ImageAdapter(
         for (group in sortedGroups) {
             Log.d("Adapter", "Ajout de groupe: ${group.name} | fullPath=${group.fullPath}")
             val safeGroupName = group.name.ifBlank { "[nom inconnu]" }
-            result.add(DisplayItem.GroupItem(safeGroupName, group.fullPath ?: safeGroupName))
-            val key = group.fullPath ?: safeGroupName
-            val shouldExpand = key.isBlank() || expandedGroups.contains(key)
+            val groupKey = group.fullPath ?: safeGroupName
+
+            result.add(DisplayItem.GroupItem(safeGroupName, groupKey))
+
+            val shouldExpand = groupKey.isBlank() || expandedGroups.contains(groupKey)
             if (shouldExpand) {
                 result.addAll(group.images.map { name ->
                     DisplayItem.ImageItem(name)
@@ -112,14 +108,8 @@ class ImageAdapter(
         return result
     }
 
-    fun setSelectionMode(isSelectionMode: Boolean, selectedItems: Set<String>) {
-        this.isSelectionMode = isSelectionMode
-        this.selectedItems.clear()
-        this.selectedItems.addAll(selectedItems)
-        submitList(displayItems.toList())
-    }
 
-    override fun getItemViewType(position: Int): Int = when(getItem(position)) {
+    override fun getItemViewType(position: Int): Int = when (getItem(position)) {
         is DisplayItem.GroupItem -> 0
         is DisplayItem.ImageItem -> 1
     }
@@ -148,6 +138,7 @@ class ImageAdapter(
                     true
                 }
             }
+
             is ImageViewHolder -> {
                 holder.bind(item as DisplayItem.ImageItem)
                 holder.itemView.setOnLongClickListener {
@@ -166,94 +157,48 @@ class ImageAdapter(
         }
     }
 
-    private fun toggleSelection(fullPath: String) {
-        if (selectedItems.contains(fullPath)) {
-            selectedItems.remove(fullPath)
-        } else {
-            selectedItems.add(fullPath)
-        }
-        submitList(displayItems.toList())
-    }
-
     inner class GroupViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         private val textView: TextView = view.findViewById(R.id.worldNameTextView)
-        private val editText: android.widget.EditText = view.findViewById(R.id.worldNameEditText)
-        private val deleteIcon: ImageView = view.findViewById(R.id.deleteGroupIcon)
-        private val checkbox: ImageView = view.findViewById(R.id.checkbox)  // La coche pour le groupe
-
-
+        private val folderIcon: ImageView = view.findViewById(R.id.folderIcon)
+        private val checkbox: ImageView = view.findViewById(R.id.checkbox)
 
         fun bind(item: DisplayItem.GroupItem) {
-            val key = item.fullPath
-            textView.text = "📁 ${item.name}"
-            textView.setTypeface(null, if (item.name == "Racine") android.graphics.Typeface.ITALIC else android.graphics.Typeface.NORMAL)
-            editText.setText(item.name)
+            textView.text = item.name
+            textView.setTypeface(
+                null,
+                if (item.name == "Racine") android.graphics.Typeface.ITALIC else android.graphics.Typeface.NORMAL
+            )
             textView.visibility = View.VISIBLE
-            editText.visibility = View.GONE
-            deleteIcon.visibility = View.GONE
 
-            // Appliquer un fond gris si sélectionné
-            if (selectedItems.contains(item.fullPath)) {
-                itemView.setBackgroundColor(Color.GRAY)  // Griser tout le groupe
-                itemView.alpha = 1f  // Pas de transparence
-                checkbox.visibility = View.VISIBLE  // Afficher la coche
-            } else {
-                itemView.setBackgroundColor(Color.TRANSPARENT)
-                itemView.alpha = 1f  // Pas de transparence
-                checkbox.visibility = View.GONE  // Masquer la coche
-            }
+            val isExpanded = expandedGroups.contains(item.fullPath)
+            folderIcon.setImageResource(
+                if (isExpanded) R.drawable.ic_arrow_down else R.drawable.ic_arrow_left
+            )
 
             itemView.setOnClickListener {
-                val key = item.fullPath
-                if (isSelectionMode) {
-                    onItemLongPress(item) // Si en mode sélection, on sélectionne/désélectionne
+                if (expandedGroups.contains(item.fullPath)) {
+                    expandedGroups.remove(item.fullPath)
                 } else {
-                    if (expandedGroups.contains(key)) {
-                        expandedGroups.remove(key)
-                    } else {
-                        expandedGroups.add(key)
-                    }
-                    displayItems = flattenGroups(rootGroups)
-                    submitList(displayItems)
+                    expandedGroups.add(item.fullPath)
                 }
-            }
-
-            itemView.setOnLongClickListener {
-                onItemLongPress(item)  // Gérer la sélection longue pression
-                true
-            }
-
-            editText.setOnEditorActionListener { _, actionId, _ ->
-                if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE) {
-                    textView.visibility = View.VISIBLE
-                    editText.visibility = View.GONE
-                    deleteIcon.visibility = View.GONE
-                    true
-                } else {
-                    false
-                }
-            }
-
-            editText.setOnFocusChangeListener { _, hasFocus ->
-                if (!hasFocus) {
-                    textView.visibility = View.VISIBLE
-                    editText.visibility = View.GONE
-                    deleteIcon.visibility = View.GONE
-                }
+                displayItems = flattenGroups(rootGroups)
+                submitList(displayItems)
             }
         }
     }
+
     inner class ImageViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val imageView: ImageView = view.findViewById(R.id.image_view)
         private val overlayView: View? = view.findViewById(R.id.zoneOverlayView)
         private val checkbox: ImageView = view.findViewById(R.id.checkbox)  // La coche pour l'image
-
         fun bind(item: DisplayItem) {
+
             if (item is DisplayItem.ImageItem) {
                 val zones = imageZonesMap[item.fullPath]
-                overlayView?.visibility = if (!zones.isNullOrEmpty() && zones.any { it.linkedImagePath != null })
-                    View.VISIBLE
-                else View.GONE
+                overlayView?.visibility =
+                    if (!zones.isNullOrEmpty() && zones.any { it.linkedImagePath != null })
+                        View.VISIBLE
+                    else View.GONE
 
                 Log.d("ImageAdapter", "Bind image: ${item.fullPath}")
 
@@ -271,9 +216,16 @@ class ImageAdapter(
                             .skipMemoryCache(false)
                             .listener(object : RequestListener<Drawable> {
                                 override fun onLoadFailed(
-                                    e: GlideException?, model: Any?, target: Target<Drawable>, isFirstResource: Boolean
+                                    e: GlideException?,
+                                    model: Any?,
+                                    target: Target<Drawable>,
+                                    isFirstResource: Boolean
                                 ): Boolean {
-                                    Log.e("ImageAdapter", "Erreur de chargement image: $currentFullPath, essai $retryCount", e)
+                                    Log.e(
+                                        "ImageAdapter",
+                                        "Erreur de chargement image: $currentFullPath, essai $retryCount",
+                                        e
+                                    )
                                     if (retryCount < 3) {
                                         Glide.get(imageView.context).clearMemory()
                                         val delay = 500L * (1 shl retryCount)
@@ -290,7 +242,11 @@ class ImageAdapter(
                                 }
 
                                 override fun onResourceReady(
-                                    resource: Drawable, model: Any, target: Target<Drawable>, dataSource: DataSource, isFirstResource: Boolean
+                                    resource: Drawable,
+                                    model: Any,
+                                    target: Target<Drawable>,
+                                    dataSource: DataSource,
+                                    isFirstResource: Boolean
                                 ): Boolean {
                                     if (adapterPosition != RecyclerView.NO_POSITION && currentList[adapterPosition].fullPath == currentFullPath) {
                                         return false
@@ -303,38 +259,42 @@ class ImageAdapter(
 
                     loadImageWithRetry()
                 } else {
-                    android.util.Log.e("ImageAdapter", "DocumentFile invalide ou inexistant: ${item.fullPath}")
+                    android.util.Log.e(
+                        "ImageAdapter",
+                        "DocumentFile invalide ou inexistant: ${item.fullPath}"
+                    )
                 }
-            } else if (item is DisplayItem.GroupItem) {
-                imageView.setImageResource(R.drawable.folder_icon)
-            }
-            when {
-                startImagePath == item.fullPath -> {
-                    imageView.setColorFilter(Color.parseColor("#80FFD700")) // doré
-                    checkbox.visibility = View.VISIBLE
+                when {
+                    startImagePath == item.fullPath -> {
+                        imageView.setColorFilter(Color.parseColor("#80FFD700")) // doré
+                        checkbox.visibility = View.VISIBLE
+                    }
+
+                    selectedItems.contains(item.fullPath) -> {
+                        imageView.setColorFilter(Color.argb(150, 128, 128, 128)) // gris
+                        checkbox.visibility = View.VISIBLE
+                    }
+
+                    else -> {
+                        imageView.clearColorFilter()
+                        checkbox.visibility = View.GONE
+                    }
                 }
-                selectedItems.contains(item.fullPath) -> {
-                    imageView.setColorFilter(Color.argb(150, 128, 128, 128)) // gris
-                    checkbox.visibility = View.VISIBLE
+                itemView.setOnClickListener {
+                    if (item.fullPath.isNotBlank()) {
+                        onImageSelected(item.fullPath)
+                    }
                 }
-                else -> {
-                    imageView.clearColorFilter()
-                    checkbox.visibility = View.GONE
+                itemView.setOnLongClickListener {
+                    onItemLongPress(item)
+                    true
                 }
-            }
-            itemView.setOnClickListener {
-                if (item.fullPath.isNotBlank()) {
-                    onImageSelected(item.fullPath)
-                }
-            }
-            itemView.setOnLongClickListener {
-                onItemLongPress(item)
-                true
             }
         }
-    }
-    // Permet de forcer le rafraîchissement complet du RecyclerView
-    fun forceRefresh() {
-        submitList(displayItems.toList())
+
+        // Permet de forcer le rafraîchissement complet du RecyclerView
+        fun forceRefresh() {
+            submitList(displayItems.toList())
+        }
     }
 }
