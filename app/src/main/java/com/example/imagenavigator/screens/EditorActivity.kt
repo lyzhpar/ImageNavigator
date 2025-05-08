@@ -812,8 +812,12 @@ class EditorActivity : BaseActivity() {
                         } catch (e: Exception) {
                             imageDataMap[fullPath] = mutableListOf()
                             skippedFiles.add(fullPath)
-                            Log.e("EditorActivity", "Failed to load image: $fullPath", e)
-                            loadedImagesCount = minOf(loadedImagesCount + 1, totalImagesToLoad)
+                            Log.e(
+                                "EditorActivity",
+                                "Failed to load image: $fullPath",
+                                e
+                            )
+                            loadedImagesCount++ // Même si échec, on incrémente pour la barre de chargement
                         } finally {
                             semaphore.release()
                         }
@@ -846,7 +850,11 @@ class EditorActivity : BaseActivity() {
                 updateLoadingProgress()
                 loadingProgressBar.visibility = View.GONE
                 if (skippedFiles.isNotEmpty()) {
-                    Toast.makeText(this@EditorActivity, "Certaines images n'ont pas été chargées.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        this@EditorActivity,
+                        "Certaines images n'ont pas été chargées.",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
                 updateBottomBarInfo(isLoading = false)
                 binding.bottomBar.buttonSave.isEnabled = true
@@ -977,9 +985,9 @@ class EditorActivity : BaseActivity() {
             }
             folder.listFiles()?.forEach { accumulateSize(it) }
         }
-        if (totalSize > 1_000_000_000L) { // 1 Go
+        if (totalSize > 500_000_000L) { // 500Mo
             withContext(Dispatchers.Main) {
-                showSnackbar("⚠ Attention : ce dossier dépasse 1 Go, risque de ralentissements ou plantage.")
+                showSnackbar("⚠ Attention : ce dossier dépasse 500Mo, risque de ralentissements ou plantage.")
             }
         }
 
