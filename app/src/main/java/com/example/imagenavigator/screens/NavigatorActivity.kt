@@ -24,6 +24,7 @@ class NavigatorActivity : BaseActivity() {
     private lateinit var adventure: Adventure
     private lateinit var folderUri: Uri
     private var currentImageName: String? = null
+    private val historyStack = mutableListOf<String>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,6 +49,11 @@ class NavigatorActivity : BaseActivity() {
             finish()
             return
         }
+
+        binding.backButton.setOnClickListener {
+            goBack()
+        }
+
 
         // Configure le clic sur les zones
         binding.overlayView.onZoneClicked = { targetPath ->
@@ -201,6 +207,7 @@ class NavigatorActivity : BaseActivity() {
     }
 
     private fun navigateToImage(targetPath: String) {
+        currentImageName?.let { historyStack.add(it) }
         Log.d("NavigatorActivity", "Navigation vers : $targetPath")
         if (currentImageName != targetPath) {
             currentImageName = targetPath
@@ -232,4 +239,15 @@ class NavigatorActivity : BaseActivity() {
         if (currentFolder == null) return null
         return currentFolder.listFiles()?.firstOrNull { !it.isDirectory && it.name == segments.last() }
     }
+
+    private fun goBack() {
+        if (historyStack.isNotEmpty()) {
+            currentImageName = historyStack.removeAt(historyStack.size - 1)
+            showCurrentImage()
+        } else {
+            finish()
+        }
+    }
+
+
 }

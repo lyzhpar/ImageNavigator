@@ -49,6 +49,11 @@ import com.example.imagenavigator.model.ImageData
 import com.example.imagenavigator.model.toZone
 import com.example.imagenavigator.model.toZoneData
 import android.widget.ProgressBar
+import com.bumptech.glide.request.RequestListener
+import com.bumptech.glide.request.target.Target
+import com.bumptech.glide.load.engine.GlideException
+import com.bumptech.glide.load.DataSource
+import android.graphics.drawable.Drawable
 
 import androidx.lifecycle.lifecycleScope
 import kotlin.toString
@@ -100,6 +105,19 @@ class EditorActivity : BaseActivity() {
     private var startImagePath: String? = null
     private var adventure: Adventure? = null
     private var currentAdventureJsonUri: Uri? = null
+    private var isBusy = false
+    private var hasJustSaved = false
+
+    private val prefs by lazy { getSharedPreferences("ImageNavigatorPrefs", Context.MODE_PRIVATE) }
+
+    private fun saveLastFolderUri(uri: Uri) {
+        prefs.edit().putString("lastFolderUri", uri.toString()).apply()
+    }
+
+    private fun getLastFolderUri(): Uri? {
+        val uriString = prefs.getString("lastFolderUri", null)
+        return if (uriString != null) Uri.parse(uriString) else null
+    }
 
 
     private fun logDebug(tag: String, message: String) {
@@ -197,11 +215,13 @@ class EditorActivity : BaseActivity() {
         val firstVisiblePosition = layoutManager.findFirstVisibleItemPosition()
         val offset = layoutManager.findViewByPosition(firstVisiblePosition)?.top ?: 0
 
-        // Mettre à jour les zones dans l'adapter (pour les vignettes)
-        val imageZonesMap = imageDataMap.mapValues { entry ->
-            entry.value.map { it.toZoneData() }
+        imageAdapter.imageZonesMap =
+            imageDataMap.mapValues { it.value.map { zone -> zone.toZoneData() } }
+        val index = imageAdapter.currentList.indexOfFirst { it.fullPath == fullPath }
+        if (index >= 0) {
+            imageAdapter.notifyItemChanged(index)
         }
-        imageAdapter.imageZonesMap = imageZonesMap
+        //imageAdapter.imageZonesMap = imageZonesMap
         imageAdapter.notifyDataSetChanged()
 
         layoutManager.scrollToPositionWithOffset(firstVisiblePosition, offset)
@@ -276,8 +296,16 @@ class EditorActivity : BaseActivity() {
         binding = ActivityEditorBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-
-        Log.d("onCreate", "Contenu de imageDataMap : ${imageDataMap.keys}")
+        val lastUri = getLastFolderUri()
+        if (lastUri != null) {
+            if (hasPersistedPermission(lastUri)) {
+                logDebug("TestFlow", ">>> Permission OK au redémarrage")
+            } else {
+                logDebug("TestFlow", ">>> Permission PERDUE au redémarrage")
+            }
+        }
+        currentFolderUri = lastUri
+        Log.d("EditorActivity", "Restored last folder URI: $lastUri")
 
 
         if (binding.syncOverlay.visibility == View.VISIBLE) {
@@ -286,13 +314,7 @@ class EditorActivity : BaseActivity() {
         }
 
         // --- Initialisation du bouton Supprimer (deleteButton) ---
-        deleteButton = Button(this).apply {
-            text = "Supprimer"
-            visibility = View.GONE
-            isEnabled = false
-            setOnClickListener { handleDeleteSelectedItems(this) }
-        }
-        binding.bottomBar.root.addView(deleteButton)
+        // Suppression du bouton Supprimer (deleteButton) et de son listener
 
         deleteZonesButton = findViewById(R.id.deleteZonesButton)
         deleteZonesButton.setOnClickListener {
@@ -347,14 +369,7 @@ class EditorActivity : BaseActivity() {
         // 🛠 Accès propre aux éléments du header
         adventureNameTextView = binding.headerAdventure.adventureNameTextView
 
-        // CONFIG START - Header Config Button
-        // --- Ajout bouton Config dans le header ---
-        // Ajoute un bouton config à droite du titre, et le clic sur le titre déclenche aussi la config
-        // binding.headerAdventure.adventureNameTextView.setCompoundDrawablesWithIntrinsicBounds(
-        //    0, 0, android.R.drawable.ic_menu_preferences, 0
-        //)
-        // binding.headerAdventure.adventureNameTextView.setOnClickListener { showConfigDialog() }
-        // CONFIG END - Header Config Button
+
 
         // Bottom bar
         val bottomBarView = binding.bottomBar.root
@@ -396,10 +411,7 @@ class EditorActivity : BaseActivity() {
         binding.drawingView.isClickable = true
         binding.drawingView.onTapListener = {
             if (isSelectionMode) {
-                exitSelectionMode()
-                updateDeleteButtonVisibility(deleteButton)
                 updateBottomBarInfo()
-                deleteButton.isEnabled = false
             }
         }
         // Ajout d'une zone nouvellement créée à imageDataMap pour l'image courante
@@ -417,31 +429,30 @@ class EditorActivity : BaseActivity() {
                 val intent = Intent(this, MainActivity::class.java)
                 startActivity(intent)
                 finish()
-            }, 1500)
+            }, 500)
         }
 
         findViewById<Button>(R.id.buttonStartAdventure).setOnClickListener {
-            val intent = Intent(this, NavigatorActivity::class.java)
-            intent.putExtra("adventureId", currentAdventureName)
-            startActivity(intent)
+            saveZones()
+            showSnackbar("Aventure sauvegardée")
+            Handler(Looper.getMainLooper()).postDelayed({
+                val intent = Intent(this, NavigatorActivity::class.java)
+                val adventureData = generateAdventureData()
+                val folderUri = adventureData.folderUri
+                val file = File(filesDir, "${currentAdventureName}_zones.json")
+                val fileUri = androidx.core.content.FileProvider.getUriForFile(
+                    this,
+                    "${packageName}.fileprovider",
+                    file
+                )
+                //intent.putExtra("adventureId", currentAdventureName)
+                intent.putExtra("adventureJsonUri", fileUri)
+                intent.putExtra("folderUri", folderUri?.toString())
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) // Très important pour donner accès au fichier
+                startActivity(intent)
+                finish()
+            }, 500)
         }
-
-        // CONFIG START - FloatingActionButton
-        // Ajout du FloatingActionButton en bas à droite (toujours visible)
-        /*val fab = FloatingActionButton(this).apply {
-            setImageResource(R.drawable.ic_baseline_settings_24) // icône roue dentée moderne
-            setOnClickListener { showConfigDialog() }
-        }
-        val params = FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply {
-            gravity = Gravity.BOTTOM or Gravity.END
-            marginEnd = 32
-            bottomMargin = 32
-        }
-        (binding.root as ViewGroup).addView(fab, params)*/
-        // CONFIG END - FloatingActionButton
 
         // Remplacement du bouton d'import dossier par un bouton de synchronisation
         val buttonSyncFolder = binding.bottomBar.root.findViewById<Button>(R.id.buttonSyncFolder)
@@ -462,6 +473,7 @@ class EditorActivity : BaseActivity() {
     }
 
     private fun promptAdventureName() {
+        currentFolderUri = null
         val builder = AlertDialog.Builder(this)
         builder.setTitle("Nouvelle aventure")
         val input = EditText(this)
@@ -498,61 +510,6 @@ class EditorActivity : BaseActivity() {
         val file = File(filesDir, "${name}_zones.json")
         return file.exists()
     }
-
-    /*private fun saveZones() {
-        val file = File(filesDir, "${currentAdventureName}_zones.json")
-        logDebug("SaveZones", "Enregistrement de l’aventure : $currentAdventureName → ${file.absolutePath}")
-        if (currentAdventureName.isEmpty()) {
-            currentAdventureName = "AventureSansNom"
-        }
-
-        // Ajout de toutes les images, même celles sans zones
-        val adventureData = generateAdventureData()
-
-        // Vérifie qu'il y a bien des images à sauvegarder
-        if (adventureData.images.isEmpty()) {
-            Log.w("SaveZones", "Aucune image à sauvegarder → opération annulée.")
-            Snackbar.make(
-                findViewById(android.R.id.content),
-                "Rien à sauvegarder (aucune image chargée).",
-                Snackbar.LENGTH_SHORT
-            ).show()
-            return
-        }
-
-        val gson = GsonBuilder().setPrettyPrinting().create()
-        val json = gson.toJson(adventureData) // Convertir l'objet adventureData en JSON
-        logDebug("SaveZones", "Contenu JSON enregistré:\n$json")
-
-        // Écrire dans le fichier
-        file.writeText(json)
-
-        Log.d("SaveZones", "Aventure sauvegardée sous ${file.absolutePath}")
-        Snackbar.make(
-            findViewById(android.R.id.content),
-            "Aventure sauvegardée : $currentAdventureName",
-            Snackbar.LENGTH_SHORT
-        ).show()
-    }*/
-
-
-    /*private fun saveZones() {
-        if (currentFolderUri == null || imageBitmapMap.isEmpty()) {
-            Log.w("AutoSave", "Pas de dossier ou d’images → autosave annulée.")
-            return
-        }
-        val adventureData = generateAdventureData()
-        val gson = GsonBuilder().setPrettyPrinting().create()
-        val json = gson.toJson(adventureData)
-        val file = File(filesDir, "${currentAdventureName}_zones.json")
-        file.writeText(json)
-
-        Snackbar.make(
-            findViewById(android.R.id.content),
-            "Aventure sauvegardée : $currentAdventureName",
-            Snackbar.LENGTH_SHORT
-        ).show()
-    }*/
 
 
     private fun saveZones() {
@@ -620,46 +577,8 @@ class EditorActivity : BaseActivity() {
         Toast.makeText(this, "Aventure renommée en $newName", Toast.LENGTH_SHORT).show()
     }
 
-    private fun toggleSelection(fullPath: String) {
-        if (!isSelectionMode) {
-            isSelectionMode = true
-            selectedItems.clear()
-        }
-        if (selectedItems.contains(fullPath)) {
-            selectedItems.remove(fullPath)
-        } else {
-            selectedItems.add(fullPath)
-        }
-        imageAdapter.setSelectionMode(isSelectionMode, selectedItems)
-        updateDeleteButtonVisibility(deleteButton)
-        updateBottomBarInfo()
-    }
 
-    private fun updateDeleteButtonVisibility(deleteButton: View) {
-        deleteButton.visibility = if (selectedItems.isNotEmpty()) View.VISIBLE else View.GONE
-        deleteButton.isEnabled = selectedItems.isNotEmpty()
-        selectionModeIndicator.visibility = if (isSelectionMode) View.VISIBLE else View.GONE
-    }
 
-    private fun handleDeleteSelectedItems(deleteButton: View? = null/*, itemToDelete: ??? = null*/) {
-        val itemsToDelete = selectedItems.toList()
-        for (fullPath in itemsToDelete) {
-            if (isGroupPath(fullPath)) removeGroupAndImages(fullPath)
-            else removeImage(fullPath)
-        }
-        selectedItems.clear()
-        exitSelectionMode()
-        imageAdapter.updateData(ImageGroup.fromTree(imageRootNode))
-        deleteButton?.let { updateDeleteButtonVisibility(it) }
-        updateBottomBarInfo()
-    }
-
-    private fun exitSelectionMode() {
-        isSelectionMode = false
-        selectedItems.clear()
-        imageAdapter.setSelectionMode(false, selectedItems)
-        updateBottomBarInfo()
-    }
 
     private fun updateBottomBarInfo(isLoading: Boolean = false) {
         if (!::imagesInfoText.isInitialized) return
@@ -708,38 +627,8 @@ class EditorActivity : BaseActivity() {
         return findNode(imageRootNode)
     }
 
-    private fun removeGroupAndImages(fullPath: String) {
-        fun removeRecursively(parent: ImageGroupNode): Boolean {
-            val iterator = parent.children.iterator()
-            while (iterator.hasNext()) {
-                val child = iterator.next()
-                if (child.fullPath == fullPath) {
-                    child.images.forEach { (_, path) ->
-                        imageBitmapMap.remove(path)
-                        imageDataMap.remove(path)
-                    }
-                    iterator.remove()
-                    return true
-                } else if (removeRecursively(child)) {
-                    return true
-                }
-            }
-            return false
-        }
-        removeRecursively(imageRootNode)
-    }
 
-    private fun removeImage(fullPath: String) {
-        imageBitmapMap[fullPath]?.recycle()
-        imageBitmapMap.remove(fullPath)
-        imageDataMap.remove(fullPath)
-        removeImageFromNode(imageRootNode, fullPath)
-    }
 
-    private fun removeImageFromNode(node: ImageGroupNode, fullPath: String) {
-        node.images.removeAll { it.second == fullPath }
-        node.children.forEach { removeImageFromNode(it, fullPath) }
-    }
 
     private fun loadImagesFromFolder(uri: Uri, clearData: Boolean = true) {
         if (debugLogs) Log.d("EditorActivity", "Loading images from folder: $uri")
@@ -1260,14 +1149,12 @@ class EditorActivity : BaseActivity() {
             // Patch: check folderUriString starts with content://
             currentFolderUri = if (!folderUriString.isNullOrEmpty() && folderUriString.startsWith("content://")) Uri.parse(folderUriString) else null
 
-            if (currentFolderUri == null) {
-                showSnackbar("Erreur : dossier manquant. Merci de le sélectionner.")
-                openFolderPicker()
-                return
-            }
-
-            if (!hasPersistedPermission(currentFolderUri!!)) {
-                showSnackbar("Permission expirée, merci de re-sélectionner le dossier.")
+            // Ajout du test pour éviter de demander à l'utilisateur de resélectionner si déjà autorisé
+            logDebug("EnterEditMode", "Check persisted permissions avant reload")
+            if (currentFolderUri != null && hasPersistedPermission(currentFolderUri!!)) {
+                logDebug("TestFlow", ">>> Appel enterEditMode($adventureName)")
+                requestFolderAccess(currentFolderUri!!)
+            } else {
                 openFolderPicker()
                 return
             }
@@ -1313,7 +1200,6 @@ class EditorActivity : BaseActivity() {
                     if (!hasPersistedPermission(currentFolderUri!!)) {
                         logDebug("EnterEditMode", "Permission persistante manquante")
                         showSnackbar("Permission expirée, merci de re-sélectionner le dossier.")
-                        openFolderPicker()
                         return
                     }
                     if (!folder.exists()) {
@@ -1323,7 +1209,6 @@ class EditorActivity : BaseActivity() {
                         return
                     }
                     logDebug("EnterEditMode", "Dossier accessible → chargement des images")
-                    groupedImages.clear()
                     imageAdapter.updateData(emptyList())
                     requestFolderAccess(currentFolderUri!!)
                 } catch (e: Exception) {
@@ -1338,7 +1223,7 @@ class EditorActivity : BaseActivity() {
             }
             logDebug("EnterEditMode", "Mode édition prêt, synchro non encore lancée")
             // Affiche automatiquement la première image et ses zones après chargement de l'aventure
-            lifecycleScope.launch(Dispatchers.Main) {
+            /*lifecycleScope.launch(Dispatchers.Main) {
                 val firstImagePath = imageDataMap.keys.firstOrNull()
                 if (firstImagePath != null) {
                     // Patch: skip if bitmap not ready
@@ -1348,10 +1233,9 @@ class EditorActivity : BaseActivity() {
                     }
                     onImageSelected(firstImagePath)
                 }
-            }
+            }*/
         } else {
-            imageBitmapMap.values.forEach { if (!it.isRecycled) it.recycle() }
-            imageBitmapMap.clear()
+            currentFolderUri = null
             logDebug("EnterEditMode", "Aventure introuvable, création d’une nouvelle aventure")
             showSnackbar("Aventure introuvable, création d’une nouvelle.")
             logDebug("EnterEditMode", "promptAdventureName() appelé car fichier introuvable")
@@ -1360,9 +1244,12 @@ class EditorActivity : BaseActivity() {
     }
 
 
+    // Modifiée : accepte read OU write (plus souple)
     private fun hasPersistedPermission(uri: Uri): Boolean {
         val persistedUris = contentResolver.persistedUriPermissions
-        return persistedUris.any { it.uri == uri && it.isReadPermission && it.isWritePermission }
+        val hasPermission = persistedUris.any { it.uri == uri && (it.isReadPermission || it.isWritePermission) }
+        if (debugLogs) Log.d("AppDebug", "hasPersistedPermission: $hasPermission pour $uri")
+        return hasPermission
     }
 
 }
