@@ -475,7 +475,7 @@ class EditorActivity : BaseActivity() {
         //val buttonRenameAdventure = binding.bottomBar.buttonRenameAdventure
 
         // Ajout du bouton Refresh juste après le bouton Menu (Aventure)
-        val buttonRefresh = Button(this).apply {
+        /*val buttonRefresh = Button(this).apply {
             text = "Refresh"
             setOnClickListener {
                 if (isBusy) {
@@ -488,10 +488,10 @@ class EditorActivity : BaseActivity() {
                 Toast.makeText(this@EditorActivity, "Données sauvegardées, images rechargées…", Toast.LENGTH_SHORT).show()
                 //currentFolderUri?.let { requestFolderAccess(it)
             }
-        }
+        }*/
         val bottomBar = binding.bottomBar.root
-        val indexMenu = bottomBar.indexOfChild(findViewById(R.id.buttonMenu))
-        bottomBar.addView(buttonRefresh, indexMenu + 1)
+        //val indexMenu = bottomBar.indexOfChild(findViewById(R.id.buttonMenu))
+        //bottomBar.addView(buttonRefresh, indexMenu + 1)
 
         // Listeners sur les boutons
         buttonSave.setOnClickListener {
@@ -677,6 +677,7 @@ class EditorActivity : BaseActivity() {
             imagesInfoText.visibility = View.VISIBLE
             worldsInfoText.visibility = View.VISIBLE
             imagesInfoText.text = getString(R.string.images_count, imageDataMap.size)
+            imagesInfoText.textSize = 16f
             updateWorldAndUnlinkedCounts()
         }
     }
@@ -693,6 +694,7 @@ class EditorActivity : BaseActivity() {
             .toSet()
         val unlinkedCount = imageFileMap.keys.count { it !in linkedImageNames }
         worldsInfoText.text = getString(R.string.worlds_count, worldCount)
+        worldsInfoText.textSize = 16f
         //findViewById<TextView>(R.id.textUnlinkedCount).text = getString(R.string.unlinked_count, unlinkedCount)
     }
 
