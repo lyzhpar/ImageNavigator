@@ -14,7 +14,7 @@
         android:layout_height="wrap_content"
         android:layout_margin="8dp"
         android:background="@drawable/adventure_card_background"
-        android:backgroundTint="#B8B8B8"
+        android:backgroundTint="#C7C7C7"
         android:clickable="false"
         android:focusable="false">
 
@@ -48,6 +48,7 @@
                 android:layout_height="wrap_content"
                 android:layout_margin="4dp"
                 android:backgroundTint="@color/white"
+                android:textStyle="bold"
                 android:text="Modifier"
                 android:textColor="@android:color/black" />
 
@@ -57,6 +58,7 @@
                 android:layout_height="wrap_content"
                 android:layout_margin="4dp"
                 android:backgroundTint="@color/white"
+                android:textStyle="bold"
                 android:text="Renommer"
                 android:textColor="@android:color/black" />
 
@@ -66,6 +68,7 @@
                 android:layout_height="wrap_content"
                 android:layout_margin="4dp"
                 android:backgroundTint="@color/colorAccent"
+                android:textStyle="bold"
                 android:text="Supprimer"
                 android:textColor="@android:color/white" />
         </LinearLayout>

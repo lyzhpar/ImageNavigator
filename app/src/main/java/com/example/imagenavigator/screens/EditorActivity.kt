@@ -595,6 +595,7 @@ class EditorActivity : BaseActivity() {
                 openFolderPicker()
             }
         }
+        builder.setNegativeButton("Annuler", null)
 
         val dialog = builder.create()
         dialog.setOnShowListener {
