@@ -510,6 +510,7 @@ class DrawingView @JvmOverloads constructor(
         }
 
         zones.removeAll(zonesToDelete)
+        zonesToDelete.map { it.toZoneData() }.forEach { linkedThumbnails.remove(it) }
 
         (context as? EditorActivity)?.updateImageDataMap(zones)
         (context as? EditorActivity)?.refreshThumbnailZones()
