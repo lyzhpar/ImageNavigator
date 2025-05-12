@@ -75,6 +75,7 @@ class EditorActivity : BaseActivity() {
     private var isSelectionMode = false
 
     private lateinit var imagesInfoText: TextView
+    //private lateinit var loadingTextView: TextView
     private lateinit var worldsInfoText: TextView
     private lateinit var selectedImagesCount: TextView
     private lateinit var selectedWorldsCount: TextView
@@ -403,7 +404,8 @@ class EditorActivity : BaseActivity() {
             deleteZonesButton.visibility = View.GONE
         }
 
-        loadingProgressBar = findViewById(R.id.progressBarLoading)
+        loadingProgressBar = findViewById(R.id.loadingOverlay)
+        //loadingTextView = findViewById(R.id.LoadingText)
 
         // Adapter images
         imageAdapter = ImageAdapter(
@@ -670,9 +672,9 @@ class EditorActivity : BaseActivity() {
             val folders = selectedItems.count { isGroupPath(it) }
             selectionInfoContainer.isVisible = true
             selectedImagesCount.text = getString(R.string.images_count, images)
-            selectedWorldsCount.text = getString(R.string.folders_count, folders)
+            //selectedWorldsCount.text = getString(R.string.folders_count, folders)
             imagesInfoText.visibility = View.GONE
-            worldsInfoText.visibility = View.GONE
+            //worldsInfoText.visibility = View.GONE
         } else {
             selectionInfoContainer.isVisible = false
             imagesInfoText.visibility = View.VISIBLE
@@ -735,10 +737,24 @@ class EditorActivity : BaseActivity() {
                     Log.w("EditorActivity", "imagesInfoText non initialisé, on saute la mise à jour UI.")
                 } else {
                     loadingProgressBar.visibility = View.VISIBLE
-                    imagesInfoText.text = getString(R.string.loading_progress, 0, 0)
+                    //loadingTextView.visibility = View.VISIBLE
+                    imagesInfoText.text = getString(R.string.loading_progress)
+                    imagesInfoText.textSize = 18f
+
                 }
                 loadingProgressBar.visibility = View.VISIBLE
-                imagesInfoText.text = getString(R.string.loading_progress, 0, 0)
+                imagesInfoText.text = getString(R.string.loading_progress)
+                imagesInfoText.textSize = 22f
+                //loadingTextView.visibility = View.VISIBLE
+                // Faire disparaître textWorldCount pendant le chargement
+                if (::worldsInfoText.isInitialized) {
+                    worldsInfoText.visibility = View.GONE
+                    // Masquer les boutons de la bottom bar
+                    binding.bottomBar.buttonSave.visibility = View.GONE
+                    binding.bottomBar.buttonMenu.visibility = View.GONE
+                    binding.bottomBar.buttonStartAdventure.visibility = View.GONE
+                    binding.bottomBar.buttonSyncFolder.visibility = View.GONE
+                }
             }
 
             // Ajout: clear les listes globales si clearData demandé (une seule fois au début)
@@ -852,6 +868,11 @@ class EditorActivity : BaseActivity() {
                 imageAdapter.notifyDataSetChanged()
                 updateLoadingProgress()
                 loadingProgressBar.visibility = View.GONE
+                binding.bottomBar.buttonSave.visibility = View.VISIBLE
+                binding.bottomBar.buttonMenu.visibility = View.VISIBLE
+                binding.bottomBar.buttonStartAdventure.visibility = View.VISIBLE
+                binding.bottomBar.buttonSyncFolder.visibility = View.VISIBLE
+                //loadingTextView.visibility = View.GONE
                 if (skippedFiles.isNotEmpty()) {
                     Toast.makeText(
                         this@EditorActivity,
@@ -879,11 +900,13 @@ class EditorActivity : BaseActivity() {
             if (totalImagesToLoad > 0) {
                 val safeLoadedCount = minOf(loadedImagesCount, totalImagesToLoad)
                 val progressPercent = (loadedImagesCount * 100) / totalImagesToLoad
-                loadingProgressBar.progress = progressPercent
-                imagesInfoText.text = getString(R.string.loading_progress, safeLoadedCount, totalImagesToLoad)
+                //loadingProgressBar.progress = progressPercent
+                //imagesInfoText.text = getString(R.string.loading_progress, safeLoadedCount, totalImagesToLoad)
+                imagesInfoText.text = getString(R.string.loading_progress)
+
             }
             binding.bottomBar.buttonSave.isEnabled = true
-            loadingProgressBar.visibility = View.VISIBLE
+            //loadingProgressBar.visibility = View.VISIBLE
         } catch (e: Exception) {
             Log.e("EditorActivity", "Erreur UI update: ${e.message}")
         }
