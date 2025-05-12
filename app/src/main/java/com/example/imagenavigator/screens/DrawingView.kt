@@ -1,6 +1,5 @@
 package com.example.imagenavigator.screens
 
-import android.R.attr.bitmap
 import android.content.Context
 import android.graphics.*
 import android.util.AttributeSet
@@ -9,6 +8,7 @@ import android.view.View
 import com.example.imagenavigator.model.Zone
 import android.util.Log
 import android.view.GestureDetector
+import com.example.imagenavigator.model.ZoneData
 import com.google.android.material.snackbar.Snackbar
 
 /**
@@ -57,6 +57,9 @@ class DrawingView @JvmOverloads constructor(
     var imageExistChecker: ((String) -> Boolean)? = null
 
     private val selectedZonesMulti = mutableSetOf<Zone>()
+    private val linkedThumbnails = mutableMapOf<ZoneData, Bitmap>()
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
     fun clearSelectedZones() {
         selectedZonesMulti.clear()
         (context as? EditorActivity)?.updateDeleteButtonVisibilityForZones()
@@ -185,15 +188,6 @@ class DrawingView @JvmOverloads constructor(
             val absRect = RectF(absLeft, absTop, absRight, absBottom)
             Log.d("DebugOnDraw", "On est juste avant la tentative de dessinder une vignette !")
 
-            // Afficher la vignette 50% transparente de l’image liée au-dessus de chaque zone, taille fixe
-           /* zone.linkedImagePath?.let { linkedPath ->
-                val linkedBitmap = imageDataMap[linkedPath]
-                linkedBitmap?.let { bmp ->
-                    if (editorConfig.showLinkedThumbnails) {
-                        drawLinkedThumbnail(canvas, bmp, absRect)
-                    }
-                }
-            }*/
 
             //TODO:Config couleur zones
             val zonePaint = Paint().apply {
@@ -218,39 +212,25 @@ class DrawingView @JvmOverloads constructor(
             canvas.drawRect(it, tempPaint)
             canvas.drawRect(it, paintBorder)
         }
+
+        linkedThumbnails.forEach { (zone, bitmap) ->
+            val rect = zone.rect.toRectF(width.toFloat(), height.toFloat())
+            val size = 100f
+            val left = rect.centerX() - size / 2
+            val top = rect.top - size - 8f
+            val destRect = RectF(left, top, left + size, top + size)
+            canvas.drawBitmap(bitmap, null, destRect, paint)
+        }
+
+
     }
 
 
-
-
-
-    private fun drawLinkedThumbnail(canvas: Canvas, bmp: Bitmap, absRect: RectF) {
-        Log.d("DebugThumbnail", "Appel de drawLinkedThumbnail pour ${absRect}, bitmap = $bmp, recyclé = ${bmp.isRecycled}")
-        if (bmp.isRecycled || bmp.width == 0 || bmp.height == 0) {
-            Log.e("DrawingView", "Bitmap vignette invalide, draw sauté")
-            return
-        }
-        val thumbnailWidth = editorConfig.thumbnailWidth
-        val thumbnailHeight = editorConfig.thumbnailHeight
-        val srcAspect = bmp.width.toFloat() / bmp.height.toFloat()
-        val targetAspect = thumbnailWidth.toFloat() / thumbnailHeight.toFloat()
-        val srcRect: Rect = if (editorConfig.keepPanoramic && srcAspect > targetAspect) {
-            val newWidth = (bmp.height * targetAspect).toInt()
-            val left = (bmp.width - newWidth) / 2
-            Rect(left, 0, left + newWidth, bmp.height)
-        } else if (editorConfig.keepPanoramic) {
-            val newHeight = (bmp.width / targetAspect).toInt()
-            val top = (bmp.height - newHeight) / 2
-            Rect(0, top, bmp.width, top + newHeight)
-        } else {
-            Rect(0, 0, bmp.width, bmp.height)
-        }
-        val paint = Paint().apply { alpha = editorConfig.thumbnailAlpha }
-        val thumbLeft = absRect.left
-        val thumbTop = absRect.top - thumbnailHeight
-        val thumbRect = RectF(thumbLeft, thumbTop, thumbLeft + thumbnailWidth, thumbTop + thumbnailHeight)
-        canvas.drawBitmap(bmp, srcRect, thumbRect, paint)
+    fun setLinkedThumbnailBitmap(zone: ZoneData, bitmap: Bitmap) {
+        linkedThumbnails[zone] = bitmap
+        invalidate()
     }
+    
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val bitmap = bitmapProvider?.invoke()
