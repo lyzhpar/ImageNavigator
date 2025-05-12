@@ -163,7 +163,7 @@ class ImageAdapter(
         private val checkbox: ImageView = view.findViewById(R.id.checkbox)
 
         fun bind(item: DisplayItem.GroupItem) {
-            textView.text = item.name
+            textView.text = "📁 ${item.name}"
             textView.setTypeface(
                 null,
                 if (item.name == "Racine") android.graphics.Typeface.ITALIC else android.graphics.Typeface.NORMAL
