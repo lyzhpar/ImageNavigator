@@ -13,6 +13,7 @@ import com.example.imagenavigator.model.toZoneData
 import com.google.android.material.snackbar.Snackbar
 import com.example.imagenavigator.utils.toRectF
 import com.example.imagenavigator.utils.ThumbnailLoader
+import kotlin.math.abs
 
 
 /**
@@ -34,7 +35,8 @@ class DrawingView @JvmOverloads constructor(
         var thumbnailHeight: Int = 200,
         var thumbnailAlpha: Int = 200,
         var keepPanoramic: Boolean = true,
-        var showLinkedThumbnails: Boolean = true
+        var showLinkedThumbnails: Boolean = true,
+        var margin: Float = 0f
     )
     var editorConfig = EditorConfig()
 
@@ -244,34 +246,82 @@ class DrawingView @JvmOverloads constructor(
                 alpha = editorConfig.thumbnailAlpha
             }
 
-            linkedThumbnails.forEach { (zone, bitmap) ->
-                val r = zone.rect
+            linkedThumbnails.forEach { (zone, bmp) ->
                 val dstRect = getImageDisplayRect(bitmapProvider?.invoke() ?: return@forEach)
-                val absLeft = dstRect.left + r.left * dstRect.width()
-                val absTop = dstRect.top + r.top * dstRect.height()
-                val absRight = dstRect.left + r.right * dstRect.width()
-                val absBottom = dstRect.top + r.bottom * dstRect.height()
-                val rect = RectF(absLeft, absTop, absRight, absBottom)
+                val absLeft = dstRect.left + zone.rect.left * dstRect.width()
+                val absTop = dstRect.top + zone.rect.top * dstRect.height()
+                val absRight = dstRect.left + zone.rect.right * dstRect.width()
+                val absBottom = dstRect.top + zone.rect.bottom * dstRect.height()
+                val absRect = RectF(absLeft, absTop, absRight, absBottom)
 
-                val margin = 8f
-                val maxThumbSize = 200f
-
-                val aspectRatio = bitmap.width.toFloat() / bitmap.height.toFloat()
-                val (thumbWidth, thumbHeight) = if (aspectRatio >= 1f) {
-                    maxThumbSize to (maxThumbSize / aspectRatio)
-                } else {
-                    (maxThumbSize * aspectRatio) to maxThumbSize
-                }
-
-                val left = rect.right - thumbWidth - margin
-                val top = rect.top + margin
-                val destRect = RectF(left, top, left + thumbWidth, top + thumbHeight)
-
-                canvas.drawBitmap(bitmap, null, destRect, alphaPaint)
+                drawLinkedThumbnail(canvas, bmp, absRect)
             }
         }
     }
 
+    private fun drawLinkedThumbnail(canvas: Canvas, bmp: Bitmap, absRect: RectF) {
+        if (bmp.isRecycled) {
+            Log.e("DrawingView", "Bitmap recyclé détecté pour la vignette, on saute le draw")
+            return
+        }
+
+        val thumbnailWidth = editorConfig.thumbnailWidth.toFloat()
+        val thumbnailHeight = editorConfig.thumbnailHeight.toFloat()
+        val margin = editorConfig.margin
+
+        val srcAspect = bmp.width.toFloat() / bmp.height.toFloat()
+        val targetAspect = thumbnailWidth / thumbnailHeight
+
+        val srcRect: Rect = if (editorConfig.keepPanoramic && srcAspect > targetAspect) {
+            // Image panoramique plus large que la cible
+            val newWidth = (bmp.height * targetAspect).toInt()
+            val left = (bmp.width - newWidth) / 2
+            Rect(left, 0, left + newWidth, bmp.height)
+        } else if (editorConfig.keepPanoramic) {
+            // Image plus haute que large
+            val newHeight = (bmp.width / targetAspect).toInt()
+            val top = (bmp.height - newHeight) / 2
+            Rect(0, top, bmp.width, top + newHeight)
+        } else {
+            Rect(0, 0, bmp.width, bmp.height)
+        }
+
+        val paint = Paint().apply { alpha = editorConfig.thumbnailAlpha }
+
+        // Position de la vignette par défaut : au-dessus à gauche de la zone
+        val thumbLeft = absRect.left
+        val thumbTop = absRect.top - thumbnailHeight - margin
+        val thumbRect = RectF(thumbLeft, thumbTop, thumbLeft + thumbnailWidth, thumbTop + thumbnailHeight)
+
+        // ✅ Vérification des débordements
+        val displayWidth = width.toFloat()
+        val displayHeight = height.toFloat()
+
+        // Si trop à gauche
+        if (thumbRect.left < margin) {
+            thumbRect.offsetTo(margin, thumbRect.top)
+        }
+
+        // Si trop en haut
+        if (thumbRect.top < margin) {
+            thumbRect.offsetTo(thumbRect.left, absRect.bottom + margin)
+        }
+
+        // Si trop à droite
+        if (thumbRect.right > displayWidth - margin) {
+            val newLeft = displayWidth - thumbnailWidth - margin
+            thumbRect.offsetTo(newLeft, thumbRect.top)
+        }
+
+        // Si trop en bas (rare)
+        if (thumbRect.bottom > displayHeight - margin) {
+            val newTop = displayHeight - thumbnailHeight - margin
+            thumbRect.offsetTo(thumbRect.left, newTop)
+        }
+
+        // Dessin final
+        canvas.drawBitmap(bmp, srcRect, thumbRect, paint)
+    }
 
     fun setLinkedThumbnailBitmap(zone: ZoneData, bitmap: Bitmap) {
         if (zone.linkedImagePath == null) return
