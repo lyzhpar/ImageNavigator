@@ -9,7 +9,11 @@ import com.example.imagenavigator.model.Zone
 import android.util.Log
 import android.view.GestureDetector
 import com.example.imagenavigator.model.ZoneData
+import com.example.imagenavigator.model.toZoneData
 import com.google.android.material.snackbar.Snackbar
+import com.example.imagenavigator.utils.toRectF
+import com.example.imagenavigator.utils.ThumbnailLoader
+
 
 /**
  * Vue personnalisée qui permet d'afficher une image et de dessiner des zones rectangulaires
@@ -78,6 +82,30 @@ class DrawingView @JvmOverloads constructor(
         isReloading = false
         isBitmapReady = true
         invalidate()
+    }
+
+    fun clearLinkedThumbnails() {
+        linkedThumbnails.clear()
+        invalidate()
+    }
+
+    fun reloadLinkedThumbnailsForCurrentImage() {
+        linkedThumbnails.clear()
+
+        val bitmap = bitmapProvider?.invoke()
+        if (bitmap == null || bitmap.isRecycled) return
+
+        zones.filter { it.linkedImagePath != null }.forEach { zone ->
+            val uri = (context as? EditorActivity)?.imageFileMap?.get(zone.linkedImagePath!!)?.uri
+            if (uri != null) {
+                ThumbnailLoader.load(context, uri) { bitmap, _ ->
+                    if (zone.linkedImagePath != null) {
+                        linkedThumbnails[zone.toZoneData()] = bitmap
+                        invalidate()
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -186,8 +214,6 @@ class DrawingView @JvmOverloads constructor(
             val absRight = dstRect.left + r.right * dstRect.width()
             val absBottom = dstRect.top + r.bottom * dstRect.height()
             val absRect = RectF(absLeft, absTop, absRight, absBottom)
-            Log.d("DebugOnDraw", "On est juste avant la tentative de dessinder une vignette !")
-
 
             //TODO:Config couleur zones
             val zonePaint = Paint().apply {
@@ -213,24 +239,46 @@ class DrawingView @JvmOverloads constructor(
             canvas.drawRect(it, paintBorder)
         }
 
-        linkedThumbnails.forEach { (zone, bitmap) ->
-            val rect = zone.rect.toRectF(width.toFloat(), height.toFloat())
-            val size = 100f
-            val left = rect.centerX() - size / 2
-            val top = rect.top - size - 8f
-            val destRect = RectF(left, top, left + size, top + size)
-            canvas.drawBitmap(bitmap, null, destRect, paint)
+        if (editorConfig.showLinkedThumbnails) {
+            val alphaPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                alpha = editorConfig.thumbnailAlpha
+            }
+
+            linkedThumbnails.forEach { (zone, bitmap) ->
+                val r = zone.rect
+                val dstRect = getImageDisplayRect(bitmapProvider?.invoke() ?: return@forEach)
+                val absLeft = dstRect.left + r.left * dstRect.width()
+                val absTop = dstRect.top + r.top * dstRect.height()
+                val absRight = dstRect.left + r.right * dstRect.width()
+                val absBottom = dstRect.top + r.bottom * dstRect.height()
+                val rect = RectF(absLeft, absTop, absRight, absBottom)
+
+                val margin = 8f
+                val maxThumbSize = 200f
+
+                val aspectRatio = bitmap.width.toFloat() / bitmap.height.toFloat()
+                val (thumbWidth, thumbHeight) = if (aspectRatio >= 1f) {
+                    maxThumbSize to (maxThumbSize / aspectRatio)
+                } else {
+                    (maxThumbSize * aspectRatio) to maxThumbSize
+                }
+
+                val left = rect.right - thumbWidth - margin
+                val top = rect.top + margin
+                val destRect = RectF(left, top, left + thumbWidth, top + thumbHeight)
+
+                canvas.drawBitmap(bitmap, null, destRect, alphaPaint)
+            }
         }
-
-
     }
 
 
     fun setLinkedThumbnailBitmap(zone: ZoneData, bitmap: Bitmap) {
+        if (zone.linkedImagePath == null) return
         linkedThumbnails[zone] = bitmap
         invalidate()
     }
-    
+
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val bitmap = bitmapProvider?.invoke()

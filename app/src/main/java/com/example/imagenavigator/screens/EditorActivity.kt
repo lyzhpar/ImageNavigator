@@ -49,6 +49,7 @@ import com.bumptech.glide.request.target.Target
 import com.bumptech.glide.load.engine.GlideException
 import com.bumptech.glide.load.DataSource
 import android.graphics.drawable.Drawable
+import com.example.imagenavigator.utils.ThumbnailLoader
 
 import androidx.lifecycle.lifecycleScope
 
@@ -66,7 +67,7 @@ class EditorActivity : BaseActivity() {
     private var currentImageName: String? = null
 
     // Map pour retrouver le DocumentFile correspondant à chaque image
-    private val imageFileMap = mutableMapOf<String, DocumentFile>()
+    val imageFileMap = mutableMapOf<String, DocumentFile>()
 
     private lateinit var adventureNameTextView: TextView
     private var currentAdventureName: String = ""
@@ -240,7 +241,9 @@ class EditorActivity : BaseActivity() {
                         Log.d("EditorActivity", "Image chargée avec succès: $fullPath (tentative $attempt)")
                         currentImageName = fullPath
                         binding.drawingView.loadImage(resource)
+                        binding.drawingView.clearLinkedThumbnails()
                         binding.drawingView.setZonesForCurrentImage(imageDataMap[fullPath] ?: emptyList())
+                        binding.drawingView.reloadLinkedThumbnailsForCurrentImage()
                         Log.d(
                             "EditorActivity",
                             "Zones définies pour image: $fullPath, zones count: ${imageDataMap[fullPath]?.size ?: 0}"
@@ -1221,6 +1224,14 @@ class EditorActivity : BaseActivity() {
             }
             logDebug("LinkZone", "Zone liée: ${selectedZone.rect}, image: $linkedImagePath")
             logDebug("LinkZone", "ImageDataMap après liaison: $imageDataMap")
+        }
+        // Load the thumbnail only if the zone is now successfully linked
+        if (selectedZone?.linkedImagePath != null) {
+            imageFileMap[selectedZone.linkedImagePath!!]?.uri?.let { uri ->
+                ThumbnailLoader.load(this, uri) { bitmap, _->
+                    binding.drawingView.setLinkedThumbnailBitmap(selectedZone.toZoneData(), bitmap)
+                }
+            }
         }
     }
 
