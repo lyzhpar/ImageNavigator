@@ -349,21 +349,23 @@ class DrawingView @JvmOverloads constructor(
             return true
         }
         val dstRect = getImageDisplayRect(bitmap)
-        val x = event.x.coerceIn(dstRect.left, dstRect.right)
-        val y = event.y.coerceIn(dstRect.top, dstRect.bottom)
+        val x = event.x
+        val y = event.y
+        val clampedX = x.coerceIn(dstRect.left, dstRect.right)
+        val clampedY = y.coerceIn(dstRect.top, dstRect.bottom)
 
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
-                startX = x
-                startY = y
+                startX = clampedX
+                startY = clampedY
                 drawingRect = RectF(startX, startY, startX, startY)
             }
             MotionEvent.ACTION_MOVE -> {
                 drawingRect?.set(
-                    minOf(startX, x),
-                    minOf(startY, y),
-                    maxOf(startX, x),
-                    maxOf(startY, y)
+                    minOf(startX, clampedX),
+                    minOf(startY, clampedY),
+                    maxOf(startX, clampedX),
+                    maxOf(startY, clampedY)
                 )
                 invalidate()
             }
