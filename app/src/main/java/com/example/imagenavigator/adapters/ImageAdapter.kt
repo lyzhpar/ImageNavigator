@@ -66,6 +66,9 @@ class ImageAdapter(
 
     fun updateData(newGroups: List<ImageGroup>) {
         rootGroups = newGroups.toMutableList()
+        if (rootGroups.any { it.name == "Racine" }) {
+            expandedGroups.add("Racine")
+        }
         displayItems = flattenGroups(rootGroups)
         submitList(displayItems)
     }
@@ -95,13 +98,19 @@ class ImageAdapter(
     }
 
     fun addImage(fullPath: String) {
-        val mainGroupName = fullPath.substringBefore("/", "Racine")
+        val isInRoot = !fullPath.contains("/")
+
+        val mainGroupName = if (isInRoot) "Racine" else fullPath.substringBefore("/")
         var group = rootGroups.find { it.name == mainGroupName }
 
         if (group == null) {
-            group =
-                ImageGroup(name = mainGroupName, images = mutableListOf(), fullPath = mainGroupName)
-            rootGroups = rootGroups + group
+            // Crée le groupe seulement si ce n'est pas "Racine" ou s'il y a une image à la racine
+            if (mainGroupName != "Racine" || isInRoot) {
+                group = ImageGroup(name = mainGroupName, images = mutableListOf(), fullPath = mainGroupName)
+                rootGroups = rootGroups + group
+            } else {
+                return // Ne crée pas "Racine" pour une image dans un sous-dossier
+            }
         }
 
         // Ensure no duplicate images
@@ -122,8 +131,8 @@ class ImageAdapter(
             val groupKey = group.fullPath ?: safeGroupName
 
             result.add(DisplayItem.GroupItem(safeGroupName, groupKey))
-
-            val shouldExpand = groupKey.isBlank() || expandedGroups.contains(groupKey) || group.name == "Racine"
+        //Groupe Racine toujours étendu/ouvert
+            val shouldExpand = expandedGroups.contains(groupKey)
             if (shouldExpand) {
                 result.addAll(group.images.map { name ->
                     DisplayItem.ImageItem(name)
@@ -218,8 +227,15 @@ class ImageAdapter(
                 } else {
                     expandedGroups.add(item.fullPath)
                 }
+
                 displayItems = flattenGroups(rootGroups)
-                submitList(displayItems)
+                submitList(displayItems.toList())  // met à jour currentList proprement
+
+                // On force le rebind du groupe pour mettre à jour la flèche
+                val index = displayItems.indexOfFirst {
+                    it is DisplayItem.GroupItem && it.fullPath == item.fullPath
+                }
+                if (index != -1) notifyItemChanged(index)
             }
         }
     }
