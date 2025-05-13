@@ -99,21 +99,19 @@ class ImageAdapter(
 
     fun addImage(fullPath: String) {
         val isInRoot = !fullPath.contains("/")
-
         val mainGroupName = if (isInRoot) "Racine" else fullPath.substringBefore("/")
         var group = rootGroups.find { it.name == mainGroupName }
 
-        if (group == null) {
-            // Crée le groupe seulement si ce n'est pas "Racine" ou s'il y a une image à la racine
-            if (mainGroupName != "Racine" || isInRoot) {
-                group = ImageGroup(name = mainGroupName, images = mutableListOf(), fullPath = mainGroupName)
-                rootGroups = rootGroups + group
-            } else {
-                return // Ne crée pas "Racine" pour une image dans un sous-dossier
-            }
+        if (!isInRoot && mainGroupName == "Racine") {
+            // Évite de créer un groupe "Racine" pour une image située dans un dossier nommé "Racine"
+            return
         }
 
-        // Ensure no duplicate images
+        if (group == null) {
+            group = ImageGroup(name = mainGroupName, images = mutableListOf(), fullPath = mainGroupName)
+            rootGroups = rootGroups + group
+        }
+
         if (!group.images.contains(fullPath)) {
             group.images.add(fullPath)
         }
@@ -130,8 +128,12 @@ class ImageAdapter(
             val safeGroupName = group.name.ifBlank { "[nom inconnu]" }
             val groupKey = group.fullPath ?: safeGroupName
 
+            // Ignore totally empty groups (no images and no children)
+            if (group.images.isEmpty() && group.children.isEmpty()) {
+                continue  // Ignore les groupes totalement vides
+            }
             result.add(DisplayItem.GroupItem(safeGroupName, groupKey))
-        //Groupe Racine toujours étendu/ouvert
+            //Groupe Racine toujours étendu/ouvert
             val shouldExpand = expandedGroups.contains(groupKey)
             if (shouldExpand) {
                 result.addAll(group.images.map { name ->
