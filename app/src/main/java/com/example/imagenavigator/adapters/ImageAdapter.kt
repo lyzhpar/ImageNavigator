@@ -123,7 +123,7 @@ class ImageAdapter(
 
             result.add(DisplayItem.GroupItem(safeGroupName, groupKey))
 
-            val shouldExpand = groupKey.isBlank() || expandedGroups.contains(groupKey)
+            val shouldExpand = groupKey.isBlank() || expandedGroups.contains(groupKey) || group.name == "Racine"
             if (shouldExpand) {
                 result.addAll(group.images.map { name ->
                     DisplayItem.ImageItem(name)
