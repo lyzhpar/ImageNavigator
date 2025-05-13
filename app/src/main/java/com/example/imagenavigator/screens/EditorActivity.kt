@@ -524,6 +524,19 @@ class EditorActivity : BaseActivity() {
         binding.drawingView.onZoneCreated = { zone ->
             currentImageName?.let { imageName ->
                 imageDataMap[imageName]?.add(zone)
+
+                imageAdapter.imageZonesMap = imageDataMap.mapValues { it.value.map { z -> z.toZoneData() } }
+
+                val index = imageAdapter.currentList.indexOfFirst { it.fullPath == imageName }
+                if (index >= 0) {
+                    val vh = binding.recyclerViewThumbnails.findViewHolderForAdapterPosition(index)
+                    val updatedZones = imageAdapter.imageZonesMap[imageName] ?: emptyList()
+                    if (::imageAdapter.isInitialized && vh is ImageAdapter.ImageViewHolder) {
+                        vh.overlayView.zones = updatedZones
+                        vh.overlayView.invalidate()
+                        Log.d("ZoneUpdate", "Zones mises à jour dans overlayView pour $imageName")
+                    }
+                }
             }
         }
 

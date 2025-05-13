@@ -23,6 +23,8 @@ import com.bumptech.glide.request.target.Target
 import android.graphics.drawable.Drawable
 import com.bumptech.glide.load.DataSource
 import com.bumptech.glide.load.engine.DiskCacheStrategy
+import com.example.imagenavigator.screens.ZoneOverlayView
+import com.example.imagenavigator.model.toZoneData
 
 class ImageAdapter(
     private var rootGroups: List<ImageGroup>,
@@ -129,12 +131,12 @@ class ImageAdapter(
 
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         val item = getItem(position)
+
         when (holder) {
             is GroupViewHolder -> {
                 holder.bind(item as DisplayItem.GroupItem)
                 holder.itemView.setOnLongClickListener {
-                    Log.d("ImageAdapter", "Long press sur : ${item.fullPath}")
-                    onItemLongPress(item as DisplayItem.GroupItem)
+                    onItemLongPress(item)
                     true
                 }
             }
@@ -142,9 +144,20 @@ class ImageAdapter(
             is ImageViewHolder -> {
                 holder.bind(item as DisplayItem.ImageItem)
                 holder.itemView.setOnLongClickListener {
-                    Log.d("ImageAdapter", "Long press sur : ${item.fullPath}")
-                    onItemLongPress(item as DisplayItem.ImageItem)
+                    onItemLongPress(item)
                     true
+                }
+
+                val imagePath = item.fullPath
+                val zones = imageZonesMap[imagePath]
+                    ?.filter { it.linkedImagePath != null }
+                    ?: emptyList()
+
+                (holder as? ImageViewHolder)?.overlayView?.let { view ->
+                    if (view is ZoneOverlayView) {
+                        view.zones = zones
+                        view.invalidate() // Force redraw immediately
+                    }
                 }
             }
         }
@@ -189,7 +202,7 @@ class ImageAdapter(
 
     inner class ImageViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val imageView: ImageView = view.findViewById(R.id.image_view)
-        private val overlayView: View? = view.findViewById(R.id.zoneOverlayView)
+        val overlayView: ZoneOverlayView = view.findViewById(R.id.zoneOverlay)
         private val checkbox: ImageView = view.findViewById(R.id.checkbox)  // La coche pour l'image
         fun bind(item: DisplayItem) {
 

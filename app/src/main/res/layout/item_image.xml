@@ -11,8 +11,12 @@
         android:layout_width="match_parent"
         android:layout_height="110dp"
         android:scaleType="centerCrop"
-        android:adjustViewBounds="true"
-/>
+        android:adjustViewBounds="true"/>
+
+    <com.example.imagenavigator.screens.ZoneOverlayView
+        android:id="@+id/zoneOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
 
     <ImageView
         android:id="@+id/checkbox"
@@ -21,14 +25,6 @@
         android:src="@drawable/ic_checkmark"
         app:tint="#FFFFFF"
         android:visibility="gone"
-        android:layout_gravity="end"
-    />
-
-    <View
-        android:id="@+id/zoneOverlayView"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="#5000CC00"
-        android:visibility="gone"/>
+        android:layout_gravity="end"/>
 
 </FrameLayout>
