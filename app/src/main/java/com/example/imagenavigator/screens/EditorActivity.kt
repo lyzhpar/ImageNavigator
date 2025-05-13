@@ -163,6 +163,14 @@ class EditorActivity : BaseActivity() {
         currentFolderUri = uri
         Log.d("LoadImagesFromFolder", "Entrée !!!")
         loadImagesFromFolder(uri, clearData)
+        // Bloc ajouté pour restaurer automatiquement l’image de départ après chargement
+        startImagePath?.let { imagePath ->
+            Handler(Looper.getMainLooper()).postDelayed({
+                onImageSelected(imagePath)
+            }, 500)
+        }
+        imageAdapter.imageZonesMap = imageDataMap.mapValues { it.value.map { it.toZoneData() } }
+        imageAdapter.notifyDataSetChanged()
     }
 
     private fun setStartImage(fullPath: String) {
@@ -445,11 +453,11 @@ class EditorActivity : BaseActivity() {
         }
 
         // Mettre à jour les zones dans l'adapter après configuration de imageAdapter
-        val imageZonesMap = imageDataMap.mapValues { entry ->
+        /*val imageZonesMap = imageDataMap.mapValues { entry ->
             entry.value.map { it.toZoneData() }
         }
         imageAdapter.imageZonesMap = imageZonesMap
-        imageAdapter.notifyDataSetChanged()
+        imageAdapter.notifyDataSetChanged()*/
 
         // 🛠 Accès propre aux éléments du header
         adventureNameTextView = binding.headerAdventure.adventureNameTextView
