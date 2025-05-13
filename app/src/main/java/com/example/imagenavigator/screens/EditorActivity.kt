@@ -395,14 +395,18 @@ class EditorActivity : BaseActivity() {
         deleteZonesButton.setOnClickListener {
             if (debugLogs) Log.d("DeleteZones", "Suppression demandée via bouton")
             binding.drawingView.deleteSelectedZones()
+            // Ajout du log juste après deleteSelectedZones()
+            Log.d("DeleteZones", "deleteSelectedZones() appelé, zones supprimées.")
             currentImageName?.let { imageName ->
                 imageDataMap[imageName] = binding.drawingView.getAllZones().toMutableList()
-                if (debugLogs) {
-                    Log.d(
-                        "DeleteZones",
-                        "Zones restantes pour $imageName : ${imageDataMap[imageName]?.size}"
-                    )
+                // Ajout du log juste après la mise à jour imageDataMap
+                Log.d("DeleteZones", "imageDataMap mis à jour pour $imageName : ${imageDataMap[imageName]?.size} zones")
+                val imageZonesMap = imageDataMap.mapValues { entry ->
+                    entry.value.map { it.toZoneData() }
                 }
+                // Ajout du log juste avant updateImageZonesMapAndRefresh
+                Log.d("DeleteZones", "Appel updateImageZonesMapAndRefresh...")
+                imageAdapter.updateImageZonesMapAndRefresh(imageZonesMap)
             }
             deleteZonesButton.visibility = View.GONE
         }
@@ -525,12 +529,13 @@ class EditorActivity : BaseActivity() {
             currentImageName?.let { imageName ->
                 imageDataMap[imageName]?.add(zone)
 
-                imageAdapter.imageZonesMap = imageDataMap.mapValues { it.value.map { z -> z.toZoneData() } }
+                val imageZonesMap = imageDataMap.mapValues { it.value.map { z -> z.toZoneData() } }
+                imageAdapter.updateImageZonesMapAndRefresh(imageZonesMap)
 
                 val index = imageAdapter.currentList.indexOfFirst { it.fullPath == imageName }
                 if (index >= 0) {
                     val vh = binding.recyclerViewThumbnails.findViewHolderForAdapterPosition(index)
-                    val updatedZones = imageAdapter.imageZonesMap[imageName] ?: emptyList()
+                    val updatedZones = imageZonesMap[imageName] ?: emptyList()
                     if (::imageAdapter.isInitialized && vh is ImageAdapter.ImageViewHolder) {
                         vh.overlayView.zones = updatedZones
                         vh.overlayView.invalidate()
@@ -1216,11 +1221,18 @@ class EditorActivity : BaseActivity() {
                 return
             }
             selectedZone.linkedImagePath = linkedImagePath
+            // Ajout du log après mise à jour de selectedZone.linkedImagePath
+            Log.d("LinkZone", "selectedZone.linkedImagePath mis à jour : ${selectedZone.linkedImagePath}")
             binding.drawingView.selectedZone = null
             binding.drawingView.invalidate()
             hideDeleteZonesButton()
             currentImageName?.let { imageName ->
                 imageDataMap[imageName] = binding.drawingView.getAllZones().toMutableList()
+                // Ajout du log après mise à jour de imageDataMap[imageName]
+                Log.d("LinkZone", "imageDataMap[$imageName] → ${imageDataMap[imageName]?.size} zones")
+                imageDataMap[imageName]?.forEachIndexed { index, zone ->
+                    Log.d("LinkZone", "  zone[$index] = ${zone.rect}, linkedImagePath = ${zone.linkedImagePath}")
+                }
                 val layoutManager = binding.recyclerViewThumbnails.layoutManager as LinearLayoutManager
                 val firstVisiblePosition = layoutManager.findFirstVisibleItemPosition()
                 val offset = layoutManager.findViewByPosition(firstVisiblePosition)?.top ?: 0
@@ -1228,7 +1240,7 @@ class EditorActivity : BaseActivity() {
                 val imageZonesMap = imageDataMap.mapValues { entry ->
                     entry.value.map { it.toZoneData() }
                 }
-                imageAdapter.imageZonesMap = imageZonesMap
+                imageAdapter.updateImageZonesMapAndRefresh(imageZonesMap)
                 val index = imageAdapter.currentList.indexOfFirst { it.fullPath == linkedImagePath }
                 if (index >= 0) {
                     imageAdapter.notifyItemChanged(index)

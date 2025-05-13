@@ -70,6 +70,30 @@ class ImageAdapter(
         submitList(displayItems)
     }
 
+    fun refreshVisibleItems(newMap: Map<String, List<ZoneData>>) {
+        // On soumet une copie pour forcer le diff et relancer les bind()
+        Log.d("ImageAdapter", "refreshVisibleItems() → appel submitList(displayItems.toList())")
+        imageZonesMap = newMap
+        submitList(displayItems.toList())
+    }
+
+    /**
+     * Met à jour la map des zones d'image et rafraîchit la vue.
+     * À utiliser après avoir modifié imageZonesMap pour garantir le rafraîchissement immédiat.
+     */
+    fun updateImageZonesMapAndRefresh(newMap: Map<String, List<ZoneData>>) {
+        Log.d("ImageAdapter", "updateImageZonesMapAndRefresh appelé, nouvelles zones pour ${newMap.size} images")
+        refreshVisibleItems(newMap)
+        // Ajout : notifier les items concernés
+        newMap.keys.forEach { path ->
+            val index = currentList.indexOfFirst { it.fullPath == path }
+            if (index != -1) {
+                Log.d("ImageAdapter", "notifyItemChanged forcé pour $path à l'index $index")
+                notifyItemChanged(index)
+            }
+        }
+    }
+
     fun addImage(fullPath: String) {
         val mainGroupName = fullPath.substringBefore("/", "Racine")
         var group = rootGroups.find { it.name == mainGroupName }
@@ -207,13 +231,16 @@ class ImageAdapter(
         fun bind(item: DisplayItem) {
 
             if (item is DisplayItem.ImageItem) {
-                val zones = imageZonesMap[item.fullPath]
-                overlayView?.visibility =
-                    if (!zones.isNullOrEmpty() && zones.any { it.linkedImagePath != null })
-                        View.VISIBLE
-                    else View.GONE
+                val zones = imageZonesMap[item.fullPath]?.filter { it.linkedImagePath != null } ?: emptyList()
+                Log.d("BindDebug", "Image: ${item.fullPath} → ${zones.size} zone(s) liées")
+                zones.forEachIndexed { i, zone ->
+                    Log.d("BindDebug", "  Zone[$i] linkedImagePath = ${zone.linkedImagePath}")
+                }
+                overlayView?.visibility = if (zones.isNotEmpty()) View.VISIBLE else View.GONE
+                overlayView?.zones = zones
+                overlayView?.invalidate()
 
-                Log.d("ImageAdapter", "Bind image: ${item.fullPath}")
+                // Log.d("ImageAdapter", "Bind image: ${item.fullPath}")
 
                 val documentFile = imageFileMap[item.fullPath]
                 if (documentFile != null && documentFile.exists()) {
@@ -262,7 +289,12 @@ class ImageAdapter(
                                     isFirstResource: Boolean
                                 ): Boolean {
                                     if (adapterPosition != RecyclerView.NO_POSITION && currentList[adapterPosition].fullPath == currentFullPath) {
-                                        return false
+                                        // ✅ Mettre à jour les zones une fois l'image chargée
+                                        val zones = imageZonesMap[currentFullPath]?.filter { it.linkedImagePath != null } ?: emptyList()
+                                        overlayView.visibility = if (zones.isNotEmpty()) View.VISIBLE else View.GONE
+                                        overlayView.zones = zones
+                                        overlayView.invalidate()
+                                        return false // on laisse Glide continuer
                                     }
                                     return true
                                 }
