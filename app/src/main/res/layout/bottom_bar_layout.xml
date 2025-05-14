@@ -11,6 +11,19 @@
     android:padding="0dp"
     android:gravity="center_vertical">
 
+
+    <Button
+        android:id="@+id/buttonExpandAll"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Tout ouvrir" />
+
+    <Button
+        android:id="@+id/buttonCollapseAll"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Tout fermer" />
+
     <Button
         android:id="@+id/buttonSyncFolder"
         android:layout_width="wrap_content"

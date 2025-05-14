@@ -359,5 +359,32 @@ class ImageAdapter(
         fun forceRefresh() {
             submitList(displayItems.toList())
         }
+
+
+
+    }
+    // --- Ajout : Méthode pour ouvrir/fermer tous les groupes ---
+    fun toggleAllGroups(expand: Boolean) {
+        if (expand) {
+            rootGroups.forEach { collectGroupPaths(it, expandedGroups) }
+        } else {
+            expandedGroups.clear()
+        }
+        displayItems = flattenGroups(rootGroups)
+        submitList(displayItems.toList())
+
+        // 🔁 Forcer le rebind de tous les GroupItems pour mettre à jour les flèches
+        displayItems.forEachIndexed { index, item ->
+            if (item is DisplayItem.GroupItem) {
+                notifyItemChanged(index)
+            }
+        }
+    }
+
+    private fun collectGroupPaths(group: ImageGroup, set: MutableSet<String>) {
+        set.add(group.fullPath ?: group.name)
+        for (child in group.children) {
+            collectGroupPaths(child, set)
+        }
     }
 }

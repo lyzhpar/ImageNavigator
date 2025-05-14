@@ -99,6 +99,7 @@ class EditorActivity : BaseActivity() {
     private var currentAdventureJsonUri: Uri? = null
     private var isBusy = false
     private var hasJustSaved = false
+    private var areGroupsExpanded = false
 
     private val prefs by lazy { getSharedPreferences("ImageNavigatorPrefs", Context.MODE_PRIVATE) }
 
@@ -487,6 +488,18 @@ class EditorActivity : BaseActivity() {
             promptAdventureName()
         }
 
+        // 📂 Boutons pour ouvrir/fermer tous les groupes dans la sidebar
+        val buttonExpandAll = binding.bottomBar.root.findViewById<Button>(R.id.buttonExpandAll)
+        val buttonCollapseAll = binding.bottomBar.root.findViewById<Button>(R.id.buttonCollapseAll)
+
+        buttonExpandAll.setOnClickListener {
+            imageAdapter.toggleAllGroups(true)
+        }
+
+        buttonCollapseAll.setOnClickListener {
+            imageAdapter.toggleAllGroups(false)
+        }
+
         // Accès aux boutons dans la BottomBar
         val buttonSave = binding.bottomBar.buttonSave
         //val buttonRenameAdventure = binding.bottomBar.buttonRenameAdventure
@@ -606,6 +619,7 @@ class EditorActivity : BaseActivity() {
         currentFolderUri = null
         val builder = AlertDialog.Builder(this)
         builder.setTitle("Nouvelle aventure")
+
         val input = EditText(this)
         input.hint = "Nom de l'aventure"
         input.setSingleLine(true)
@@ -614,11 +628,15 @@ class EditorActivity : BaseActivity() {
 
         builder.setView(input)
         builder.setCancelable(false)
+
         builder.setPositiveButton("Valider") { _, _ ->
-            val name = input.text.toString().trim().replace("\n", "")
-            if (name.isEmpty() || adventureFileExists(name)) {
-                Toast.makeText(this, "Nom invalide ou existant.", Toast.LENGTH_SHORT).show()
-                promptAdventureName()
+            var name = input.text.toString().trim().replace("\n", "")
+            if (name.isEmpty()) {
+                name = generateUniqueAdventureName()
+            }
+
+            if (adventureFileExists(name)) {
+                Toast.makeText(this, "Ce nom existe déjà. Essayez-en un autre.", Toast.LENGTH_SHORT).show()
             } else {
                 currentAdventureName = name
                 adventureNameTextView.text = currentAdventureName
@@ -626,9 +644,15 @@ class EditorActivity : BaseActivity() {
                 openFolderPicker()
             }
         }
-        builder.setNegativeButton("Annuler", null)
+
+        builder.setNegativeButton("Annuler") { _, _ ->
+            val intent = Intent(this, MainActivity::class.java)
+            startActivity(intent)
+            finish()
+        }
 
         val dialog = builder.create()
+
         dialog.setOnShowListener {
             val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
             imm.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
@@ -636,10 +660,13 @@ class EditorActivity : BaseActivity() {
 
         input.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_DONE) {
-                val name = input.text.toString().trim().replace("\n", "")
-                if (name.isEmpty() || adventureFileExists(name)) {
-                    Toast.makeText(this, "Nom invalide ou existant.", Toast.LENGTH_SHORT).show()
-                    promptAdventureName()
+                var name = input.text.toString().trim().replace("\n", "")
+                if (name.isEmpty()) {
+                    name = generateUniqueAdventureName()
+                }
+
+                if (adventureFileExists(name)) {
+                    Toast.makeText(this, "Ce nom existe déjà. Essayez-en un autre.", Toast.LENGTH_SHORT).show()
                 } else {
                     currentAdventureName = name
                     adventureNameTextView.text = currentAdventureName
@@ -659,6 +686,16 @@ class EditorActivity : BaseActivity() {
     private fun adventureFileExists(name: String): Boolean {
         val file = File(filesDir, "${name}_zones.json")
         return file.exists()
+    }
+
+    private fun generateUniqueAdventureName(baseName: String = "Aventure"): String {
+        var name = baseName
+        var index = 2
+        while (adventureFileExists(name)) {
+            name = "$baseName $index"
+            index++
+        }
+        return name
     }
 
     private fun saveZones() {
