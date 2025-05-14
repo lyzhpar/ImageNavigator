@@ -39,6 +39,7 @@ import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.*
 import java.io.File
 import android.view.inputmethod.InputMethodManager
+import androidx.core.content.ContextCompat
 import com.example.imagenavigator.model.Adventure
 import com.example.imagenavigator.model.ImageData
 import com.example.imagenavigator.model.toZone
@@ -103,6 +104,31 @@ class EditorActivity : BaseActivity() {
     private var areGroupsExpanded = false
 
     private val prefs by lazy { getSharedPreferences("ImageNavigatorPrefs", Context.MODE_PRIVATE) }
+
+
+    private fun scrollToCurrentImageThumbnail() {
+        currentImageName?.let { imageName ->
+            imageAdapter.scrollToThumbnail(imageName, binding.recyclerViewThumbnails)
+
+            val index = imageAdapter.currentList.indexOfFirst { it.fullPath == imageName }
+            if (index >= 0) {
+                binding.recyclerViewThumbnails.addOnScrollListener(object : androidx.recyclerview.widget.RecyclerView.OnScrollListener() {
+                    override fun onScrollStateChanged(recyclerView: androidx.recyclerview.widget.RecyclerView, newState: Int) {
+                        if (newState == androidx.recyclerview.widget.RecyclerView.SCROLL_STATE_IDLE) {
+                            recyclerView.removeOnScrollListener(this)
+                            val viewHolder = recyclerView.findViewHolderForAdapterPosition(index)
+                            viewHolder?.itemView?.apply {
+                                setBackgroundColor(ContextCompat.getColor(this@EditorActivity, R.color.highlight))
+                                Handler(Looper.getMainLooper()).postDelayed({
+                                    setBackgroundColor(ContextCompat.getColor(this@EditorActivity, android.R.color.transparent))
+                                }, 1000)
+                            }
+                        }
+                    }
+                })
+            }
+        }
+    }
 
     private fun saveLastFolderUri(uri: Uri) {
         prefs.edit().putString("lastFolderUri", uri.toString()).apply()
@@ -206,7 +232,7 @@ class EditorActivity : BaseActivity() {
         }
 
     // Quand une image est sélectionnée
-    private fun onImageSelected(fullPath: String) {
+    private fun onImageSelected(fullPath: String, scrollToThumbnail: Boolean = true) {
         logDebug("onImageSelected", "onImageSelected appelé !")
         if (isBusy) {
             showSnackbar("Chargement en cours, patiente un instant…")
@@ -320,6 +346,8 @@ class EditorActivity : BaseActivity() {
             imageAdapter.notifyItemChanged(index)
         }
         layoutManager.scrollToPositionWithOffset(firstVisiblePosition, offset)
+        if (scrollToThumbnail) {
+            scrollToCurrentImageThumbnail()}
     }
 
 
@@ -427,15 +455,14 @@ class EditorActivity : BaseActivity() {
         // Adapter images
         imageAdapter = ImageAdapter(
             rootGroups = emptyList(),
-            onImageSelected = { fullPath ->
+            onImageSelected = { fullPath, _ ->
                 Log.d("EditorActivity", "Vignette cliquée: $fullPath")
                 Log.d("ZoneLink", "selectedZone: ${binding.drawingView.selectedZone}")
                 val selectedZone = binding.drawingView.selectedZone
                 if (selectedZone != null) {
-                    //binding.drawingView.assignLinkedImageToSelectedZone(fullPath)
                     linkSelectedZoneToImage(fullPath)
                 } else {
-                    onImageSelected(fullPath)
+                    onImageSelected(fullPath, false)
                 }
             },
 
@@ -489,6 +516,15 @@ class EditorActivity : BaseActivity() {
             promptAdventureName()
         }
 
+        // Ajout : gestion de l'image à afficher automatiquement depuis l'intent ("imagePath")
+        val imageFromIntent = intent.getStringExtra("imagePath")
+        if (imageFromIntent != null) {
+            // Lancer une tentative de chargement différée (le temps que les images soient bien mappées)
+            Handler(Looper.getMainLooper()).postDelayed({
+                onImageSelected(imageFromIntent)
+            }, 1000)
+        }
+
         // 📂 Boutons pour ouvrir/fermer tous les groupes dans la sidebar
         val buttonExpandAll = binding.bottomBar.root.findViewById<MaterialButton>(R.id.buttonExpandAll)
         val buttonCollapseAll = binding.bottomBar.root.findViewById<MaterialButton>(R.id.buttonCollapseAll)
@@ -536,9 +572,10 @@ class EditorActivity : BaseActivity() {
         // DrawingView cliquable
         binding.drawingView.isClickable = true
         binding.drawingView.onTapListener = {
-            if (isSelectionMode) {
-                updateBottomBarInfo()
-            }
+            scrollToCurrentImageThumbnail()
+        }
+        binding.drawingView.setOnClickListener {
+            scrollToCurrentImageThumbnail()
         }
 
         binding.drawingView.onZoneSelected = {

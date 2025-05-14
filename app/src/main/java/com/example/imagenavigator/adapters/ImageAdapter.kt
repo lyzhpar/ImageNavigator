@@ -21,6 +21,7 @@ import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.load.engine.GlideException
 import com.bumptech.glide.request.target.Target
 import android.graphics.drawable.Drawable
+import androidx.recyclerview.widget.LinearLayoutManager
 import com.bumptech.glide.load.DataSource
 import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.example.imagenavigator.screens.ZoneOverlayView
@@ -28,7 +29,7 @@ import com.example.imagenavigator.model.toZoneData
 
 class ImageAdapter(
     private var rootGroups: List<ImageGroup>,
-    private val onImageSelected: (String) -> Unit,
+    private val onImageSelected: (String, Boolean) -> Unit,
     private val onItemLongPress: (DisplayItem) -> Unit,
     var imageFileMap: Map<String, DocumentFile>
 ) : ListAdapter<ImageAdapter.DisplayItem, RecyclerView.ViewHolder>(DiffCallback()) {
@@ -61,6 +62,44 @@ class ImageAdapter(
         override fun areContentsTheSame(oldItem: DisplayItem, newItem: DisplayItem): Boolean {
             return oldItem == newItem
         }
+    }
+
+    fun scrollToThumbnail(imagePath: String, recyclerView: RecyclerView?) {
+        // Étendre le groupe si nécessaire
+        expandGroupForImage(imagePath)
+
+        // Recalculer la liste une fois le groupe étendu
+        displayItems = flattenGroups(rootGroups)
+        submitList(displayItems.toList())
+
+        // Rechercher l'index dans la liste visible
+        val index = currentList.indexOfFirst { it.fullPath == imagePath }
+        if (index != -1 && recyclerView != null) {
+            recyclerView?.post {
+                val layoutManager = recyclerView.layoutManager as? LinearLayoutManager ?: return@post
+                val itemHeight = recyclerView.findViewHolderForAdapterPosition(index)?.itemView?.height ?: 120
+                val recyclerViewHeight = recyclerView.height
+                val offset = recyclerViewHeight / 2 - itemHeight / 2
+                layoutManager.scrollToPositionWithOffset(index, offset)
+            }
+        }
+    }
+
+    fun expandGroupForImage(imagePath: String) {
+        val groupPath = imagePath.substringBeforeLast("/", missingDelimiterValue = "")
+        val group = findGroupByPath(rootGroups, groupPath)
+        if (group != null) {
+            expandedGroups.add(group.fullPath ?: return)
+        }
+    }
+
+    private fun findGroupByPath(groups: List<ImageGroup>, path: String): ImageGroup? {
+        for (group in groups) {
+            if (group.fullPath == path) return group
+            val found = findGroupByPath(group.children, path)
+            if (found != null) return found
+        }
+        return null
     }
 
 
@@ -345,7 +384,7 @@ class ImageAdapter(
                 }
                 itemView.setOnClickListener {
                     if (item.fullPath.isNotBlank()) {
-                        onImageSelected(item.fullPath)
+                        onImageSelected(item.fullPath, false)
                     }
                 }
                 itemView.setOnLongClickListener {
