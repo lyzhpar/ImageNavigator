@@ -15,7 +15,7 @@
         android:layout_height="wrap_content"
         android:layout_margin="8dp"
         android:background="@drawable/adventure_card_background"
-        android:backgroundTint="#C7C7C7"
+        android:backgroundTint="@color/colorPrimary"
         android:clickable="false"
         android:focusable="false">
 

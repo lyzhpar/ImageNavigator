@@ -30,7 +30,7 @@
             app:cardCornerRadius="40dp"
             app:cardUseCompatPadding="true"
             app:cardPreventCornerOverlap="false"
-            app:cardBackgroundColor="@color/pink"
+            app:cardBackgroundColor="@color/colorPrimaryDark"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent">

@@ -1,5 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <style name="Theme.ImageNavigator" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">#589DBA</item>
+        <item name="colorSecondary">#CAD9E0</item>
+        <item name="colorSurface">@color/white</item>
+        <item name="colorOnSurface">@color/black</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="colorOnBackground">@color/black</item>
+        <item name="colorOnSecondary">@color/white</item>
+    </style>
+
     <style name="MyRoundedButton" parent="Widget.MaterialComponents.Button">
         <item name="cornerRadius">@dimen/button_corner_radius</item>
         <item name="backgroundTint">#589DBA</item>
