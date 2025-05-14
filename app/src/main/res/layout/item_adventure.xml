@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_margin="8dp"
-    card_view:cardBackgroundColor="#E0E0E0"
+    card_view:cardBackgroundColor="#2645A8D9"
     card_view:cardCornerRadius="16dp"
     card_view:cardElevation="5dp">
 
@@ -15,7 +15,7 @@
         android:layout_height="wrap_content"
         android:layout_margin="8dp"
         android:background="@drawable/adventure_card_background"
-        android:backgroundTint="@color/colorPrimary"
+        android:backgroundTint="#9BC0D7"
         android:clickable="false"
         android:focusable="false">
 

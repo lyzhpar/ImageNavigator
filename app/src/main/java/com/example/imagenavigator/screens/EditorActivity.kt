@@ -112,20 +112,15 @@ class EditorActivity : BaseActivity() {
 
             val index = imageAdapter.currentList.indexOfFirst { it.fullPath == imageName }
             if (index >= 0) {
-                binding.recyclerViewThumbnails.addOnScrollListener(object : androidx.recyclerview.widget.RecyclerView.OnScrollListener() {
-                    override fun onScrollStateChanged(recyclerView: androidx.recyclerview.widget.RecyclerView, newState: Int) {
-                        if (newState == androidx.recyclerview.widget.RecyclerView.SCROLL_STATE_IDLE) {
-                            recyclerView.removeOnScrollListener(this)
-                            val viewHolder = recyclerView.findViewHolderForAdapterPosition(index)
-                            viewHolder?.itemView?.apply {
-                                setBackgroundColor(ContextCompat.getColor(this@EditorActivity, R.color.highlight))
-                                Handler(Looper.getMainLooper()).postDelayed({
-                                    setBackgroundColor(ContextCompat.getColor(this@EditorActivity, android.R.color.transparent))
-                                }, 1000)
-                            }
-                        }
+                binding.recyclerViewThumbnails.postDelayed({
+                    val viewHolder = binding.recyclerViewThumbnails.findViewHolderForAdapterPosition(index)
+                    viewHolder?.itemView?.apply {
+                        setBackgroundColor(ContextCompat.getColor(this@EditorActivity, R.color.highlight))
+                        postDelayed({
+                            setBackgroundColor(ContextCompat.getColor(this@EditorActivity, android.R.color.transparent))
+                        }, 800)
                     }
-                })
+                }, 500) // Laisse le temps au RecyclerView de se mettre à jour après l'expansion
             }
         }
     }
