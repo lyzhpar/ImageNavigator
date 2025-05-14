@@ -38,6 +38,17 @@ class OverlayView @JvmOverloads constructor(
         style = Paint.Style.FILL
     }
 
+
+    fun setZonesVisible(visible: Boolean) {
+        overlayPaint.color = if (visible) {
+            Color.argb(60, 255, 255, 255)
+        } else {
+            Color.argb(0, 0, 0, 0) // complètement transparent
+        }
+        invalidate()
+    }
+
+
     private var longClickTriggered = false
     private var lastRawX = 0f
     private var lastRawY = 0f

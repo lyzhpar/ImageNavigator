@@ -1,6 +1,8 @@
 package com.example.imagenavigator.screens
 
+import android.app.AlertDialog
 import android.content.Intent
+import android.graphics.Color
 import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.os.Bundle
@@ -22,6 +24,9 @@ import com.example.imagenavigator.model.ZoneData
 import com.google.gson.Gson
 import java.io.InputStreamReader
 import android.os.Handler
+import com.google.android.material.bottomsheet.BottomSheetDialog
+import android.widget.Button
+import com.example.imagenavigator.R
 
 class NavigatorActivity : BaseActivity() {
 
@@ -29,16 +34,28 @@ class NavigatorActivity : BaseActivity() {
     private lateinit var adventure: Adventure
     private lateinit var folderUri: Uri
     private var currentImageName: String? = null
+    private var zonesVisible = true
     private val historyStack = mutableListOf<String>()
     var downTime = 0L
     val handler = Handler(Looper.getMainLooper())
     private lateinit var adventureName: String
 
 
+    private val prefs by lazy {
+        getSharedPreferences("navigator_prefs", MODE_PRIVATE)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityNavigatorBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+
+        val savedColor = prefs.getInt("background_color", Color.WHITE)
+        binding.frameLayout.setBackgroundColor(savedColor)
+
+        zonesVisible = prefs.getBoolean("zones_visible", true)
+        binding.overlayView.setZonesVisible(zonesVisible)
 
         Log.d("NavigatorActivity", "Intent extras : ${intent.extras}")
         val keys = intent.extras?.keySet()
@@ -59,25 +76,25 @@ class NavigatorActivity : BaseActivity() {
             return
         }
 
-        /*binding.backButton.setOnClickListener {
+        binding.backButton.setOnClickListener {
             goBack()
         }
 
         binding.backButton.setOnLongClickListener {
-            goBackMenu()
+            showContextMenu()
             true
-        }*/
+        }
 
-        val longClickRunnable = Runnable {
+        /*val longClickRunnable = Runnable {
             doLongClickAction()
         }
 
         val veryLongClickRunnable = Runnable {
             handler.removeCallbacks(longClickRunnable) // ← empêche le long clic
             doVeryLongClickAction()
-        }
+        }*/
 
-        binding.backButton.setOnTouchListener { v, event ->
+        /*binding.backButton.setOnTouchListener { v, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
                     downTime = System.currentTimeMillis()
@@ -97,7 +114,7 @@ class NavigatorActivity : BaseActivity() {
                 }
                 else -> false
             }
-        }
+        }*/
 
 
 
@@ -113,7 +130,53 @@ class NavigatorActivity : BaseActivity() {
     }
 
 
+    private fun showContextMenu() {
+        val view = layoutInflater.inflate(R.layout.dialog_navigator_menu, null)
+        val dialog = BottomSheetDialog(this)
+        dialog.setContentView(view)
 
+        view.findViewById<Button>(R.id.buttonBackground)?.setOnClickListener {
+            dialog.dismiss()
+            showBackgroundColorDialog()
+        }
+
+        view.findViewById<Button>(R.id.buttonTransition)?.setOnClickListener {
+            dialog.dismiss()
+            showTransitionDialog()
+        }
+
+        view.findViewById<Button>(R.id.buttonEdit)?.setOnClickListener {
+            dialog.dismiss()
+            val intent = Intent(this, EditorActivity::class.java).apply {
+                putExtra("adventureName", adventureName)
+                putExtra("folderUri", folderUri.toString())
+                // Ajoute toujours l'extra "imagePath" avec la valeur de currentImageName
+                putExtra("imagePath", currentImageName)
+            }
+            startActivity(intent)
+        }
+
+        view.findViewById<Button>(R.id.buttonStart)?.setOnClickListener {
+            dialog.dismiss()
+            currentImageName = adventure.startImagePath
+            showCurrentImage()
+        }
+
+        view.findViewById<Button>(R.id.buttonMain)?.setOnClickListener {
+            dialog.dismiss()
+            startActivity(Intent(this, MainActivity::class.java))
+            finish()
+        }
+
+        view.findViewById<Button>(R.id.buttonToggleZones)?.setOnClickListener {
+            dialog.dismiss()
+            zonesVisible = !zonesVisible
+            binding.overlayView.setZonesVisible(zonesVisible)
+            prefs.edit().putBoolean("zones_visible", zonesVisible).apply()
+        }
+
+        dialog.show()
+    }
 
     private fun loadAdventure(jsonUri: Uri) {
         try {
@@ -293,7 +356,7 @@ class NavigatorActivity : BaseActivity() {
         return currentFolder.listFiles()?.firstOrNull { !it.isDirectory && it.name == segments.last() }
     }
 
-
+    /*
     fun doShortClickAction() {
         if (historyStack.isNotEmpty()) {
             currentImageName = historyStack.removeAt(historyStack.size - 1)
@@ -312,13 +375,6 @@ class NavigatorActivity : BaseActivity() {
         }
     }
 
-    /*fun doVeryLongClickAction() {
-        val intent = Intent(this, MainActivity::class.java)
-        startActivity(intent)
-        finish()
-    }*/
-
-
 
     fun doVeryLongClickAction() {
         val intent = Intent(this, EditorActivity::class.java).apply {
@@ -326,6 +382,41 @@ class NavigatorActivity : BaseActivity() {
             putExtra("folderUri", folderUri?.toString())
         }
         startActivity(intent)
+    }*/
+
+    private fun goBack() {
+            if (historyStack.isNotEmpty()) {
+                currentImageName = historyStack.first()
+                showCurrentImage()
+            } else {
+                finish()
+            }
+        }
+
+
+
+    private fun showBackgroundColorDialog() {
+        val options = arrayOf("Blanc", "Gris", "Noir")
+        val colors = arrayOf(Color.WHITE, Color.parseColor("#F0F0F0"), Color.BLACK)
+
+        AlertDialog.Builder(this)
+            .setTitle("Choisir une couleur de fond")
+            .setItems(options) { _, which ->
+                binding.frameLayout.setBackgroundColor(colors[which])
+                prefs.edit().putInt("background_color", colors[which]).apply()
+            }
+            .show()
+
+    }
+
+    private fun showTransitionDialog() {
+        val types = arrayOf("Fondu", "Glissement gauche", "Glissement droite", "Zoom avant", "Zoom arrière")
+        AlertDialog.Builder(this)
+            .setTitle("Type de transition")
+            .setItems(types) { _, which ->
+                Toast.makeText(this, "Transition : ${types[which]} (à implémenter)", Toast.LENGTH_SHORT).show()
+            }
+            .show()
     }
 
 
