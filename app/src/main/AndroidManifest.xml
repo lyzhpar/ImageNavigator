@@ -29,7 +29,7 @@ package="com.example.imagenavigator">
             android:name=".screens.EditorActivity"
             android:screenOrientation="sensorLandscape"
             android:exported="false"
-            android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+            android:theme="@style/Theme.ImageNavigator"
             android:configChanges="keyboardHidden|orientation|screenSize" />
 
         <!-- 🌌 Navigateur en paysage uniquement -->

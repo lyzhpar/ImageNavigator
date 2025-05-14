@@ -7,74 +7,85 @@
     android:minHeight="40dp"
     android:maxHeight="64dp"
     android:orientation="horizontal"
-    android:background="#F2F2F2"
+    android:background="@drawable/bottom_bar_background"
     android:padding="0dp"
     android:gravity="center_vertical">
 
-
-    <Button
-        android:id="@+id/buttonExpandAll"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Tout ouvrir" />
-
-    <Button
+    <com.google.android.material.button.MaterialButton
         android:id="@+id/buttonCollapseAll"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Tout fermer" />
+        style="@style/MyRoundedButton"
+        android:layout_width="48dp"
+        android:layout_height="@dimen/button_height"
+        app:icon="@drawable/ic_bottom_folder_collapse"
+        android:text=""
+        app:iconGravity="textStart"
+        android:gravity="center"
+        android:contentDescription="Tout fermer"
+        android:layout_margin="@dimen/button_margin"/>
 
-    <Button
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/buttonExpandAll"
+        app:icon="@drawable/ic_bottom_folder_expand"
+        android:layout_width="48dp"
+        android:layout_height="@dimen/button_height"
+        android:text=""
+        app:iconGravity="textStart"
+        android:gravity="center"
+        style="@style/MyRoundedButton"
+        android:contentDescription="Tout ouvrir"
+        android:layout_margin="@dimen/button_margin"/>
+
+    <com.google.android.material.button.MaterialButton
         android:id="@+id/buttonSyncFolder"
+        style="@style/MyRoundedButton"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:background="#DDDDDD"
+        android:layout_height="@dimen/button_height"
         android:drawableStart="@drawable/ic_folder"
         android:text=" SYNCHRO "
         android:contentDescription="Importer"
-        android:minWidth="50dp"
+        android:minWidth="60dp"
         android:minHeight="35dp"
-        android:layout_margin="8dp"
+        android:layout_margin="@dimen/button_margin"
         android:padding="5dp"
         />
 
     <!-- Sauvegarder -->
-    <Button
+    <com.google.android.material.button.MaterialButton
         android:id="@+id/buttonSave"
+        style="@style/MyRoundedButton"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:background="#DDDDDD"
+        android:layout_height="@dimen/button_height"
         android:drawableStart="@drawable/ic_save"
         android:text=" Save "
         android:contentDescription="Image"
         android:minWidth="50dp"
         android:minHeight="35dp"
-        android:layout_margin="8dp"
+        android:layout_margin="@dimen/button_margin"
         android:padding="5dp" />
 
-    <Button
+    <com.google.android.material.button.MaterialButton
         android:id="@+id/buttonMenu"
+        style="@style/MyRoundedButton"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:background="#DDDDDD"
+        android:layout_height="@dimen/button_height"
         android:drawableStart="@drawable/ic_menu"
         android:text=" Menu "
         android:contentDescription="Menu principal"
         android:minWidth="50dp"
         android:minHeight="35dp"
-        android:layout_margin="8dp"
+        android:layout_margin="@dimen/button_margin"
         android:padding="5dp" />
 
-    <Button
+    <com.google.android.material.button.MaterialButton
         android:id="@+id/buttonStartAdventure"
+        style="@style/MyRoundedButton"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:background="#DDDDDD"
-        android:text="Aventure !"
+        android:layout_height="@dimen/button_height"
+        android:text=" Aventure ! "
         android:contentDescription="Aventure"
         android:minWidth="50dp"
         android:minHeight="35dp"
-        android:layout_margin="8dp"
+        android:layout_margin="@dimen/button_margin"
         android:padding="5dp" />
 
     <!-- Espace dynamique pour sélection (invisible par défaut) -->

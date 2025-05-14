@@ -52,6 +52,7 @@ import android.graphics.drawable.Drawable
 import com.example.imagenavigator.utils.ThumbnailLoader
 
 import androidx.lifecycle.lifecycleScope
+import com.google.android.material.button.MaterialButton
 
 
 class EditorActivity : BaseActivity() {
@@ -489,8 +490,8 @@ class EditorActivity : BaseActivity() {
         }
 
         // 📂 Boutons pour ouvrir/fermer tous les groupes dans la sidebar
-        val buttonExpandAll = binding.bottomBar.root.findViewById<Button>(R.id.buttonExpandAll)
-        val buttonCollapseAll = binding.bottomBar.root.findViewById<Button>(R.id.buttonCollapseAll)
+        val buttonExpandAll = binding.bottomBar.root.findViewById<MaterialButton>(R.id.buttonExpandAll)
+        val buttonCollapseAll = binding.bottomBar.root.findViewById<MaterialButton>(R.id.buttonCollapseAll)
 
         buttonExpandAll.setOnClickListener {
             imageAdapter.toggleAllGroups(true)
@@ -567,7 +568,7 @@ class EditorActivity : BaseActivity() {
         }
 
         // Ajout des boutons Menu et StartAdventure
-        findViewById<Button>(R.id.buttonMenu).setOnClickListener {
+        findViewById<MaterialButton>(R.id.buttonMenu).setOnClickListener {
             saveZones()
             showSnackbar("Aventure sauvegardée")
             Handler(Looper.getMainLooper()).postDelayed({
@@ -577,7 +578,7 @@ class EditorActivity : BaseActivity() {
             }, 500)
         }
 
-        findViewById<Button>(R.id.buttonStartAdventure).setOnClickListener {
+        findViewById<MaterialButton>(R.id.buttonStartAdventure).setOnClickListener {
             saveZones()
             showSnackbar("Aventure sauvegardée")
             Handler(Looper.getMainLooper()).postDelayed({
@@ -600,7 +601,7 @@ class EditorActivity : BaseActivity() {
         }
 
         // Remplacement du bouton d'import dossier par un bouton de synchronisation
-        val buttonSyncFolder = binding.bottomBar.root.findViewById<Button>(R.id.buttonSyncFolder)
+        val buttonSyncFolder = binding.bottomBar.root.findViewById<MaterialButton>(R.id.buttonSyncFolder)
         buttonSyncFolder.setOnClickListener {
             lifecycleScope.launch(Dispatchers.IO) {
                 synchronizeFolder()
