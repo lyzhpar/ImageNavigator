@@ -122,12 +122,11 @@ class EditorActivity : BaseActivity() {
     }
 
     private fun saveLastFolderUri(uri: Uri) {
-        prefs.edit().putString("lastFolderUri", uri.toString()).apply()
-    }
+        prefs.edit().putString("lastFolderUri", uri.toString()).apply()    }
 
     private fun getLastFolderUri(): Uri? {
         val uriString = prefs.getString("lastFolderUri", null)
-        return if (uriString != null) Uri.parse(uriString) else null
+        return uriString?.let { Uri.parse(it) }
     }
 
 
@@ -146,7 +145,8 @@ class EditorActivity : BaseActivity() {
     }
 
     fun refreshThumbnailZones() {
-        imageAdapter.imageZonesMap = getCurrentImageZonesMap()
+        val imageZonesMap = getCurrentImageZonesMap()
+        imageAdapter.imageZonesMap = imageZonesMap
         imageAdapter.notifyDataSetChanged()
     }
 
@@ -341,43 +341,7 @@ class EditorActivity : BaseActivity() {
     }
 
 
-    private fun loadAdventureData(name: String) {
-        val file = File(filesDir, "${name}_zones.json")
-        if (file.exists()) {
-            val json = file.readText()
-            val adventureData = GsonBuilder().create().fromJson(json, AdventureData::class.java)
-
-            imageDataMap.clear()
-            adventureData.images.forEach { image ->
-                val zones = image.zones.map { it.toZone() }.toMutableList()
-                imageDataMap[image.imageName] = zones
-            }
-
-            startImagePath = adventureData.startImagePath
-            currentAdventureName = adventureData.adventureTitle
-            adventureNameTextView.text = currentAdventureName
-
-            val folderUriString = adventureData.folderUri
-            if (folderUriString.isNullOrEmpty()) {
-                showSnackbar("Le dossier initial est manquant. Merci de le re-sélectionner.")
-                openFolderPicker()
-                return
-            }
-            currentFolderUri = Uri.parse(folderUriString)
-
-            currentFolderUri?.let {
-                requestFolderAccess(it)
-            }
-
-            // Synchronisation du dossier après chargement des zones et images
-            lifecycleScope.launch(Dispatchers.IO) {
-                synchronizeFolder()
-            }
-        } else {
-            showSnackbar("Fichier d’aventure introuvable.")
-            promptAdventureName()
-        }
-    }
+    // SUPPRIMÉE : fonction non utilisée
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -723,7 +687,6 @@ class EditorActivity : BaseActivity() {
         val adventureData = generateAdventureData()
         val gson = GsonBuilder().setPrettyPrinting().create()
         val json = gson.toJson(adventureData)
-        logDebug("SaveZones", "Sauvegarde des zones dans le fichier ${file.absolutePath}")
         file.writeText(json)
 
         Log.d("SaveZones", "Aventure sauvegardée sous ${file.absolutePath}")
@@ -771,7 +734,7 @@ class EditorActivity : BaseActivity() {
         val unlinkedCount = imageFileMap.keys.count { it !in linkedImageNames }
         worldsInfoText.text = getString(R.string.worlds_count, worldCount)
         worldsInfoText.textSize = 16f
-        //findViewById<TextView>(R.id.textUnlinkedCount).text = getString(R.string.unlinked_count, unlinkedCount)
+        findViewById<TextView>(R.id.textUnlinkedCount).text = getString(R.string.unlinked_count, unlinkedCount)
     }
 
     private fun isGroupPath(fullPath: String): Boolean {
@@ -797,13 +760,12 @@ class EditorActivity : BaseActivity() {
             imageRootNode = ImageGroupNode("Racine", null, mutableListOf(), mutableListOf())
         }
 
-        var firstImageLoaded = false
         val skippedFiles = mutableListOf<String>()
         imageLoadingScope.launch {
             val folder = DocumentFile.fromTreeUri(this@EditorActivity, uri) ?: return@launch
             val allImageFiles = mutableListOf<Pair<DocumentFile, String>>()
             val seenPaths = mutableSetOf<String>()
-            val imageFiles = mutableMapOf<String, DocumentFile>()
+            // imageFiles variable supprimée (inutile)
 
             withContext(Dispatchers.Main) {
                 if (!::imagesInfoText.isInitialized) {
@@ -846,7 +808,6 @@ class EditorActivity : BaseActivity() {
                     val name = file.name ?: return
                     val fullPath = if (path.isEmpty()) name else "$path/$name"
                     if (isValidImage(file)) {
-                        // Nouveau filtre doublon : n'ajoute que si seenPaths.add(fullPath) == true
                         if (seenPaths.add(fullPath)) {
                             allImageFiles.add(file to fullPath)
                             imageFileMap[fullPath] = file
@@ -868,7 +829,7 @@ class EditorActivity : BaseActivity() {
             allImageFiles.sortWith(compareBy({ it.second.count { c -> c == '/' } }, { it.second }))
 
             // Dédoublonnage de la liste avant le traitement en batch
-            val dedupedImageFiles = allImageFiles.distinctBy { it.second }.filter { seenPaths.add(it.second) }
+            val dedupedImageFiles = allImageFiles.distinctBy { it.second }
             totalImagesToLoad = dedupedImageFiles.size
             loadedImagesCount = 0
 
@@ -886,12 +847,10 @@ class EditorActivity : BaseActivity() {
                             return@async
                         }
                         try {
-                            // Nouveau : vérifie l'absence dans imageBitmapMap avant ajout
                             if (!imageFileMap.containsKey(fullPath)) {
                                 imageFileMap[fullPath] = file
                             }
                             withContext(Dispatchers.Main) {
-                                // Vérifie si l'image est déjà présente dans l'adapter avant d'ajouter (toujours)
                                 if (!imageAdapter.currentList.any { it.fullPath == fullPath }) {
                                     imageAdapter.addImage(fullPath)
                                 }
@@ -916,7 +875,6 @@ class EditorActivity : BaseActivity() {
                     }
                 }
                 deferreds.awaitAll()
-                // Ajout de la mise à jour de la progression après chaque batch
                 withContext(Dispatchers.Main) {
                     updateLoadingProgress()
                 }
@@ -961,25 +919,16 @@ class EditorActivity : BaseActivity() {
         }
         logDebug("AppDebug", "Chargement des images terminé → éditeur prêt")
     }
-    // Vérifie si une image est déjà présente dans l'adapter
-    private fun isImageAlreadyInAdapter(fullPath: String): Boolean {
-        return imageAdapter.currentList.any { it.fullPath == fullPath }
-    }
+    // SUPPRIMÉE : fonction non utilisée
 
 
     private fun updateLoadingProgress() {
         try {
             if (!::imagesInfoText.isInitialized) return
             if (totalImagesToLoad > 0) {
-                val safeLoadedCount = minOf(loadedImagesCount, totalImagesToLoad)
-                val progressPercent = (loadedImagesCount * 100) / totalImagesToLoad
-                //loadingProgressBar.progress = progressPercent
-                //imagesInfoText.text = getString(R.string.loading_progress, safeLoadedCount, totalImagesToLoad)
                 imagesInfoText.text = getString(R.string.loading_progress)
-
             }
             binding.bottomBar.buttonSave.isEnabled = true
-            //loadingProgressBar.visibility = View.VISIBLE
         } catch (e: Exception) {
             Log.e("EditorActivity", "Erreur UI update: ${e.message}")
         }
@@ -1321,6 +1270,9 @@ class EditorActivity : BaseActivity() {
             val json = file.readText()
             logDebug("EnterEditMode", "Fichier trouvé, parsing JSON pour $adventureName")
             val adventureData = GsonBuilder().create().fromJson(json, AdventureData::class.java)
+            // Restaurer correctement startImagePath juste après parsing JSON
+            startImagePath = adventureData.startImagePath
+            logDebug("EnterEditMode", "startImagePath défini à : $startImagePath")
             val folderUriString = adventureData.folderUri
             // Patch: check folderUriString starts with content://
             currentFolderUri = if (!folderUriString.isNullOrEmpty() && folderUriString.startsWith("content://")) Uri.parse(folderUriString) else null
@@ -1329,10 +1281,8 @@ class EditorActivity : BaseActivity() {
             logDebug("EnterEditMode", "Check persisted permissions avant reload")
             if (currentFolderUri != null && hasPersistedPermission(currentFolderUri!!)) {
                 logDebug("TestFlow", ">>> Appel enterEditMode($adventureName)")
-                // Déplacement ici de la définition de startImagePath juste avant requestFolderAccess
                 adventureNameTextView.text = adventureData.adventureTitle
                 logDebug("EnterEditMode", "Titre affiché mis à jour : ${adventureData.adventureTitle}")
-                startImagePath = adventureData.startImagePath
                 imageAdapter.startImagePath = startImagePath
                 // Chargement des zones pour chaque image
                 imageDataMap.clear()
@@ -1353,7 +1303,6 @@ class EditorActivity : BaseActivity() {
                 imageRootNode = ImageGroupNode("Racine", null, mutableListOf(), mutableListOf())
                 logDebug("EnterEditMode", "currentFolderUri vérifié : $currentFolderUri")
                 imageAdapter.updateData(emptyList())
-                startImagePath = adventureData.startImagePath
                 requestFolderAccess(currentFolderUri!!, clearData = false)
             } else {
                 openFolderPicker()
@@ -1391,9 +1340,8 @@ class EditorActivity : BaseActivity() {
             if (binding.drawingView.selectedZone != null) View.VISIBLE else View.GONE
     }
 
-    private fun getCurrentImageZonesMap(): Map<String, List<ZoneData>> {
-        return imageDataMap.mapValues { it.value.map { zone -> zone.toZoneData() } }
-    }
+    private fun getCurrentImageZonesMap(): Map<String, List<ZoneData>> =
+        imageDataMap.mapValues { entry -> entry.value.map { it.toZoneData() } }
 
 
 

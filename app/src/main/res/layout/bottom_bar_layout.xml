@@ -130,13 +130,6 @@
         android:text="Mondes : 0"
         android:layout_marginStart="8dp"
         android:textStyle="bold" />
-<!--
-    <TextView
-        android:id="@+id/textLinkedCount"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Liées : 0"
-        android:layout_marginStart="16dp" />
 
     <TextView
         android:id="@+id/textUnlinkedCount"
@@ -145,6 +138,5 @@
         android:text="Non liées : 0"
         android:layout_marginStart="8dp"
         android:textColor="#0000FF" />
-    -->
 
 </LinearLayout>
