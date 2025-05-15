@@ -73,15 +73,9 @@ class EditorActivity : BaseActivity() {
     private lateinit var adventureNameTextView: TextView
     private var currentAdventureName: String = ""
 
-    private val selectedItems = mutableSetOf<String>()
-    private var isSelectionMode = false
-
     private lateinit var imagesInfoText: TextView
-    //private lateinit var loadingTextView: TextView
     private lateinit var worldsInfoText: TextView
-    private lateinit var selectedImagesCount: TextView
-    private lateinit var selectedWorldsCount: TextView
-    private lateinit var selectionInfoContainer: View
+    private lateinit var unlinkedInfoText: TextView
 
     private lateinit var deleteZonesButton: ImageButton
 
@@ -340,10 +334,6 @@ class EditorActivity : BaseActivity() {
             scrollToCurrentImageThumbnail()}
     }
 
-
-    // SUPPRIMÉE : fonction non utilisée
-
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityEditorBinding.inflate(layoutInflater)
@@ -427,13 +417,17 @@ class EditorActivity : BaseActivity() {
         adventureNameTextView = binding.headerAdventure.adventureNameTextView
 
 
-        // Bottom bar
+        // --- Initialisation centralisée de la bottom bar et de ses composants ---
         val bottomBarView = binding.bottomBar.root
         imagesInfoText = bottomBarView.findViewById(R.id.textImageCount)
         worldsInfoText = bottomBarView.findViewById(R.id.textWorldCount)
-        selectedImagesCount = bottomBarView.findViewById(R.id.selectedImagesCount)
-        selectedWorldsCount = bottomBarView.findViewById(R.id.selectedWorldsCount)
-        selectionInfoContainer = bottomBarView.findViewById(R.id.selectionInfoContainer)
+        unlinkedInfoText = bottomBarView.findViewById(R.id.textUnlinkedCount)
+        val buttonSave = binding.bottomBar.buttonSave
+        val buttonMenu = binding.bottomBar.buttonMenu
+        val buttonStartAdventure = binding.bottomBar.buttonStartAdventure
+        val buttonSyncFolder = binding.bottomBar.buttonSyncFolder
+        val buttonExpandAll = binding.bottomBar.buttonExpandAll
+        val buttonCollapseAll = binding.bottomBar.buttonCollapseAll
 
         val adventureFromIntent = intent.getStringExtra("adventureName")
         if (adventureFromIntent != null) {
@@ -461,45 +455,19 @@ class EditorActivity : BaseActivity() {
         }
 
         // 📂 Boutons pour ouvrir/fermer tous les groupes dans la sidebar
-        val buttonExpandAll = binding.bottomBar.root.findViewById<MaterialButton>(R.id.buttonExpandAll)
-        val buttonCollapseAll = binding.bottomBar.root.findViewById<MaterialButton>(R.id.buttonCollapseAll)
-
         buttonExpandAll.setOnClickListener {
             imageAdapter.toggleAllGroups(true)
         }
-
         buttonCollapseAll.setOnClickListener {
             imageAdapter.toggleAllGroups(false)
         }
-
-        // Accès aux boutons dans la BottomBar
-        val buttonSave = binding.bottomBar.buttonSave
-        //val buttonRenameAdventure = binding.bottomBar.buttonRenameAdventure
-
-        // Ajout du bouton Refresh juste après le bouton Menu (Aventure)
-        /*val buttonRefresh = Button(this).apply {
-            text = "Refresh"
-            setOnClickListener {
-                if (isBusy) {
-                    showSnackbar("Patiente, chargement en cours…")
-                    return@setOnClickListener
-                }
-                Glide.get(this@EditorActivity).clearMemory()
-                CoroutineScope(Dispatchers.IO).launch { Glide.get(applicationContext).clearDiskCache() }
-                saveZones()
-                Toast.makeText(this@EditorActivity, "Données sauvegardées, images rechargées…", Toast.LENGTH_SHORT).show()
-                //currentFolderUri?.let { requestFolderAccess(it)
-            }
-        }*/
-
-        // Listeners sur les boutons
+        // Listeners sur les boutons de la bottom bar
         buttonSave.setOnClickListener {
             Log.d("EDITOR", "Bouton sauvegarder cliqué")
             Toast.makeText(this, "Sauvegarde cliquée", Toast.LENGTH_SHORT).show()
             saveZones()
             hasJustSaved = true
         }
-
 
         // DrawingView cliquable
         binding.drawingView.isClickable = true
@@ -538,7 +506,7 @@ class EditorActivity : BaseActivity() {
         }
 
         // Ajout des boutons Menu et StartAdventure
-        findViewById<MaterialButton>(R.id.buttonMenu).setOnClickListener {
+        buttonMenu.setOnClickListener {
             saveZones()
             showSnackbar("Aventure sauvegardée")
             Handler(Looper.getMainLooper()).postDelayed({
@@ -547,8 +515,7 @@ class EditorActivity : BaseActivity() {
                 finish()
             }, 500)
         }
-
-        findViewById<MaterialButton>(R.id.buttonStartAdventure).setOnClickListener {
+        buttonStartAdventure.setOnClickListener {
             saveZones()
             showSnackbar("Aventure sauvegardée")
             Handler(Looper.getMainLooper()).postDelayed({
@@ -561,17 +528,14 @@ class EditorActivity : BaseActivity() {
                     "${packageName}.fileprovider",
                     file
                 )
-                //intent.putExtra("adventureId", currentAdventureName)
                 intent.putExtra("adventureJsonUri", fileUri)
                 intent.putExtra("folderUri", folderUri?.toString())
-                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) // Très important pour donner accès au fichier
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 startActivity(intent)
                 finish()
             }, 500)
         }
-
-        // Remplacement du bouton d'import dossier par un bouton de synchronisation
-        val buttonSyncFolder = binding.bottomBar.root.findViewById<MaterialButton>(R.id.buttonSyncFolder)
+        // Ajout Bouton de synchronisation
         buttonSyncFolder.setOnClickListener {
             lifecycleScope.launch(Dispatchers.IO) {
                 synchronizeFolder()
@@ -580,6 +544,15 @@ class EditorActivity : BaseActivity() {
     }
 
 // --- FONCTIONS UTILITAIRES ---
+    // --- Centralisation de la gestion de visibilité des boutons de la bottom bar ---
+    private fun setBottomBarButtonsVisible(visible: Boolean) {
+        binding.bottomBar.buttonCollapseAll.visibility = if (visible) View.VISIBLE else View.GONE
+        binding.bottomBar.buttonExpandAll.visibility = if (visible) View.VISIBLE else View.GONE
+        binding.bottomBar.buttonSave.visibility = if (visible) View.VISIBLE else View.GONE
+        binding.bottomBar.buttonMenu.visibility = if (visible) View.VISIBLE else View.GONE
+        binding.bottomBar.buttonStartAdventure.visibility = if (visible) View.VISIBLE else View.GONE
+        binding.bottomBar.buttonSyncFolder.visibility = if (visible) View.VISIBLE else View.GONE
+    }
 
     private fun openFolderPicker() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
@@ -699,26 +672,14 @@ class EditorActivity : BaseActivity() {
     }
 
 
-
-
     private fun updateBottomBarInfo(isLoading: Boolean = false) {
         if (!::imagesInfoText.isInitialized) return
-        if (isSelectionMode) {
-            val images = selectedItems.count { !isGroupPath(it) }
-            val folders = selectedItems.count { isGroupPath(it) }
-            selectionInfoContainer.isVisible = true
-            selectedImagesCount.text = getString(R.string.images_count, images)
-            //selectedWorldsCount.text = getString(R.string.folders_count, folders)
-            imagesInfoText.visibility = View.GONE
-            //worldsInfoText.visibility = View.GONE
-        } else {
-            selectionInfoContainer.isVisible = false
             imagesInfoText.visibility = View.VISIBLE
             worldsInfoText.visibility = View.VISIBLE
+            unlinkedInfoText.visibility = View.VISIBLE
             imagesInfoText.text = getString(R.string.images_count, imageDataMap.size)
-            imagesInfoText.textSize = 16f
+            imagesInfoText.textSize = 18f
             updateWorldAndUnlinkedCounts()
-        }
     }
 
     private fun updateWorldAndUnlinkedCounts() {
@@ -732,8 +693,6 @@ class EditorActivity : BaseActivity() {
             .mapNotNull { it.linkedImagePath }
             .toSet()
         val unlinkedCount = imageFileMap.keys.count { it !in linkedImageNames }
-        worldsInfoText.text = getString(R.string.worlds_count, worldCount)
-        worldsInfoText.textSize = 16f
         findViewById<TextView>(R.id.textUnlinkedCount).text = getString(R.string.unlinked_count, unlinkedCount)
     }
 
@@ -744,11 +703,6 @@ class EditorActivity : BaseActivity() {
         }
         return findNode(imageRootNode)
     }
-
-    // removeGroupAndImages supprimée
-
-
-
 
     private fun loadImagesFromFolder(uri: Uri, clearData: Boolean = true) {
         logDebug("LoadImages", "Début loadImagesFromFolder(uri=$uri, clearData=$clearData)")
@@ -765,31 +719,25 @@ class EditorActivity : BaseActivity() {
             val folder = DocumentFile.fromTreeUri(this@EditorActivity, uri) ?: return@launch
             val allImageFiles = mutableListOf<Pair<DocumentFile, String>>()
             val seenPaths = mutableSetOf<String>()
-            // imageFiles variable supprimée (inutile)
 
             withContext(Dispatchers.Main) {
                 if (!::imagesInfoText.isInitialized) {
                     Log.w("EditorActivity", "imagesInfoText non initialisé, on saute la mise à jour UI.")
                 } else {
                     loadingProgressBar.visibility = View.VISIBLE
-                    //loadingTextView.visibility = View.VISIBLE
                     imagesInfoText.text = getString(R.string.loading_progress)
                     imagesInfoText.textSize = 18f
-
                 }
                 loadingProgressBar.visibility = View.VISIBLE
                 imagesInfoText.text = getString(R.string.loading_progress)
                 imagesInfoText.textSize = 22f
-                //loadingTextView.visibility = View.VISIBLE
                 // Faire disparaître textWorldCount pendant le chargement
                 if (::worldsInfoText.isInitialized) {
-                    worldsInfoText.visibility = View.GONE
-                    // Masquer les boutons de la bottom bar
-                    binding.bottomBar.buttonSave.visibility = View.GONE
-                    binding.bottomBar.buttonMenu.visibility = View.GONE
-                    binding.bottomBar.buttonStartAdventure.visibility = View.GONE
-                    binding.bottomBar.buttonSyncFolder.visibility = View.GONE
-                }
+                    worldsInfoText.visibility = View.GONE}
+                    if (::unlinkedInfoText.isInitialized) {
+                        unlinkedInfoText.visibility = View.GONE}
+                // Masquer tous les boutons de la bottom bar de façon centralisée
+                setBottomBarButtonsVisible(false)
             }
 
             // Ajout: clear les listes globales si clearData demandé (une seule fois au début)
@@ -899,10 +847,7 @@ class EditorActivity : BaseActivity() {
                 imageAdapter.notifyDataSetChanged()
                 updateLoadingProgress()
                 loadingProgressBar.visibility = View.GONE
-                binding.bottomBar.buttonSave.visibility = View.VISIBLE
-                binding.bottomBar.buttonMenu.visibility = View.VISIBLE
-                binding.bottomBar.buttonStartAdventure.visibility = View.VISIBLE
-                binding.bottomBar.buttonSyncFolder.visibility = View.VISIBLE
+                setBottomBarButtonsVisible(true)
                 //loadingTextView.visibility = View.GONE
                 if (skippedFiles.isNotEmpty()) {
                     Toast.makeText(
@@ -1342,7 +1287,5 @@ class EditorActivity : BaseActivity() {
 
     private fun getCurrentImageZonesMap(): Map<String, List<ZoneData>> =
         imageDataMap.mapValues { entry -> entry.value.map { it.toZoneData() } }
-
-
 
 }

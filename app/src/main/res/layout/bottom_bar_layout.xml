@@ -88,32 +88,6 @@
         android:layout_margin="@dimen/button_margin"
         android:padding="5dp" />
 
-    <!-- Espace dynamique pour sélection (invisible par défaut) -->
-    <LinearLayout
-        android:id="@+id/selectionInfoContainer"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:visibility="gone"
-        android:gravity="center_vertical"
-        android:layout_marginStart="16dp">
-
-        <TextView
-            android:id="@+id/selectedImagesCount"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Images sélectionnées : 0"
-            android:textStyle="bold"
-            android:layout_marginEnd="16dp"/>
-
-        <TextView
-            android:id="@+id/selectedWorldsCount"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Dossiers sélectionnés : 0"
-            android:textStyle="bold"/>
-    </LinearLayout>
-
     <!-- Texte dynamique -->
     <TextView
         android:id="@+id/textImageCount"
@@ -121,6 +95,7 @@
         android:layout_height="wrap_content"
         android:text="Images : 0"
         android:layout_marginStart="16dp"
+        android:textSize="18dp"
         android:textStyle="bold" />
 
     <TextView
@@ -128,7 +103,8 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Mondes : 0"
-        android:layout_marginStart="8dp"
+        android:layout_marginStart="16dp"
+        android:textSize="18dp"
         android:textStyle="bold" />
 
     <TextView
@@ -136,7 +112,8 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Non liées : 0"
-        android:layout_marginStart="8dp"
-        android:textColor="#0000FF" />
+        android:layout_marginStart="16dp"
+        android:textSize="18dp"
+        android:textStyle="bold" />
 
 </LinearLayout>
