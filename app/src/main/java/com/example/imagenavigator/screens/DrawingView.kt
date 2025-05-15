@@ -60,6 +60,9 @@ class DrawingView @JvmOverloads constructor(
     var imageExistChecker: ((String) -> Boolean)? = null
 
     private val linkedThumbnails = mutableMapOf<ZoneData, Bitmap>()
+    // Stocke les rectangles des vignettes et leur imagePath associé
+    private val thumbnailRects = mutableMapOf<RectF, String>() // imagePath associé à chaque vignette
+
 
 
     /**
@@ -144,6 +147,9 @@ class DrawingView @JvmOverloads constructor(
 
         super.onDraw(canvas)
 
+        // On efface la map des rectangles de vignettes à chaque draw
+        thumbnailRects.clear()
+
         if (!isBitmapReady) {
             Log.d("DrawingView", "onDraw → Bitmap pas encore prêt, on saute le draw")
             return
@@ -212,12 +218,15 @@ class DrawingView @JvmOverloads constructor(
                 val absBottom = dstRect.top + zone.rect.bottom * dstRect.height()
                 val absRect = RectF(absLeft, absTop, absRight, absBottom)
 
-                drawLinkedThumbnail(canvas, bmp, absRect)
+                // On passe la zone pour récupérer thumbRect afin d'enregistrer le rectangle interactif
+                val linkedZone = zones.find { it.toZoneData() == zone }
+                drawLinkedThumbnail(canvas, bmp, absRect, linkedZone)
             }
         }
     }
 
-    private fun drawLinkedThumbnail(canvas: Canvas, bmp: Bitmap, absRect: RectF) {
+    // Ajout d'un paramètre facultatif zone pour enregistrer le thumbRect interactif
+    private fun drawLinkedThumbnail(canvas: Canvas, bmp: Bitmap, absRect: RectF, zone: Zone? = null) {
         if (bmp.isRecycled) {
             Log.e("DrawingView", "Bitmap recyclé détecté pour la vignette, on saute le draw")
             return
@@ -279,6 +288,11 @@ class DrawingView @JvmOverloads constructor(
 
         // Dessin final
         canvas.drawBitmap(bmp, srcRect, thumbRect, paint)
+
+        // Enregistre le rectangle et le chemin de l'image liée pour interaction
+        if (zone != null && zone.linkedImagePath != null) {
+            thumbnailRects[RectF(thumbRect)] = zone.linkedImagePath!!
+        }
     }
 
     fun setLinkedThumbnailBitmap(zone: ZoneData, bitmap: Bitmap) {
@@ -297,6 +311,15 @@ class DrawingView @JvmOverloads constructor(
         }
         Log.d("DrawingView", "onTouchEvent: ${event.action}, selectedZone=$selectedZone")
         gestureDetector.onTouchEvent(event)
+
+        // Clique sur une vignette → charger l'image liée
+        thumbnailRects.forEach { (rect, path) ->
+            if (rect.contains(event.x, event.y)) {
+                (context as? EditorActivity)?.let { activity ->
+                    activity.onImageSelected(path, true)
+                }
+            }
+        }
 
         val dstRect = getImageDisplayRect(bitmap)
         val x = event.x

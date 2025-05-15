@@ -219,7 +219,7 @@ class EditorActivity : BaseActivity() {
         }
 
     // Quand une image est sélectionnée
-    private fun onImageSelected(fullPath: String, scrollToThumbnail: Boolean = true) {
+    fun onImageSelected(fullPath: String, scrollToThumbnail: Boolean = true) {
         logDebug("onImageSelected", "onImageSelected appelé !")
         if (isBusy) {
             showSnackbar("Chargement en cours, patiente un instant…")
