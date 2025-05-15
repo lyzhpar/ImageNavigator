@@ -1,6 +1,5 @@
 package com.example.imagenavigator.adapters
 
-import android.graphics.Bitmap
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -14,7 +13,6 @@ import com.example.imagenavigator.utils.ImageGroup
 import android.util.Log
 import com.bumptech.glide.Glide
 import android.graphics.Color
-import android.graphics.RectF
 import com.example.imagenavigator.model.ZoneData
 import androidx.documentfile.provider.DocumentFile
 import com.bumptech.glide.request.RequestListener
@@ -25,7 +23,6 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.bumptech.glide.load.DataSource
 import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.example.imagenavigator.screens.ZoneOverlayView
-import com.example.imagenavigator.model.toZoneData
 
 class ImageAdapter(
     private var rootGroups: List<ImageGroup>,
@@ -44,9 +41,6 @@ class ImageAdapter(
 
     var imageZonesMap: Map<String, List<ZoneData>> = emptyMap()
     var highlightedPaths: Set<String> = emptySet()
-
-    // Ajout de la variable linkedImagePaths pour les images liées à une zone
-    var linkedImagePaths: Set<String> = emptySet()
 
     sealed class DisplayItem {
         abstract val fullPath: String
@@ -76,13 +70,11 @@ class ImageAdapter(
         // Rechercher l'index dans la liste visible
         val index = currentList.indexOfFirst { it.fullPath == imagePath }
         if (index != -1 && recyclerView != null) {
-            recyclerView?.post {
-                val layoutManager = recyclerView.layoutManager as? LinearLayoutManager ?: return@post
-                val itemHeight = recyclerView.findViewHolderForAdapterPosition(index)?.itemView?.height ?: 120
-                val recyclerViewHeight = recyclerView.height
-                val offset = recyclerViewHeight / 2 - itemHeight / 2
-                layoutManager.scrollToPositionWithOffset(index, offset)
-            }
+            val layoutManager = recyclerView.layoutManager as? LinearLayoutManager ?: return
+            val itemHeight = recyclerView.findViewHolderForAdapterPosition(index)?.itemView?.height ?: 120
+            val recyclerViewHeight = recyclerView.height
+            val offset = recyclerViewHeight / 2 - itemHeight / 2
+            layoutManager.scrollToPositionWithOffset(index, offset)
         }
     }
 
@@ -395,7 +387,7 @@ class ImageAdapter(
                 }
                 itemView.setOnClickListener {
                     if (item.fullPath.isNotBlank()) {
-                        onImageSelected(item.fullPath, false)
+                        onImageSelected(item.fullPath, true)
                     }
                 }
                 itemView.setOnLongClickListener {

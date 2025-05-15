@@ -181,7 +181,7 @@ class EditorActivity : BaseActivity() {
         // Bloc ajouté pour restaurer automatiquement l’image de départ après chargement
         startImagePath?.let { imagePath ->
             Handler(Looper.getMainLooper()).postDelayed({
-                onImageSelected(imagePath)
+                onImageSelected(imagePath, scrollToThumbnail = false)
             }, 500)
         }
         imageAdapter.imageZonesMap = getCurrentImageZonesMap()
@@ -221,6 +221,12 @@ class EditorActivity : BaseActivity() {
     // Quand une image est sélectionnée
     fun onImageSelected(fullPath: String, scrollToThumbnail: Boolean = true) {
         logDebug("onImageSelected", "onImageSelected appelé !")
+        val selectedZone = binding.drawingView.selectedZone
+        if (selectedZone != null) {
+            // Ne change pas l’image affichée — on ne fait que lier
+            linkSelectedZoneToImage(fullPath)
+            return
+        }
         if (isBusy) {
             showSnackbar("Chargement en cours, patiente un instant…")
             return
@@ -330,17 +336,12 @@ class EditorActivity : BaseActivity() {
 
         loadImageWithRetry()
 
-        val layoutManager = binding.recyclerViewThumbnails.layoutManager as LinearLayoutManager
-        val firstVisiblePosition = layoutManager.findFirstVisibleItemPosition()
-        val offset = layoutManager.findViewByPosition(firstVisiblePosition)?.top ?: 0
-
         imageAdapter.imageZonesMap = getCurrentImageZonesMap()
         val index = imageAdapter.currentList.indexOfFirst { it.fullPath == fullPath }
         if (index >= 0) {
             imageAdapter.notifyItemChanged(index)
         }
-        layoutManager.scrollToPositionWithOffset(firstVisiblePosition, offset)
-        if (scrollToThumbnail) {
+        if (scrollToThumbnail && binding.drawingView.selectedZone == null) {
             scrollToCurrentImageThumbnail()
         }
     }
@@ -409,17 +410,7 @@ class EditorActivity : BaseActivity() {
         // Adapter images
         imageAdapter = ImageAdapter(
             rootGroups = emptyList(),
-            onImageSelected = { fullPath, _ ->
-                val selectedZone = binding.drawingView.selectedZone
-                if (selectedZone != null) {
-                    // Ne change pas l’image affichée — on ne fait que lier
-                    linkSelectedZoneToImage(fullPath)
-                } else {
-                    // Changement d’image normal avec recentrage
-                    onImageSelected(fullPath, scrollToThumbnail = true)
-                }
-            },
-
+            onImageSelected = { fullPath, _ -> onImageSelected(fullPath) },
             onItemLongPress = { item -> setStartImage(item.fullPath) },
             imageFileMap = imageFileMap
         )
@@ -495,15 +486,20 @@ class EditorActivity : BaseActivity() {
         // DrawingView cliquable
         binding.drawingView.isClickable = true
         binding.drawingView.onTapListener = {
-            scrollToCurrentImageThumbnail()
-        }
-        binding.drawingView.setOnClickListener {
-            scrollToCurrentImageThumbnail()
+            // Ne scroll que si aucune zone n'est sélectionnée
+            if (binding.drawingView.selectedZone == null) {
+                binding.recyclerViewThumbnails.post {
+                    scrollToCurrentImageThumbnail()
+                }
+            }
         }
 
         binding.drawingView.onZoneSelected = {
             updateDeleteButtonVisibilityForZones()
             refreshThumbnailZones()
+            // Ne pas scroller lorsqu'une zone est sélectionnée
+            // (le scroll est déjà bloqué côté DrawingView via onTouchEvent)
+            binding.drawingView.clearFocus()
         }
 
         // Ajout d'une zone nouvellement créée à imageDataMap pour l'image courante
@@ -1207,20 +1203,15 @@ class EditorActivity : BaseActivity() {
                 imageDataMap[imageName]?.forEachIndexed { index, zone ->
                     Log.d("LinkZone", "  zone[$index] = ${zone.rect}, linkedImagePath = ${zone.linkedImagePath}")
                 }
-                val layoutManager = binding.recyclerViewThumbnails.layoutManager as LinearLayoutManager
-                val firstVisiblePosition = layoutManager.findFirstVisibleItemPosition()
-                val offset = layoutManager.findViewByPosition(firstVisiblePosition)?.top ?: 0
-
                 val imageZonesMap = getCurrentImageZonesMap()
                 imageAdapter.imageZonesMap = imageZonesMap
-
                 imageAdapter.updateImageZonesMapAndRefresh(imageZonesMap)
                 updateWorldAndUnlinkedCounts()
-                val index = imageAdapter.currentList.indexOfFirst { it.fullPath == linkedImagePath }
-                if (index >= 0) {
-                    imageAdapter.notifyItemChanged(index)
-                }
-                layoutManager.scrollToPositionWithOffset(firstVisiblePosition, offset)
+                // Bloc supprimé : notification d'item changé qui pouvait provoquer un scroll
+                // val index = imageAdapter.currentList.indexOfFirst { it.fullPath == linkedImagePath }
+                // if (index >= 0) {
+                //     imageAdapter.notifyItemChanged(index)
+                // }
             }
             logDebug("LinkZone", "Zone liée: ${selectedZone.rect}, image: $linkedImagePath")
             logDebug("LinkZone", "ImageDataMap après liaison: $imageDataMap")

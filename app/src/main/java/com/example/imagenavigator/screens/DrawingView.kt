@@ -45,6 +45,7 @@ class DrawingView @JvmOverloads constructor(
     var bitmapProvider: (() -> Bitmap?)? = null
     var requestReload: ((String) -> Unit)? = null
 
+
     //Liste des zones visibles pour cette image
     val zones: MutableList<Zone> = mutableListOf()
 
@@ -310,7 +311,8 @@ class DrawingView @JvmOverloads constructor(
             return false
         }
         Log.d("DrawingView", "onTouchEvent: ${event.action}, selectedZone=$selectedZone")
-        gestureDetector.onTouchEvent(event)
+
+        // Si le geste est traité, on ne fait rien d’autre
 
         // Clique sur une vignette → charger l'image liée
         thumbnailRects.forEach { (rect, path) ->
@@ -318,6 +320,7 @@ class DrawingView @JvmOverloads constructor(
                 (context as? EditorActivity)?.let { activity ->
                     activity.onImageSelected(path, true)
                 }
+                return true // Ne pas laisser l’événement sélectionner une zone derrière
             }
         }
 
@@ -348,10 +351,8 @@ class DrawingView @JvmOverloads constructor(
                     val movementY = Math.abs(rect.bottom - rect.top)
 
                     if (movementX < 10f && movementY < 10f) {
-                        // Petit déplacement : considérer comme un clic
                         val touchX = event.x
                         val touchY = event.y
-                        var foundZone = false
                         for (zone in zones) {
                             val absLeft = dstRect.left + zone.rect.left * dstRect.width()
                             val absTop = dstRect.top + zone.rect.top * dstRect.height()
@@ -362,22 +363,17 @@ class DrawingView @JvmOverloads constructor(
                             if (absRect.contains(touchX, touchY)) {
                                 selectedZone = zone
                                 onZoneSelected?.invoke()
-                                Log.d("DrawingView", "Zone sélectionnée : ${zone.rect.left}, ${zone.rect.top}, ${zone.rect.right}, ${zone.rect.bottom}")
                                 invalidate()
-                                // Ajout : mettre à jour la visibilité du bouton suppression après sélection
                                 (context as? EditorActivity)?.updateDeleteButtonVisibilityForZones()
-                                foundZone = true
-                                break
+                                return true // Empêche d'appeler onTapListener
                             }
                         }
-                        if (!foundZone) {
-                            // Tap en dehors des zones désélectionne la zone
-                            selectedZone = null
-                            onZoneSelected?.invoke()
-                            invalidate()
-                            // Ajout : mettre à jour la visibilité du bouton suppression après désélection
-                            (context as? EditorActivity)?.updateDeleteButtonVisibilityForZones()
-                        }
+                        // Tap en dehors des zones
+                        selectedZone = null
+                        onZoneSelected?.invoke()
+                        invalidate()
+                        (context as? EditorActivity)?.updateDeleteButtonVisibilityForZones()
+                        return true // Empêche aussi onTapListener ici
                     } else {
                         // Grand mouvement : créer une nouvelle zone
                         val relative = RectF(
