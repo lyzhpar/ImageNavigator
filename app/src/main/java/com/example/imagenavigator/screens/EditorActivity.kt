@@ -491,6 +491,7 @@ class EditorActivity : BaseActivity() {
                 val imageZonesMap = getCurrentImageZonesMap()
                 imageAdapter.imageZonesMap = imageZonesMap
                 imageAdapter.updateImageZonesMapAndRefresh(imageZonesMap)
+                updateWorldAndUnlinkedCounts()
 
                 val index = imageAdapter.currentList.indexOfFirst { it.fullPath == imageName }
                 if (index >= 0) {
@@ -688,12 +689,23 @@ class EditorActivity : BaseActivity() {
             return
         }
         val worldCount = imageRootNode.children.count { it.name != "Racine" }
-        val linkedImageNames = imageDataMap
+        findViewById<TextView>(R.id.textWorldCount).text = getString(R.string.worlds_count, worldCount)
+
+        // Comptage des images sans aucune zone liée à une image cible
+        val imagesWithoutZonesCount = imageDataMap.count { zones ->
+            zones.value.none { it.linkedImagePath != null }
+        }
+
+        // Comptage des images non ciblées (jamais utilisées comme linkedImagePath)
+        val linkedImagePaths = imageDataMap
             .flatMap { it.value }
             .mapNotNull { it.linkedImagePath }
             .toSet()
-        val unlinkedCount = imageFileMap.keys.count { it !in linkedImageNames }
-        findViewById<TextView>(R.id.textUnlinkedCount).text = getString(R.string.unlinked_count, unlinkedCount)
+        val imagesNotTargetsCount = imageFileMap.keys.count { it !in linkedImagePaths }
+
+        // Affichage dans un seul champ, plus informatif
+        findViewById<TextView>(R.id.textUnlinkedCount).text =
+            "🟦 Sans zone : $imagesWithoutZonesCount   🟥 Non ciblées : $imagesNotTargetsCount"
     }
 
     private fun isGroupPath(fullPath: String): Boolean {
@@ -1180,6 +1192,7 @@ class EditorActivity : BaseActivity() {
                 imageAdapter.imageZonesMap = imageZonesMap
 
                 imageAdapter.updateImageZonesMapAndRefresh(imageZonesMap)
+                updateWorldAndUnlinkedCounts()
                 val index = imageAdapter.currentList.indexOfFirst { it.fullPath == linkedImagePath }
                 if (index >= 0) {
                     imageAdapter.notifyItemChanged(index)
