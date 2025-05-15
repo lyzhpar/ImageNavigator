@@ -14,5 +14,6 @@
     <string name="nom_aventure">Nom aventure</string>
     <string name="expand_collapse_icon">Icône développer/réduire</string>
     <string name="folder_icon_desc">icone dossier sidebar</string>
+    <string name="image_thumbnail">image thumbnail</string>
 
 </resources>

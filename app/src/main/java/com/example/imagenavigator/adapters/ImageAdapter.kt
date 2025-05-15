@@ -31,7 +31,8 @@ class ImageAdapter(
     private var rootGroups: List<ImageGroup>,
     private val onImageSelected: (String, Boolean) -> Unit,
     private val onItemLongPress: (DisplayItem) -> Unit,
-    var imageFileMap: Map<String, DocumentFile>
+    var imageFileMap: Map<String, DocumentFile>,
+    private val layoutResId: Int = R.layout.item_image
 ) : ListAdapter<ImageAdapter.DisplayItem, RecyclerView.ViewHolder>(DiffCallback()) {
 
     var startImagePath: String? = null
@@ -39,10 +40,10 @@ class ImageAdapter(
     private val expandedGroups = mutableSetOf<String>()
     private var displayItems = flattenGroups(rootGroups)
 
-    private var isSelectionMode = false
     private val selectedItems = mutableSetOf<String>()
 
     var imageZonesMap: Map<String, List<ZoneData>> = emptyMap()
+    var highlightedPaths: Set<String> = emptySet()
 
     // Ajout de la variable linkedImagePaths pour les images liées à une zone
     var linkedImagePaths: Set<String> = emptySet()
@@ -196,7 +197,7 @@ class ImageAdapter(
             val view = inflater.inflate(R.layout.item_group, parent, false)
             GroupViewHolder(view)
         } else {
-            val view = inflater.inflate(R.layout.item_image, parent, false)
+            val view = inflater.inflate(layoutResId, parent, false)
             ImageViewHolder(view)
         }
     }
@@ -205,6 +206,7 @@ class ImageAdapter(
 
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         val item = getItem(position)
+
 
         when (holder) {
             is GroupViewHolder -> {
@@ -217,6 +219,11 @@ class ImageAdapter(
 
             is ImageViewHolder -> {
                 holder.bind(item as DisplayItem.ImageItem)
+                if (highlightedPaths.contains(item.fullPath)) {
+                    holder.imageView.setBackgroundResource(R.drawable.incoming_border)
+                } else {
+                    holder.imageView.setBackgroundResource(0)
+                }
                 holder.itemView.setOnLongClickListener {
                     onItemLongPress(item)
                     true
@@ -305,9 +312,13 @@ class ImageAdapter(
                     var retryCount = 0
 
                     fun loadImageWithRetry() {
+                        val density = imageView.context.resources.displayMetrics.density
+                        val isCompact = imageView.width < 150
+                        val sizePx = if (isCompact) (80 * density).toInt() else 400
+
                         Glide.with(imageView.context)
                             .load(documentFile.uri)
-                            .override(400, 250)
+                            .override(sizePx, sizePx)
                             .centerCrop()
                             .diskCacheStrategy(DiskCacheStrategy.ALL)
                             .skipMemoryCache(false)

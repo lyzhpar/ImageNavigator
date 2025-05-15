@@ -4,6 +4,7 @@ import java.util.concurrent.Semaphore
 
 //import com.example.imagenavigator.BuildConfig
 
+import androidx.recyclerview.widget.RecyclerView
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
@@ -93,6 +94,7 @@ class EditorActivity : BaseActivity() {
     private var currentAdventureJsonUri: Uri? = null
     private var isBusy = false
     private var hasJustSaved = false
+    private lateinit var incomingLinksAdapter: ImageAdapter
 
     private val prefs by lazy { getSharedPreferences("ImageNavigatorPrefs", Context.MODE_PRIVATE) }
 
@@ -228,6 +230,14 @@ class EditorActivity : BaseActivity() {
             imageDataMap[oldImageName] = binding.drawingView.getAllZones().toMutableList()
         }
 
+        val incomingPaths = imageDataMap.filter { (_, zones) ->
+            zones.any { it.linkedImagePath == fullPath }
+        }.keys.toSet()
+
+        val incomingItems = imageAdapter.currentList.filter { it.fullPath in incomingPaths }
+        incomingLinksAdapter.highlightedPaths = incomingPaths
+        incomingLinksAdapter.submitList(incomingItems)
+
         val maxRetries = 3
         var attempt = 0
 
@@ -331,13 +341,26 @@ class EditorActivity : BaseActivity() {
         }
         layoutManager.scrollToPositionWithOffset(firstVisiblePosition, offset)
         if (scrollToThumbnail) {
-            scrollToCurrentImageThumbnail()}
+            scrollToCurrentImageThumbnail()
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityEditorBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        val incomingLinksRecycler = findViewById<RecyclerView>(R.id.incomingLinksRecycler)
+        incomingLinksAdapter = ImageAdapter(
+            rootGroups = emptyList(),
+            onImageSelected = { fullPath, _ -> onImageSelected(fullPath) },
+            onItemLongPress = {},
+            imageFileMap = imageFileMap,
+            layoutResId = R.layout.item_image_compact
+        )
+        incomingLinksRecycler.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        incomingLinksRecycler.adapter = incomingLinksAdapter
+
 
         val lastUri = getLastFolderUri()
         if (lastUri != null) {
@@ -387,13 +410,13 @@ class EditorActivity : BaseActivity() {
         imageAdapter = ImageAdapter(
             rootGroups = emptyList(),
             onImageSelected = { fullPath, _ ->
-                Log.d("EditorActivity", "Vignette cliquée: $fullPath")
-                Log.d("ZoneLink", "selectedZone: ${binding.drawingView.selectedZone}")
                 val selectedZone = binding.drawingView.selectedZone
                 if (selectedZone != null) {
+                    // Ne change pas l’image affichée — on ne fait que lier
                     linkSelectedZoneToImage(fullPath)
                 } else {
-                    onImageSelected(fullPath, false)
+                    // Changement d’image normal avec recentrage
+                    onImageSelected(fullPath, scrollToThumbnail = true)
                 }
             },
 
@@ -1302,3 +1325,4 @@ class EditorActivity : BaseActivity() {
         imageDataMap.mapValues { entry -> entry.value.map { it.toZoneData() } }
 
 }
+
