@@ -15,7 +15,6 @@ import android.os.Looper
 import android.util.Log
 import android.view.View
 import android.view.inputmethod.EditorInfo
-import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.TextView
@@ -49,7 +48,6 @@ import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.request.target.Target
 import com.bumptech.glide.load.engine.GlideException
 import com.bumptech.glide.load.DataSource
-import android.graphics.drawable.Drawable
 import com.example.imagenavigator.utils.ThumbnailLoader
 
 import androidx.lifecycle.lifecycleScope
@@ -97,14 +95,11 @@ class EditorActivity : BaseActivity() {
     private val debugLogs = true
 
     private var startImagePath: String? = null
-    private var adventure: Adventure? = null
     private var currentAdventureJsonUri: Uri? = null
     private var isBusy = false
     private var hasJustSaved = false
-    private var areGroupsExpanded = false
 
     private val prefs by lazy { getSharedPreferences("ImageNavigatorPrefs", Context.MODE_PRIVATE) }
-
 
     private fun scrollToCurrentImageThumbnail() {
         currentImageName?.let { imageName ->
@@ -346,20 +341,6 @@ class EditorActivity : BaseActivity() {
     }
 
 
-    private fun getUriForImage(path: String): Uri? {
-        val adventureFolder = File(
-            filesDir,
-            "adventures"
-        ) // Assurez-vous que ce dossier existe et contient les images
-        val imageFile = File(adventureFolder, path)
-        return if (imageFile.exists()) {
-            Uri.fromFile(imageFile)
-        } else {
-            null
-        }
-    }
-
-
     private fun loadAdventureData(name: String) {
         val file = File(filesDir, "${name}_zones.json")
         if (file.exists()) {
@@ -551,9 +532,6 @@ class EditorActivity : BaseActivity() {
                 //currentFolderUri?.let { requestFolderAccess(it)
             }
         }*/
-        val bottomBar = binding.bottomBar.root
-        //val indexMenu = bottomBar.indexOfChild(findViewById(R.id.buttonMenu))
-        //bottomBar.addView(buttonRefresh, indexMenu + 1)
 
         // Listeners sur les boutons
         buttonSave.setOnClickListener {
@@ -1068,13 +1046,6 @@ class EditorActivity : BaseActivity() {
         super.onDestroy()
     }
 
-    // Affiche ou masque le bouton de suppression des zones selon la sélection
-    fun updateDeleteButtonVisibilityForZones() {
-        val hasSelection = binding.drawingView.hasSelectedZones()
-        logDebug("EditorActivity", "updateDeleteButtonVisibilityForZones() → hasSelection=$hasSelection")
-        deleteZonesButton.visibility = if (hasSelection) View.VISIBLE else View.GONE
-    }
-
     // Permet à DrawingView de masquer le bouton de suppression des zones
     fun hideDeleteZonesButton() {
         deleteZonesButton.visibility = View.GONE
@@ -1418,7 +1389,11 @@ class EditorActivity : BaseActivity() {
         return hasPermission
     }
 
-    // handleDeleteSelectedItems supprimée
+    // Affiche ou masque le bouton de suppression des zones selon la sélection
+    fun updateDeleteButtonVisibilityForZones() {
+        deleteZonesButton.visibility =
+            if (binding.drawingView.selectedZone != null) View.VISIBLE else View.GONE
+    }
 
 
 

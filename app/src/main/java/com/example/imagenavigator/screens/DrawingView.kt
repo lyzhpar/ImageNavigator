@@ -11,10 +11,7 @@ import android.view.GestureDetector
 import com.example.imagenavigator.model.ZoneData
 import com.example.imagenavigator.model.toZoneData
 import com.google.android.material.snackbar.Snackbar
-import com.example.imagenavigator.utils.toRectF
 import com.example.imagenavigator.utils.ThumbnailLoader
-import kotlin.math.abs
-
 
 /**
  * Vue personnalisée qui permet d'afficher une image et de dessiner des zones rectangulaires
@@ -62,15 +59,8 @@ class DrawingView @JvmOverloads constructor(
     var currentImageName: String? = null
     var imageExistChecker: ((String) -> Boolean)? = null
 
-    private val selectedZonesMulti = mutableSetOf<Zone>()
     private val linkedThumbnails = mutableMapOf<ZoneData, Bitmap>()
-    private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
-    fun clearSelectedZones() {
-        selectedZonesMulti.clear()
-        (context as? EditorActivity)?.updateDeleteButtonVisibilityForZones()
-        invalidate()
-    }
 
     /**
      * Charge un bitmap dans la vue et déclenche un redraw.
@@ -123,7 +113,6 @@ class DrawingView @JvmOverloads constructor(
         Log.d("DrawingView", "setZonesForCurrentImage → zones=${newZones.map { it.rect }}")
         zones.clear()
         zones.addAll(newZones)
-        clearSelectedZones()
         (context as? EditorActivity)?.updateDeleteButtonVisibilityForZones()
         Log.d("ZonesForCurrentImage", "Zones actuelles → count=${zones.size}, liste=${zones.map { it.rect }}")
         invalidate()
@@ -137,38 +126,8 @@ class DrawingView @JvmOverloads constructor(
             onTapListener?.invoke()
             return true
         }
-
-        override fun onLongPress(e: MotionEvent) {
-            val bitmap = bitmapProvider?.invoke() ?: return
-            val dstRect = getImageDisplayRect(bitmap)
-            val x = e.x.coerceIn(dstRect.left, dstRect.right)
-            val y = e.y.coerceIn(dstRect.top, dstRect.bottom)
-
-            for (zone in zones) {
-                val absLeft = dstRect.left + zone.rect.left * dstRect.width()
-                val absTop = dstRect.top + zone.rect.top * dstRect.height()
-                val absRight = dstRect.left + zone.rect.right * dstRect.width()
-                val absBottom = dstRect.top + zone.rect.bottom * dstRect.height()
-                val absRect = RectF(absLeft, absTop, absRight, absBottom)
-
-                if (absRect.contains(x, y)) {
-                    if (selectedZonesMulti.contains(zone)) {
-                        selectedZonesMulti.remove(zone)
-                    } else {
-                        selectedZonesMulti.add(zone)
-                    }
-                    (context as? EditorActivity)?.updateDeleteButtonVisibilityForZones()
-                    invalidate()
-                    break
-                }
-            }
-        }
+        // onLongPress supprimé (plus de sélection multiple)
     })
-
-    private val paintZone = Paint().apply {
-        color = Color.argb(128, 0, 255, 0)
-        style = Paint.Style.FILL
-    }
 
     private val paintBorder = Paint().apply {
         color = Color.BLACK
@@ -220,7 +179,6 @@ class DrawingView @JvmOverloads constructor(
             //TODO:Config couleur zones
             val zonePaint = Paint().apply {
                 color = when {
-                    zone in selectedZonesMulti -> Color.argb(180, 255, 0, 0) // rouge semi-transparent pour multi-sélection
                     zone == selectedZone -> Color.argb(150, 255, 165, 0) // orange semi-transparent
                     zone.linkedImagePath != null -> Color.argb(60, 0, 255, 0) // vert semi-transparent
                     else -> Color.argb(150, 128, 128, 128) // gris semi-transparent
@@ -338,16 +296,8 @@ class DrawingView @JvmOverloads constructor(
             return false
         }
         Log.d("DrawingView", "onTouchEvent: ${event.action}, selectedZone=$selectedZone")
-        if (event.action == MotionEvent.ACTION_DOWN && selectedZonesMulti.isNotEmpty()) {
-            clearSelectedZones()
-            (context as? EditorActivity)?.hideDeleteZonesButton()
-        }
         gestureDetector.onTouchEvent(event)
 
-        if (selectedZonesMulti.isNotEmpty()) {
-            // Pas de sélection simple en mode sélection multiple
-            return true
-        }
         val dstRect = getImageDisplayRect(bitmap)
         val x = event.x
         val y = event.y
@@ -465,14 +415,11 @@ class DrawingView @JvmOverloads constructor(
                 ).show()
                 return
             }
-            Log.d("Debug", "Avant liaison : selectedZone=$selectedZone, selectedZonesMulti=$selectedZonesMulti")
             it.linkedImagePath = imagePath
             Log.d("assignLinked", "Zones actuelles → count=${zones.size}, liste=${zones.map { it.rect }}")
             selectedZone = null
-            selectedZonesMulti.clear()
             invalidate()
             (context as? EditorActivity)?.hideDeleteZonesButton()
-            Log.d("Debug", "Après liaison : selectedZone=$selectedZone, selectedZonesMulti=$selectedZonesMulti")
             Log.d("DebugLink", "assignLinkedImageToSelectedZone → zone=$selectedZone, imagePath=$imagePath")
         }
     }
@@ -498,13 +445,9 @@ class DrawingView @JvmOverloads constructor(
     // spotlightActive et spotlight methods supprimés
 
     fun deleteSelectedZones() {
-        Log.d("DeleteZones", "Sélection : ${selectedZonesMulti.size}, Zones : ${zones.size}")
+        Log.d("DeleteZones", "Zones : ${zones.size}")
 
-        val zonesToDelete = if (selectedZonesMulti.isNotEmpty()) {
-            selectedZonesMulti.toList()
-        } else {
-            selectedZone?.let { listOf(it) } ?: emptyList()
-        }
+        val zonesToDelete = selectedZone?.let { listOf(it) } ?: emptyList()
 
         if (zonesToDelete.isEmpty()) {
             Log.d("DeleteZones", "Aucune zone sélectionnée.")
@@ -518,7 +461,6 @@ class DrawingView @JvmOverloads constructor(
         (context as? EditorActivity)?.refreshThumbnailZones()
 
         selectedZone = null
-        selectedZonesMulti.clear()
         drawingRect = null
         startX = 0f
         startY = 0f
@@ -527,11 +469,6 @@ class DrawingView @JvmOverloads constructor(
     }
 
 
-    fun hasSelectedZones(): Boolean {
-        val hasMulti = selectedZonesMulti.isNotEmpty()
-        val hasSingle = selectedZone != null
-        Log.d("DrawingView", "hasSelectedZones() → multi: $hasMulti, single: $hasSingle")
-        return hasMulti || hasSingle
-    }
+    // fun hasSelectedZones() supprimée (remplacée par selectedZone != null si besoin)
 
 }
