@@ -20,53 +20,54 @@
     android:orientation="vertical"
     android:padding="16dp">
 
-    <Button
-        android:id="@+id/buttonBackground"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Couleur de fond"
-        android:background="@drawable/button_background"
-        android:textStyle="bold"
-        android:textColor="@android:color/white"
-        android:padding="12dp"
-        android:layout_marginBottom="8dp"/>
-
     <LinearLayout
-        android:id="@+id/colorPickerLayout"
-        android:layout_width="wrap_content"
+        android:id="@+id/buttonBackground"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:background="@drawable/button_background"
         android:orientation="horizontal"
-        android:visibility="gone"
-        android:layout_gravity="center_horizontal"
-        android:layout_marginBottom="16dp"
-        android:layout_marginTop="8dp">
+        android:gravity="center_vertical"
+        android:padding="12dp"
+        android:layout_marginBottom="8dp">
 
-        <Button
-            android:id="@+id/buttonWhite"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_margin="4dp"
-            android:background="@drawable/color_selector"
-            android:text=""
-            android:tag="#FFFFFF" />
+        <TextView
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="COULEUR DE FOND"
+            android:textStyle="bold"
+            android:textColor="@android:color/white"
+            android:textSize="14sp" />
 
-        <Button
-            android:id="@+id/buttonGrey"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_margin="4dp"
+        <ImageView
+            android:id="@+id/colorWhite"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginHorizontal="4dp"
             android:background="@drawable/color_selector"
-            android:text=""
-            android:tag="#F0F0F0" />
+            android:tag="#FFFFFF"
+            android:contentDescription="Blanc"
+            android:src="@android:color/white" />
 
-        <Button
-            android:id="@+id/buttonBlack"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_margin="4dp"
+        <ImageView
+            android:id="@+id/colorGrey"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginHorizontal="4dp"
             android:background="@drawable/color_selector"
-            android:text=""
-            android:tag="#000000" />
+            android:tag="#F0F0F0"
+            android:contentDescription="Gris"
+            android:src="@android:color/darker_gray" />
+
+        <ImageView
+            android:id="@+id/colorBlack"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginHorizontal="4dp"
+            android:background="@drawable/color_selector"
+            android:tag="#000000"
+            android:contentDescription="Noir"
+            android:src="@android:color/black" />
     </LinearLayout>
 
     <Button

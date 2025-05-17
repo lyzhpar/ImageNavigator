@@ -1,4 +1,5 @@
 import android.app.Dialog
+import android.content.Context
 import android.view.View
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
@@ -9,8 +10,8 @@ import android.widget.Button
 import androidx.fragment.app.DialogFragment
 import com.example.imagenavigator.R
 import android.widget.FrameLayout
-
-
+import android.widget.ImageView
+import android.widget.LinearLayout
 
 
 class NavigatorOptionsDialogFragment(
@@ -27,41 +28,37 @@ class NavigatorOptionsDialogFragment(
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
         dialog.setContentView(R.layout.dialog_navigator_menu)
 
-        val prefs = requireContext().getSharedPreferences("navigator_prefs", android.content.Context.MODE_PRIVATE)
+        val prefs = requireContext().getSharedPreferences("navigator_prefs", Context.MODE_PRIVATE)
 
-        val colorLayout = dialog.findViewById<android.widget.LinearLayout>(R.id.colorPickerLayout)
-        val buttonBg = dialog.findViewById<Button>(R.id.buttonBackground)
-
-        val buttonWhite = dialog.findViewById<Button>(R.id.buttonWhite)
-        val buttonGrey = dialog.findViewById<Button>(R.id.buttonGrey)
-        val buttonBlack = dialog.findViewById<Button>(R.id.buttonBlack)
-
-        val allColorButtons = listOf(buttonWhite, buttonGrey, buttonBlack)
-        val colorMap = mapOf(
-            buttonWhite to Color.WHITE,
-            buttonGrey to Color.parseColor("#F0F0F0"),
-            buttonBlack to Color.BLACK
+        val colorViews = listOf(
+            dialog.findViewById<ImageView>(R.id.colorWhite),
+            dialog.findViewById<ImageView>(R.id.colorGrey),
+            dialog.findViewById<ImageView>(R.id.colorBlack)
         )
 
-        fun updateSelection(selected: Button?) {
-            allColorButtons.forEach { it?.isSelected = it == selected }
+        val colorMap = mapOf(
+            R.id.colorWhite to Color.WHITE,
+            R.id.colorGrey to Color.parseColor("#F0F0F0"),
+            R.id.colorBlack to Color.BLACK
+        )
+
+        fun updateSelection(selectedId: Int) {
+            colorViews.forEach { it?.isSelected = it?.id == selectedId }
         }
 
-        buttonBg?.setOnClickListener {
-            colorLayout?.visibility = if (colorLayout?.visibility == View.VISIBLE) View.GONE else View.VISIBLE
-        }
-
-        colorMap.forEach { (button, color) ->
-            button?.setOnClickListener {
-                updateSelection(button)
-                prefs.edit().putInt("background_color", color).apply()
+        colorViews.forEach { imageView ->
+            imageView?.setOnClickListener {
+                val selectedColor = colorMap[imageView.id] ?: Color.WHITE
+                prefs.edit().putInt("background_color", selectedColor).apply()
+                updateSelection(imageView.id)
                 onChangeBgClick()
             }
         }
 
-        // Initialiser sélection selon préférences
+// Initialisation selon couleur enregistrée
         val savedColor = prefs.getInt("background_color", Color.WHITE)
-        colorMap.entries.find { it.value == savedColor }?.key?.isSelected = true
+        val selectedId = colorMap.entries.find { it.value == savedColor }?.key
+        updateSelection(selectedId ?: R.id.colorWhite)
 
         val root = dialog.findViewById<FrameLayout>(R.id.outsideContainer)
         val menu = dialog.findViewById<View>(R.id.menuContainer)
@@ -82,7 +79,7 @@ class NavigatorOptionsDialogFragment(
             onEditClick()
             dismiss()
         }
-        dialog.findViewById<Button>(R.id.buttonBackground).setOnClickListener {
+        dialog.findViewById<LinearLayout>(R.id.buttonBackground).setOnClickListener {
             onChangeBgClick()
             dismiss()
         }
