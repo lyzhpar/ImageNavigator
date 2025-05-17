@@ -318,7 +318,7 @@ class DrawingView @JvmOverloads constructor(
         thumbnailRects.forEach { (rect, path) ->
             if (rect.contains(event.x, event.y)) {
                 (context as? EditorActivity)?.let { activity ->
-                    activity.onImageSelected(path, true)
+                    activity.onImageSelected(path, ImageClickSource.ZONE_THUMBNAIL, allowScroll = true)
                 }
                 return true // Ne pas laisser l’événement sélectionner une zone derrière
             }
