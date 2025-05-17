@@ -35,6 +35,10 @@ class ImageAdapter(
     private val layoutResId: Int = R.layout.item_image
 ) : ListAdapter<ImageAdapter.DisplayItem, RecyclerView.ViewHolder>(DiffCallback()) {
 
+    private var showZones: Boolean = true
+    private var showZoneThumbnails: Boolean = true
+    private var layoutResIdModifiable: Int = layoutResId
+
     var startImagePath: String? = null
 
     private val expandedGroups = mutableSetOf<String>()
@@ -192,7 +196,7 @@ class ImageAdapter(
             val view = inflater.inflate(R.layout.item_group, parent, false)
             GroupViewHolder(view)
         } else {
-            val view = inflater.inflate(layoutResId, parent, false)
+            val view = inflater.inflate(layoutResIdModifiable, parent, false)
             ImageViewHolder(view)
         }
     }
@@ -442,4 +446,19 @@ class ImageAdapter(
         submitList(displayItems.toList())
     }
 
+    // --- Ajout des méthodes publiques pour showZones, showZoneThumbnails, layoutResIdModifiable ---
+    fun setShowZones(value: Boolean) {
+        showZones = value
+        notifyDataSetChanged()
+    }
+
+    fun setShowZoneThumbnails(value: Boolean) {
+        showZoneThumbnails = value
+        notifyDataSetChanged()
+    }
+
+    fun setLayoutResId(newLayoutResId: Int) {
+        layoutResIdModifiable = newLayoutResId
+        notifyDataSetChanged()
+    }
 }

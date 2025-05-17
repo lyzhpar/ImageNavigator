@@ -54,6 +54,7 @@ import com.example.imagenavigator.utils.ThumbnailLoader
 import androidx.lifecycle.lifecycleScope
 import com.example.imagenavigator.model.ZoneData
 import com.google.android.material.button.MaterialButton
+import kotlin.apply
 
 
 enum class ImageClickSource {
@@ -106,6 +107,13 @@ class EditorActivity : BaseActivity() {
     private lateinit var incomingLinksAdapter: ImageAdapter
 
     private val prefs by lazy { getSharedPreferences("ImageNavigatorPrefs", Context.MODE_PRIVATE) }
+
+    // Options d'affichage utilisateur
+    private var showImageThumbnails = true
+    private var showSidebarZones = true
+    private var condensedSidebar = false
+    private var showZones: Boolean = true
+    private var showZoneThumbnails: Boolean = true
 
     private fun scrollToCurrentImageThumbnail() {
         currentImageName?.let { imageName ->
@@ -369,6 +377,13 @@ class EditorActivity : BaseActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityEditorBinding.inflate(layoutInflater)
+
+        // Récupère les préférences utilisateur pour l'affichage
+        showImageThumbnails = prefs.getBoolean("showImageThumbnails", true)
+        showSidebarZones = prefs.getBoolean("showSidebarZones", true)
+        showZoneThumbnails = prefs.getBoolean("showZoneThumbnails", true)
+        condensedSidebar = prefs.getBoolean("condensedSidebar", false)
+
         setContentView(binding.root)
 
         val incomingLinksRecycler = findViewById<RecyclerView>(R.id.incomingLinksRecycler)
@@ -440,7 +455,10 @@ class EditorActivity : BaseActivity() {
             onImageSelected = { fullPath, _, _ -> onImageSelected(fullPath, ImageClickSource.SIDEBAR, false) },
             onItemLongPress = { item -> setStartImage(item.fullPath) },
             imageFileMap = imageFileMap
-        )
+        ).apply {
+            showZones = showSidebarZones
+            showZoneThumbnails = showZoneThumbnails
+        }
 
         binding.recyclerViewThumbnails.apply {
             layoutManager = LinearLayoutManager(this@EditorActivity)
@@ -452,6 +470,8 @@ class EditorActivity : BaseActivity() {
         if (animator is androidx.recyclerview.widget.SimpleItemAnimator) {
             animator.supportsChangeAnimations = false
         }
+        // Affiche/masque la liste des miniatures selon la préférence utilisateur
+        binding.recyclerViewThumbnails.visibility = if (showImageThumbnails) View.VISIBLE else View.GONE
 
 
         // 🛠 Accès propre aux éléments du header
@@ -469,6 +489,7 @@ class EditorActivity : BaseActivity() {
         val buttonSyncFolder = binding.bottomBar.buttonSyncFolder
         val buttonExpandAll = binding.bottomBar.buttonExpandAll
         val buttonCollapseAll = binding.bottomBar.buttonCollapseAll
+        val buttonOptions = binding.bottomBar.buttonOptions
 
         val adventureFromIntent = intent.getStringExtra("adventureName")
         Log.d("DEBUG", "→ editMode=${intent.getBooleanExtra("editMode", false)}, startImagePath=$startImagePath")
@@ -551,6 +572,9 @@ class EditorActivity : BaseActivity() {
                 startActivity(intent)
                 finish()
             }, 500)
+        }
+        buttonOptions.setOnClickListener {
+            showEditorOptionsDialog()
         }
         buttonStartAdventure.setOnClickListener {
             saveZones()
@@ -711,12 +735,13 @@ class EditorActivity : BaseActivity() {
 
     private fun updateBottomBarInfo(isLoading: Boolean = false) {
         if (!::imagesInfoText.isInitialized) return
-            imagesInfoText.visibility = View.VISIBLE
-            worldsInfoText.visibility = View.VISIBLE
-            unlinkedInfoText.visibility = View.VISIBLE
-            imagesInfoText.text = getString(R.string.images_count, imageDataMap.size)
-            imagesInfoText.textSize = 18f
-            updateWorldAndUnlinkedCounts()
+
+        imagesInfoText.visibility = View.VISIBLE
+        worldsInfoText.visibility = View.VISIBLE
+        unlinkedInfoText.visibility = View.VISIBLE
+        imagesInfoText.text = getString(R.string.images_count, imageDataMap.size)
+        imagesInfoText.textSize =    18f
+        updateWorldAndUnlinkedCounts()
     }
 
     private fun updateWorldAndUnlinkedCounts() {
@@ -1343,5 +1368,76 @@ class EditorActivity : BaseActivity() {
     private fun getCurrentImageZonesMap(): Map<String, List<ZoneData>> =
         imageDataMap.mapValues { entry -> entry.value.map { it.toZoneData() } }
 
+
+
+    // --- Menu d’options d’affichage pour l’éditeur ---
+    private fun showEditorOptionsDialog() {
+        val view = layoutInflater.inflate(R.layout.dialog_editor_options, null)
+        val checkboxThumbnails = view.findViewById<android.widget.CheckBox>(R.id.checkbox_thumbnails)
+        val checkboxZones = view.findViewById<android.widget.CheckBox>(R.id.checkbox_zones)
+        val checkboxZoneThumbnails = view.findViewById<android.widget.CheckBox>(R.id.checkbox_zone_thumbnails)
+        val checkboxCondensed = view.findViewById<android.widget.CheckBox>(R.id.checkbox_condensed)
+
+        checkboxThumbnails.isChecked = showImageThumbnails
+        checkboxZones.isChecked = showSidebarZones
+        checkboxZoneThumbnails.isChecked = showZoneThumbnails
+        checkboxCondensed.isChecked = condensedSidebar
+
+        AlertDialog.Builder(this)
+            .setTitle("Options d’affichage")
+            .setView(view)
+            .setPositiveButton("OK") { _, _ ->
+                showImageThumbnails = checkboxThumbnails.isChecked
+                showSidebarZones = checkboxZones.isChecked
+                showZoneThumbnails = checkboxZoneThumbnails.isChecked
+                condensedSidebar = checkboxCondensed.isChecked
+
+                prefs.edit()
+                    .putBoolean("showImageThumbnails", showImageThumbnails)
+                    .putBoolean("showSidebarZones", showSidebarZones)
+                    .putBoolean("showZoneThumbnails", showZoneThumbnails)
+                    .putBoolean("condensedSidebar", condensedSidebar)
+                    .apply()
+
+                val existingParams = binding.drawingView.layoutParams
+                if (existingParams is androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams) {
+                    if (showImageThumbnails) {
+                        binding.incomingLinksRecycler.visibility = View.VISIBLE
+                        existingParams.height = 0
+                    } else {
+                        binding.incomingLinksRecycler.visibility = View.GONE
+                        existingParams.height = androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams.MATCH_PARENT
+                    }
+                    existingParams.behavior = com.google.android.material.appbar.AppBarLayout.ScrollingViewBehavior()
+                    binding.drawingView.layoutParams = existingParams
+                }
+                binding.drawingView.requestLayout()
+                updateZoneSidebarDisplay()
+                updateZoneThumbnailDisplay()
+                updateSidebarLayoutMode()
+            }
+            .setNegativeButton("Annuler", null)
+            .show()
+    }
+
+    // --- Fonctions de mise à jour d'affichage de la sidebar ---
+    private fun updateZoneSidebarDisplay() {
+        imageAdapter.setShowZones(showSidebarZones)
+        imageAdapter.notifyDataSetChanged()
+    }
+
+    private fun updateZoneThumbnailDisplay() {
+        imageAdapter.setShowZoneThumbnails(showZoneThumbnails)
+        imageAdapter.notifyDataSetChanged()
+    }
+
+    private fun updateSidebarLayoutMode() {
+        imageAdapter.setLayoutResId(
+            if (condensedSidebar) R.layout.item_image_compact else R.layout.item_image
+        )
+        imageAdapter.notifyDataSetChanged()
+    }
+
 }
+
 

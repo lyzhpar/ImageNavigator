@@ -79,7 +79,7 @@ class NavigatorOptionsDialogFragment(
             onEditClick()
             dismiss()
         }
-        dialog.findViewById<LinearLayout>(R.id.buttonBackground).setOnClickListener {
+        dialog.findViewById<Button>(R.id.buttonBackground)?.setOnClickListener {
             onChangeBgClick()
             dismiss()
         }
