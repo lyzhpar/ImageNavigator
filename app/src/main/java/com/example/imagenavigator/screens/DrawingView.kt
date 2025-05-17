@@ -124,14 +124,6 @@ class DrawingView @JvmOverloads constructor(
 
     fun getAllZones(): MutableList<Zone> = zones
 
-    private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
-        override fun onSingleTapUp(e: MotionEvent): Boolean {
-            Log.d("DrawingView", "onSingleTapUp détecté")
-            onTapListener?.invoke()
-            return true
-        }
-        // onLongPress supprimé (plus de sélection multiple)
-    })
 
     private val paintBorder = Paint().apply {
         color = Color.BLACK
@@ -314,13 +306,26 @@ class DrawingView @JvmOverloads constructor(
 
         // Si le geste est traité, on ne fait rien d’autre
 
-        // Clique sur une vignette → charger l'image liée
-        thumbnailRects.forEach { (rect, path) ->
-            if (rect.contains(event.x, event.y)) {
-                (context as? EditorActivity)?.let { activity ->
-                    activity.onImageSelected(path, ImageClickSource.ZONE_THUMBNAIL, allowScroll = true)
+        // Clique sur une vignette (ACTION_UP uniquement, ignorer si dessin/mouvement)
+        if (event.action == MotionEvent.ACTION_UP) {
+            val movementX = Math.abs(event.x - startX)
+            val movementY = Math.abs(event.y - startY)
+
+            // Clic simple uniquement (pas de dessin)
+            if (movementX < 10f && movementY < 10f) {
+                val editor = context as? EditorActivity
+                val tappedThumbnail = thumbnailRects.entries.find { (rect, _) -> rect.contains(event.x, event.y) }
+
+                tappedThumbnail?.let { (_, path) ->
+                    if (selectedZone != null) {
+                        // Liaison sans scroll ni changement d'image
+                        assignLinkedImageToSelectedZone(path)
+                    } else {
+                        // Affichage avec scroll autorisé
+                        editor?.onImageSelected(path, ImageClickSource.ZONE_THUMBNAIL, allowScroll = true)
+                    }
+                    return true
                 }
-                return true // Ne pas laisser l’événement sélectionner une zone derrière
             }
         }
 
@@ -353,6 +358,7 @@ class DrawingView @JvmOverloads constructor(
                     if (movementX < 10f && movementY < 10f) {
                         val touchX = event.x
                         val touchY = event.y
+                        var zoneClicked = false
                         for (zone in zones) {
                             val absLeft = dstRect.left + zone.rect.left * dstRect.width()
                             val absTop = dstRect.top + zone.rect.top * dstRect.height()
@@ -365,15 +371,23 @@ class DrawingView @JvmOverloads constructor(
                                 onZoneSelected?.invoke()
                                 invalidate()
                                 (context as? EditorActivity)?.updateDeleteButtonVisibilityForZones()
-                                return true // Empêche d'appeler onTapListener
+                                zoneClicked = true
+                                break
                             }
                         }
-                        // Tap en dehors des zones
-                        selectedZone = null
-                        onZoneSelected?.invoke()
-                        invalidate()
-                        (context as? EditorActivity)?.updateDeleteButtonVisibilityForZones()
-                        return true // Empêche aussi onTapListener ici
+                        if (!zoneClicked) {
+                            // Tap en dehors des zones
+                            selectedZone = null
+                            onZoneSelected?.invoke()
+                            invalidate()
+                            (context as? EditorActivity)?.updateDeleteButtonVisibilityForZones()
+                            // Appel du scroll auto (onTapListener) uniquement si pas de zone sélectionnée ni créée
+                            if (movementX < 10f && movementY < 10f && selectedZone == null) {
+                                onTapListener?.invoke()
+                            }
+                        }
+                        drawingRect = null
+                        return true
                     } else {
                         // Grand mouvement : créer une nouvelle zone
                         val relative = RectF(

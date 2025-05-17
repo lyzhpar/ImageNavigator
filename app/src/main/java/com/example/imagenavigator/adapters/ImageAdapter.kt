@@ -14,6 +14,7 @@ import android.util.Log
 import com.bumptech.glide.Glide
 import android.graphics.Color
 import com.example.imagenavigator.model.ZoneData
+import com.example.imagenavigator.screens.ImageClickSource
 import androidx.documentfile.provider.DocumentFile
 import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.load.engine.GlideException
@@ -26,7 +27,7 @@ import com.example.imagenavigator.screens.ZoneOverlayView
 
 class ImageAdapter(
     private var rootGroups: List<ImageGroup>,
-    private val onImageSelected: (String, Boolean) -> Unit,
+    private val onImageSelected: (String, ImageClickSource, Boolean) -> Unit,
     private val onItemLongPress: (DisplayItem) -> Unit,
     var imageFileMap: Map<String, DocumentFile>,
     private val layoutResId: Int = R.layout.item_image
@@ -387,7 +388,7 @@ class ImageAdapter(
                 }
                 itemView.setOnClickListener {
                     if (item.fullPath.isNotBlank()) {
-                        onImageSelected(item.fullPath, true)
+                        onImageSelected(item.fullPath, ImageClickSource.SIDEBAR, false)
                     }
                 }
                 itemView.setOnLongClickListener {

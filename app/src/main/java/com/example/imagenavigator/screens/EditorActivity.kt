@@ -233,6 +233,7 @@ class EditorActivity : BaseActivity() {
         allowScroll: Boolean = false
     ) {
         logDebug("onImageSelected", "onImageSelected appelé !")
+        Log.d("LINK_TRACE", "fullPath=$fullPath, source=$source")
         val selectedZone = binding.drawingView.selectedZone
         if (selectedZone != null) {
             // Ne change pas l’image affichée — on ne fait que lier
@@ -369,7 +370,14 @@ class EditorActivity : BaseActivity() {
         val incomingLinksRecycler = findViewById<RecyclerView>(R.id.incomingLinksRecycler)
         incomingLinksAdapter = ImageAdapter(
             rootGroups = emptyList(),
-            onImageSelected = { fullPath, _ -> onImageSelected(fullPath, ImageClickSource.SIDEBAR, allowScroll = false) },
+            onImageSelected = { fullPath, _, _ ->
+                val selectedZone = binding.drawingView.selectedZone
+                if (selectedZone != null) {
+                    linkSelectedZoneToImage(fullPath)
+                } else {
+                    onImageSelected(fullPath, ImageClickSource.INCOMING_LINKS, true)
+                }
+            },
             onItemLongPress = {},
             imageFileMap = imageFileMap,
             layoutResId = R.layout.item_image_compact
@@ -425,7 +433,7 @@ class EditorActivity : BaseActivity() {
         // Adapter images
         imageAdapter = ImageAdapter(
             rootGroups = emptyList(),
-            onImageSelected = { fullPath, _ -> onImageSelected(fullPath, ImageClickSource.SIDEBAR, allowScroll = false) },
+            onImageSelected = { fullPath, _, _ -> onImageSelected(fullPath, ImageClickSource.SIDEBAR, false) },
             onItemLongPress = { item -> setStartImage(item.fullPath) },
             imageFileMap = imageFileMap
         )
@@ -1189,6 +1197,7 @@ class EditorActivity : BaseActivity() {
     // Lie l'image à la zone sélectionnée
     private fun linkSelectedZoneToImage(linkedImagePath: String) {
         val selectedZone = binding.drawingView.selectedZone
+        Log.d("LINK_TRACE", "selectedZone=$selectedZone, linkedImagePath=$linkedImagePath")
         if (selectedZone != null) {
             if (linkedImagePath == currentImageName) {
                 showSnackbar("Impossible de lier une zone à sa propre image.")
