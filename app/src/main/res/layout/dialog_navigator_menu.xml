@@ -14,22 +14,22 @@ android:padding="16dp">
     android:id="@+id/buttonTransition"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:text="Effet de transition" />
+    android:text="Transitions" />
 <Button
     android:id="@+id/buttonEdit"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:text="Éditer l’image" />
+    android:text="Éditer l’aventure" />
 <Button
     android:id="@+id/buttonStart"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:text="Retour à l’image de départ" />
+    android:text="Image de départ" />
 <Button
     android:id="@+id/buttonMain"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:text="Retour à l’accueil" />
+    android:text="Menu des Aventures" />
 <Button
     android:id="@+id/buttonToggleZones"
     android:layout_width="match_parent"

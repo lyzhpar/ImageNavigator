@@ -152,6 +152,7 @@ class NavigatorActivity : BaseActivity() {
                 putExtra("folderUri", folderUri.toString())
                 // Ajoute toujours l'extra "imagePath" avec la valeur de currentImageName
                 putExtra("imagePath", currentImageName)
+                putExtra("editMode", true)
             }
             startActivity(intent)
         }

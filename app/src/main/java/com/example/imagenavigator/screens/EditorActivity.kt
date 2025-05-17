@@ -487,14 +487,6 @@ class EditorActivity : BaseActivity() {
             promptAdventureName()
         }
 
-        // Ajout : gestion de l'image à afficher automatiquement depuis l'intent ("imagePath")
-        val imageFromIntent = intent.getStringExtra("imagePath")
-        if (imageFromIntent != null) {
-            Handler(Looper.getMainLooper()).postDelayed({
-                onImageSelected(imageFromIntent, ImageClickSource.SIDEBAR, allowScroll = false)
-            }, 1000)
-        }
-
         // 📂 Boutons pour ouvrir/fermer tous les groupes dans la sidebar
         buttonExpandAll.setOnClickListener {
             imageAdapter.toggleAllGroups(true)
@@ -925,8 +917,12 @@ class EditorActivity : BaseActivity() {
                     imageAdapter.setExpandedGroupPaths(expanded)
                 }
                 // Si une image de départ est définie, on tente de l’afficher automatiquement
-                startImagePath?.let { imagePath ->
-                    Log.d("StartImage", "Déclenchement affichage startImage dans loadImagesFromFolder: $imagePath")
+                val imageFromIntent = intent.getStringExtra("imagePath")
+                val editMode = intent.getBooleanExtra("editMode", false)
+                val initialImageToDisplay = if (editMode && imageFromIntent != null) imageFromIntent else startImagePath
+
+                initialImageToDisplay?.let { imagePath ->
+                    Log.d("StartImage", "Déclenchement affichage initialImageToDisplay dans loadImagesFromFolder: $imagePath")
                     lifecycleScope.launch {
                         var tentative = 0
                         while ((isBusy || imageAdapter.currentList.none { it.fullPath == imagePath }) && tentative < 20) {

@@ -65,8 +65,6 @@ class MainActivity : BaseActivity() {
             }
         )
 
-
-
         // Configurer le RecyclerView
         binding.recyclerViewAdventures.apply {
             layoutManager = LinearLayoutManager(this@MainActivity)
