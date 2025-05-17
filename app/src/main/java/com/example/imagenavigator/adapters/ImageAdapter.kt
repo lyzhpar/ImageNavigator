@@ -261,7 +261,7 @@ class ImageAdapter(
 
             val isExpanded = expandedGroups.contains(item.fullPath)
             folderIcon.setImageResource(
-                if (isExpanded) R.drawable.ic_arrow_down else R.drawable.ic_arrow_left
+                if (isExpanded) R.drawable.ic_arrow_down_02 else R.drawable.ic_arrow_left
             )
 
             itemView.setOnClickListener {
