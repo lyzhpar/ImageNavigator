@@ -1,5 +1,6 @@
 package com.example.imagenavigator.screens
 
+import NavigatorOptionsDialogFragment
 import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.Color
@@ -130,7 +131,7 @@ class NavigatorActivity : BaseActivity() {
     }
 
 
-    private fun showContextMenu() {
+    /*private fun showContextMenu() {
         val view = layoutInflater.inflate(R.layout.dialog_navigator_menu, null)
         val dialog = BottomSheetDialog(this)
         dialog.setContentView(view)
@@ -177,7 +178,40 @@ class NavigatorActivity : BaseActivity() {
         }
 
         dialog.show()
+    }*/
+
+    // Affiche un menu contextuel en plein écran avec les options de navigation
+    private fun showContextMenu() {
+        val menuDialog = NavigatorOptionsDialogFragment(
+            onEditClick = {
+                val intent = Intent(this, EditorActivity::class.java).apply {
+                    putExtra("adventureName", adventureName)
+                    putExtra("folderUri", folderUri.toString())
+                    putExtra("imagePath", currentImageName)
+                    putExtra("editMode", true)
+                }
+                startActivity(intent)
+            },
+            onChangeBgClick = { showBackgroundColorDialog() },
+            onTransitionClick = { showTransitionDialog() },
+            onGoToStartClick = { showCurrentImage() },
+            onReturnToMainClick = {
+                val intent = Intent(this, MainActivity::class.java)
+                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(intent)
+                finish()
+            },
+            onToggleZones = {
+                zonesVisible = !zonesVisible
+                binding.overlayView.setZonesVisible(zonesVisible)
+                prefs.edit().putBoolean("zones_visible", zonesVisible).apply()
+            }
+        )
+        menuDialog.isCancelable = true
+        // Retain setCanceledOnTouchOutside(true) if used in DialogFragment
+        menuDialog.show(supportFragmentManager.beginTransaction().setReorderingAllowed(true), "NavigatorOptions")
     }
+
 
     private fun loadAdventure(jsonUri: Uri) {
         try {

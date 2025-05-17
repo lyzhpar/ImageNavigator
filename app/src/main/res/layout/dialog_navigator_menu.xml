@@ -1,38 +1,128 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-android:layout_width="match_parent"
-android:layout_height="wrap_content"
-android:orientation="vertical"
-android:padding="16dp">
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/outsideContainer"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#AA000000"
+    android:clickable="true"
+    android:focusable="true">
 
-<Button
-    android:id="@+id/buttonBackground"
-    android:layout_width="match_parent"
+<ScrollView
+    android:id="@+id/menuContainer"
+    android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:text="Couleur de fond" />
-<Button
-    android:id="@+id/buttonTransition"
-    android:layout_width="match_parent"
+    android:layout_gravity="center"
+    android:background="@drawable/menu_background"
+    android:elevation="8dp">
+
+<LinearLayout
+    android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:text="Transitions" />
-<Button
-    android:id="@+id/buttonEdit"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:text="Éditer l’aventure" />
-<Button
-    android:id="@+id/buttonStart"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:text="Image de départ" />
-<Button
-    android:id="@+id/buttonMain"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:text="Menu des Aventures" />
-<Button
-    android:id="@+id/buttonToggleZones"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:text="Afficher/Masquer les zones" />
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <Button
+        android:id="@+id/buttonBackground"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Couleur de fond"
+        android:background="@drawable/button_background"
+        android:textStyle="bold"
+        android:textColor="@android:color/white"
+        android:padding="12dp"
+        android:layout_marginBottom="8dp"/>
+
+    <LinearLayout
+        android:id="@+id/colorPickerLayout"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:visibility="gone"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginBottom="16dp"
+        android:layout_marginTop="8dp">
+
+        <Button
+            android:id="@+id/buttonWhite"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_margin="4dp"
+            android:background="@drawable/color_selector"
+            android:text=""
+            android:tag="#FFFFFF" />
+
+        <Button
+            android:id="@+id/buttonGrey"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_margin="4dp"
+            android:background="@drawable/color_selector"
+            android:text=""
+            android:tag="#F0F0F0" />
+
+        <Button
+            android:id="@+id/buttonBlack"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_margin="4dp"
+            android:background="@drawable/color_selector"
+            android:text=""
+            android:tag="#000000" />
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/buttonTransition"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Transitions"
+        android:background="@drawable/button_background"
+        android:textStyle="bold"
+        android:textColor="@android:color/white"
+        android:padding="12dp"
+        android:layout_marginBottom="8dp" />
+
+    <Button
+        android:id="@+id/buttonEdit"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Éditer l’aventure"
+        android:background="@drawable/button_background"
+        android:textStyle="bold"
+        android:textColor="@android:color/white"
+        android:padding="12dp"
+        android:layout_marginBottom="8dp" />
+
+    <Button
+        android:id="@+id/buttonStartImage"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Image de départ"
+        android:background="@drawable/button_background"
+        android:textStyle="bold"
+        android:textColor="@android:color/white"
+        android:padding="12dp"
+        android:layout_marginBottom="8dp" />
+
+    <Button
+        android:id="@+id/buttonReturnMain"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Menu des Aventures"
+        android:background="@drawable/button_background"
+        android:textStyle="bold"
+        android:textColor="@android:color/white"
+        android:padding="12dp"
+        android:layout_marginBottom="8dp" />
+
+    <Button
+        android:id="@+id/buttonToggleZones"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Afficher/Masquer les zones"
+        android:background="@drawable/button_background"
+        android:textStyle="bold"
+        android:textColor="@android:color/white"
+        android:padding="12dp"
+        android:layout_marginBottom="8dp" />
 </LinearLayout>
+</ScrollView>
+    </FrameLayout>
