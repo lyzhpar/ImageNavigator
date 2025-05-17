@@ -24,6 +24,8 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.bumptech.glide.load.DataSource
 import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.example.imagenavigator.screens.ZoneOverlayView
+import kotlin.collections.addAll
+import kotlin.text.clear
 
 class ImageAdapter(
     private var rootGroups: List<ImageGroup>,
@@ -403,6 +405,7 @@ class ImageAdapter(
             submitList(displayItems.toList())
         }
 
+        // (removed setExpandedGroupPaths from here)
 
 
     }
@@ -430,4 +433,13 @@ class ImageAdapter(
             collectGroupPaths(child, set)
         }
     }
+
+    // Set the expanded groups from an external set of paths
+    fun setExpandedGroupPaths(paths: Set<String>) {
+        expandedGroups.clear()
+        expandedGroups.addAll(paths)
+        displayItems = flattenGroups(rootGroups)
+        submitList(displayItems.toList())
+    }
+
 }

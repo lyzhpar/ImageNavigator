@@ -451,7 +451,7 @@ class DrawingView @JvmOverloads constructor(
             it.linkedImagePath = imagePath
             Log.d("assignLinked", "Zones actuelles → count=${zones.size}, liste=${zones.map { it.rect }}")
             selectedZone = null
-            invalidate()
+            reloadLinkedThumbnailsForCurrentImage()
             (context as? EditorActivity)?.hideDeleteZonesButton()
             Log.d("DebugLink", "assignLinkedImageToSelectedZone → zone=$selectedZone, imagePath=$imagePath")
         }

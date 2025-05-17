@@ -186,12 +186,6 @@ class EditorActivity : BaseActivity() {
         // Log conservé uniquement si debugLogs, sinon supprimé
         if (debugLogs) Log.d("LoadImagesFromFolder", "Entrée !!!")
         loadImagesFromFolder(uri, clearData)
-        // Bloc ajouté pour restaurer automatiquement l’image de départ après chargement
-        startImagePath?.let { imagePath ->
-            Handler(Looper.getMainLooper()).postDelayed({
-                onImageSelected(imagePath, ImageClickSource.SIDEBAR, allowScroll = false)
-            }, 500)
-        }
         imageAdapter.imageZonesMap = getCurrentImageZonesMap()
         imageAdapter.notifyDataSetChanged()
     }
@@ -260,6 +254,9 @@ class EditorActivity : BaseActivity() {
         val maxRetries = 3
         var attempt = 0
 
+        // Met à jour currentImageName AVANT tout test ou scroll
+        currentImageName = fullPath
+
         fun loadImageWithRetry() {
             attempt++
             Log.d("EditorActivity", "Chargement image (tentative $attempt/$maxRetries): $fullPath")
@@ -275,6 +272,11 @@ class EditorActivity : BaseActivity() {
                 Log.e("EditorActivity", "Image introuvable dans imageFileMap: $fullPath")
                 showSnackbar("Image introuvable.")
                 return
+            } else {
+                Log.d("EditorActivity", "Image trouvée dans imageFileMap: $fullPath, uri=${file.uri}")
+                if (startImagePath == fullPath) {
+                    Log.d("StartImage", "✔ L’image sélectionnée est bien l’image de départ.")
+                }
             }
 
             Glide.with(this@EditorActivity)
@@ -289,7 +291,7 @@ class EditorActivity : BaseActivity() {
                         isFirstResource: Boolean
                     ): Boolean {
                         Log.d("EditorActivity", "Image chargée avec succès: $fullPath (tentative $attempt)")
-                        currentImageName = fullPath
+                        // currentImageName = fullPath // déjà mis à jour AVANT Glide
                         binding.drawingView.loadImage(resource)
                         binding.drawingView.clearLinkedThumbnails()
                         binding.drawingView.setZonesForCurrentImage(imageDataMap[fullPath] ?: emptyList())
@@ -314,6 +316,8 @@ class EditorActivity : BaseActivity() {
                         target: Target<Bitmap>,
                         isFirstResource: Boolean
                     ): Boolean {
+                        // Ajout du log explicite d'échec de chargement
+                        Log.e("Glide", "ECHEC DE CHARGEMENT pour $fullPath", e)
                         binding.drawingView.isBitmapReady = false
                         Log.e("Glide", "onLoadFailed pour $fullPath à tentative $attempt", e)
                         if (attempt < maxRetries) {
@@ -327,7 +331,7 @@ class EditorActivity : BaseActivity() {
                             }
                             Handler(Looper.getMainLooper()).postDelayed({
                                 loadImageWithRetry()
-                            }, 500)
+                            }, 3000)
                         } else {
                             Log.e(
                                 "Glide",
@@ -467,6 +471,7 @@ class EditorActivity : BaseActivity() {
         val buttonCollapseAll = binding.bottomBar.buttonCollapseAll
 
         val adventureFromIntent = intent.getStringExtra("adventureName")
+        Log.d("DEBUG", "→ editMode=${intent.getBooleanExtra("editMode", false)}, startImagePath=$startImagePath")
         if (adventureFromIntent != null) {
             enterEditMode(adventureFromIntent)
             currentFolderUri?.let {
@@ -907,7 +912,35 @@ class EditorActivity : BaseActivity() {
                 }
                 updateBottomBarInfo(isLoading = false)
                 binding.bottomBar.buttonSave.isEnabled = true
-                // logDebug supprimé : chargement terminé
+                // Forcer l'expansion récursive des groupes contenant startImagePath
+                startImagePath?.let { path ->
+                    val segments = path.split("/")
+                    val expanded = mutableSetOf<String>()
+                    for (i in 1..segments.size) {  // Inclure tous les sous-chemins
+                        val subPath = segments.take(i).joinToString("/")
+                        expanded.add(subPath)
+                    }
+                    // Ouvrir aussi le groupe "Racine"
+                    expanded.add("Racine")
+                    imageAdapter.setExpandedGroupPaths(expanded)
+                }
+                // Si une image de départ est définie, on tente de l’afficher automatiquement
+                startImagePath?.let { imagePath ->
+                    Log.d("StartImage", "Déclenchement affichage startImage dans loadImagesFromFolder: $imagePath")
+                    lifecycleScope.launch {
+                        var tentative = 0
+                        while ((isBusy || imageAdapter.currentList.none { it.fullPath == imagePath }) && tentative < 20) {
+                            delay(300)
+                            tentative++
+                        }
+                        Log.d("StartImage", "Tentative affichage startImage ($tentative) → $imagePath")
+                        if (tentative < 20) {
+                            onImageSelected(imagePath, ImageClickSource.SIDEBAR, allowScroll = false)
+                        } else {
+                            Log.e("StartImage", "Échec de l'affichage automatique de startImagePath après 20 tentatives.")
+                        }
+                    }
+                }
                 isBusy = false
             }
         }
@@ -1293,6 +1326,7 @@ class EditorActivity : BaseActivity() {
             showSnackbar("Aventure introuvable, création d’une nouvelle.")
             promptAdventureName()
         }
+        // (Affichage automatique de startImagePath déplacé dans loadImagesFromFolder)
     }
 
 
