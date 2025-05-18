@@ -22,7 +22,6 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
-import androidx.core.view.isVisible
 import androidx.documentfile.provider.DocumentFile
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.bumptech.glide.Glide
@@ -54,7 +53,6 @@ import com.example.imagenavigator.utils.ThumbnailLoader
 
 import androidx.lifecycle.lifecycleScope
 import com.example.imagenavigator.model.ZoneData
-import com.google.android.material.button.MaterialButton
 import kotlin.apply
 
 
@@ -112,7 +110,6 @@ class EditorActivity : BaseActivity() {
     // Options d'affichage utilisateur
     private var showImageThumbnails = true
     private var showSidebarZones = true
-    private var condensedSidebar = false
     private var showZones: Boolean = true
     private var showLinkedThumbnailsInDrawingView: Boolean = true
 
@@ -386,7 +383,6 @@ class EditorActivity : BaseActivity() {
         showImageThumbnails = prefs.getBoolean("showImageThumbnails", true)
         showSidebarZones = prefs.getBoolean("showSidebarZones", true)
         showLinkedThumbnailsInDrawingView = prefs.getBoolean("showLinkedThumbnailsInDrawingView", true)
-        condensedSidebar = prefs.getBoolean("condensedSidebar", false)
 
         setContentView(binding.root)
 
@@ -1257,8 +1253,6 @@ class EditorActivity : BaseActivity() {
         addedImages: Set<String>,
         removedImages: Set<String>
     ) {
-        val message = "Résumé synchronisation : addedGroups=$addedGroups, removedGroups=$removedGroups, addedImages=$addedImages, removedImages=$removedImages"
-        // logDebug supprimé : résumé synchronisation
     }
 
     // Lie l'image à la zone sélectionnée
@@ -1391,12 +1385,10 @@ class EditorActivity : BaseActivity() {
         val checkboxThumbnails = view.findViewById<android.widget.CheckBox>(R.id.checkbox_thumbnails)
         val checkboxZones = view.findViewById<android.widget.CheckBox>(R.id.checkbox_zones)
         val checkboxZoneThumbnails = view.findViewById<android.widget.CheckBox>(R.id.checkbox_zone_thumbnails)
-        val checkboxCondensed = view.findViewById<android.widget.CheckBox>(R.id.checkbox_condensed)
 
         checkboxThumbnails.isChecked = showImageThumbnails
         checkboxZones.isChecked = showSidebarZones
         checkboxZoneThumbnails.isChecked = showLinkedThumbnailsInDrawingView
-        checkboxCondensed.isChecked = condensedSidebar
 
         /*
         Paramètre
@@ -1419,15 +1411,12 @@ class EditorActivity : BaseActivity() {
                 showImageThumbnails = checkboxThumbnails.isChecked
                 showSidebarZones = checkboxZones.isChecked
                 showLinkedThumbnailsInDrawingView = checkboxZoneThumbnails.isChecked
-                condensedSidebar = checkboxCondensed.isChecked
 
                 prefs.edit()
                     .putBoolean("showImageThumbnails", showImageThumbnails)
                     .putBoolean("showSidebarZones", showSidebarZones)
                     .putBoolean("showLinkedThumbnailsInDrawingView", showLinkedThumbnailsInDrawingView)
-                    .putBoolean("condensedSidebar", condensedSidebar)
                     .apply()
-//
                 binding.drawingView.editorConfig.showLinkedThumbnails = showLinkedThumbnailsInDrawingView
                 binding.drawingView.invalidate()
                 binding.incomingLinksRecycler.visibility = if (showImageThumbnails) View.VISIBLE else View.GONE

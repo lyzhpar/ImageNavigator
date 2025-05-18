@@ -398,13 +398,6 @@ class ImageAdapter(
             }
         }
 
-        // Permet de forcer le rafraîchissement complet du RecyclerView
-        fun forceRefresh() {
-            submitList(displayItems.toList())
-        }
-
-        // (removed setExpandedGroupPaths from here)
-
 
     }
     // --- Ajout : Méthode pour ouvrir/fermer tous les groupes ---
