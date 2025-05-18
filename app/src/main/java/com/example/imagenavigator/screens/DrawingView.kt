@@ -86,6 +86,11 @@ class DrawingView @JvmOverloads constructor(
     }
 
     fun reloadLinkedThumbnailsForCurrentImage() {
+        Log.d("DrawingView", "reloadLinkedThumbnailsForCurrentImage() appelé — show = ${editorConfig.showLinkedThumbnails}")
+        if (!editorConfig.showLinkedThumbnails) {
+            Log.d("DrawingView", "Vignettes désactivées → on ne charge pas les miniatures")
+            return
+        }
         linkedThumbnails.clear()
 
         val bitmap = bitmapProvider?.invoke()

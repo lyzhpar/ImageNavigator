@@ -114,7 +114,7 @@ class EditorActivity : BaseActivity() {
     private var showSidebarZones = true
     private var condensedSidebar = false
     private var showZones: Boolean = true
-    private var showZoneThumbnails: Boolean = true
+    private var showLinkedThumbnailsInDrawingView: Boolean = true
 
     private fun scrollToCurrentImageThumbnail() {
         currentImageName?.let { imageName ->
@@ -303,6 +303,8 @@ class EditorActivity : BaseActivity() {
                         binding.drawingView.loadImage(resource)
                         binding.drawingView.clearLinkedThumbnails()
                         binding.drawingView.setZonesForCurrentImage(imageDataMap[fullPath] ?: emptyList())
+                        // Réapplique la préférence utilisateur showLinkedThumbnailsInDrawingView avant le reload
+                        binding.drawingView.editorConfig.showLinkedThumbnails = showLinkedThumbnailsInDrawingView
                         binding.drawingView.reloadLinkedThumbnailsForCurrentImage()
                         Log.d(
                             "EditorActivity",
@@ -378,10 +380,12 @@ class EditorActivity : BaseActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityEditorBinding.inflate(layoutInflater)
 
+        binding.drawingView.editorConfig.showLinkedThumbnails = showLinkedThumbnailsInDrawingView
+
         // Récupère les préférences utilisateur pour l'affichage
         showImageThumbnails = prefs.getBoolean("showImageThumbnails", true)
         showSidebarZones = prefs.getBoolean("showSidebarZones", true)
-        showZoneThumbnails = prefs.getBoolean("showZoneThumbnails", true)
+        showLinkedThumbnailsInDrawingView = prefs.getBoolean("showLinkedThumbnailsInDrawingView", true)
         condensedSidebar = prefs.getBoolean("condensedSidebar", false)
 
         setContentView(binding.root)
@@ -454,12 +458,11 @@ class EditorActivity : BaseActivity() {
             imageFileMap = imageFileMap
         ).apply {
             showZones = showSidebarZones
-            showZoneThumbnails = showZoneThumbnails
         }
 
         // Appliquer les préférences à l'adapter dès le départ
         imageAdapter.setShowZones(showSidebarZones)
-        imageAdapter.setShowZoneThumbnails(showZoneThumbnails)
+        imageAdapter.setShowZoneThumbnails(showLinkedThumbnailsInDrawingView)
         val zonesMap = getCurrentImageZonesMap()
         imageAdapter.imageZonesMap = zonesMap
         imageAdapter.notifyDataSetChanged()
@@ -1300,8 +1303,10 @@ class EditorActivity : BaseActivity() {
         // Load the thumbnail only if the zone is now successfully linked
         if (selectedZone?.linkedImagePath != null) {
             imageFileMap[selectedZone.linkedImagePath!!]?.uri?.let { uri ->
-                ThumbnailLoader.load(this, uri) { bitmap, _->
-                    binding.drawingView.setLinkedThumbnailBitmap(selectedZone.toZoneData(), bitmap)
+                if (binding.drawingView.editorConfig.showLinkedThumbnails) {
+                    ThumbnailLoader.load(this, uri) { bitmap, _ ->
+                        binding.drawingView.setLinkedThumbnailBitmap(selectedZone.toZoneData(), bitmap)
+                    }
                 }
             }
         }
@@ -1390,8 +1395,22 @@ class EditorActivity : BaseActivity() {
 
         checkboxThumbnails.isChecked = showImageThumbnails
         checkboxZones.isChecked = showSidebarZones
-        checkboxZoneThumbnails.isChecked = showZoneThumbnails
+        checkboxZoneThumbnails.isChecked = showLinkedThumbnailsInDrawingView
         checkboxCondensed.isChecked = condensedSidebar
+
+        /*
+        Paramètre
+        showImageThumbnails
+        la bande du bas (incomingLinksRecycler)
+
+        showSidebarZones
+        les zones vertes sur les vignettes de la sidebar
+
+        showZoneThumbnails
+        les miniatures dans les zones
+
+        */
+
 
         AlertDialog.Builder(this)
             //.setTitle("Options d’affichage")
@@ -1399,22 +1418,23 @@ class EditorActivity : BaseActivity() {
             .setPositiveButton("OK") { _, _ ->
                 showImageThumbnails = checkboxThumbnails.isChecked
                 showSidebarZones = checkboxZones.isChecked
-                showZoneThumbnails = checkboxZoneThumbnails.isChecked
+                showLinkedThumbnailsInDrawingView = checkboxZoneThumbnails.isChecked
                 condensedSidebar = checkboxCondensed.isChecked
 
                 prefs.edit()
                     .putBoolean("showImageThumbnails", showImageThumbnails)
                     .putBoolean("showSidebarZones", showSidebarZones)
-                    .putBoolean("showZoneThumbnails", showZoneThumbnails)
+                    .putBoolean("showLinkedThumbnailsInDrawingView", showLinkedThumbnailsInDrawingView)
                     .putBoolean("condensedSidebar", condensedSidebar)
                     .apply()
-
+//
+                binding.drawingView.editorConfig.showLinkedThumbnails = showLinkedThumbnailsInDrawingView
+                binding.drawingView.invalidate()
                 binding.incomingLinksRecycler.visibility = if (showImageThumbnails) View.VISIBLE else View.GONE
                 binding.incomingLinksRecycler.layoutParams.height = if (showImageThumbnails) RecyclerView.LayoutParams.WRAP_CONTENT else 0
                 binding.incomingLinksRecycler.requestLayout()
 
                 imageAdapter.setShowZones(showSidebarZones)
-                imageAdapter.setShowZoneThumbnails(showZoneThumbnails)
                 imageAdapter.notifyDataSetChanged()
 
                 updateZoneSidebarDisplay()
@@ -1431,7 +1451,7 @@ class EditorActivity : BaseActivity() {
     }
 
     private fun updateZoneThumbnailDisplay() {
-        imageAdapter.setShowZoneThumbnails(showZoneThumbnails)
+        imageAdapter.setShowZoneThumbnails(showLinkedThumbnailsInDrawingView)
         imageAdapter.notifyDataSetChanged()
     }
 
