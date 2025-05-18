@@ -24,20 +24,17 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.bumptech.glide.load.DataSource
 import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.example.imagenavigator.screens.ZoneOverlayView
-import kotlin.collections.addAll
-import kotlin.text.clear
+
 
 class ImageAdapter(
     private var rootGroups: List<ImageGroup>,
     private val onImageSelected: (String, ImageClickSource, Boolean) -> Unit,
     private val onItemLongPress: (DisplayItem) -> Unit,
-    var imageFileMap: Map<String, DocumentFile>,
-    private val layoutResId: Int = R.layout.item_image
+    var imageFileMap: Map<String, DocumentFile>
 ) : ListAdapter<ImageAdapter.DisplayItem, RecyclerView.ViewHolder>(DiffCallback()) {
 
     private var showZones: Boolean = true
     private var showZoneThumbnails: Boolean = true
-    private var layoutResIdModifiable: Int = layoutResId
 
     var startImagePath: String? = null
 
@@ -196,7 +193,7 @@ class ImageAdapter(
             val view = inflater.inflate(R.layout.item_group, parent, false)
             GroupViewHolder(view)
         } else {
-            val view = inflater.inflate(layoutResIdModifiable, parent, false)
+            val view = inflater.inflate(R.layout.item_image, parent, false)
             ImageViewHolder(view)
         }
     }
@@ -235,8 +232,14 @@ class ImageAdapter(
 
                 (holder as? ImageViewHolder)?.overlayView?.let { view ->
                     if (view is ZoneOverlayView) {
-                        view.zones = zones
-                        view.invalidate() // Force redraw immediately
+                        if (showZones) {
+                            view.zones = zones
+                            view.visibility = if (zones.isNotEmpty()) View.VISIBLE else View.GONE
+                        } else {
+                            view.zones = emptyList()
+                            view.visibility = View.GONE
+                        }
+                        view.invalidate()
                     }
                 }
             }
@@ -253,7 +256,7 @@ class ImageAdapter(
     inner class GroupViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         private val textView: TextView = view.findViewById(R.id.worldNameTextView)
         private val folderIcon: ImageView = view.findViewById(R.id.folderIcon)
-        private val checkbox: ImageView = view.findViewById(R.id.checkbox)
+
 
         fun bind(item: DisplayItem.GroupItem) {
             textView.text = "📁 ${item.name}"
@@ -299,9 +302,6 @@ class ImageAdapter(
                 zones.forEachIndexed { i, zone ->
                     Log.d("BindDebug", "  Zone[$i] linkedImagePath = ${zone.linkedImagePath}")
                 }
-                overlayView?.visibility = if (zones.isNotEmpty()) View.VISIBLE else View.GONE
-                overlayView?.zones = zones
-                overlayView?.invalidate()
 
                 // Log.d("ImageAdapter", "Bind image: ${item.fullPath}")
 
@@ -355,15 +355,9 @@ class ImageAdapter(
                                     dataSource: DataSource,
                                     isFirstResource: Boolean
                                 ): Boolean {
-                                    if (adapterPosition != RecyclerView.NO_POSITION && currentList[adapterPosition].fullPath == currentFullPath) {
-                                        // ✅ Mettre à jour les zones une fois l'image chargée
-                                        val zones = imageZonesMap[currentFullPath]?.filter { it.linkedImagePath != null } ?: emptyList()
-                                        overlayView.visibility = if (zones.isNotEmpty()) View.VISIBLE else View.GONE
-                                        overlayView.zones = zones
-                                        overlayView.invalidate()
-                                        return false // on laisse Glide continuer
-                                    }
-                                    return true
+                                    // Suppression de la réaffectation forcée des zones ici.
+                                    // La logique d'affichage des zones est déjà appliquée dans onBindViewHolder().
+                                    return false // on laisse Glide continuer
                                 }
                             })
                             .into(imageView)
@@ -446,7 +440,7 @@ class ImageAdapter(
         submitList(displayItems.toList())
     }
 
-    // --- Ajout des méthodes publiques pour showZones, showZoneThumbnails, layoutResIdModifiable ---
+    // --- Ajout des méthodes publiques pour showZones, showZoneThumbnails ---
     fun setShowZones(value: Boolean) {
         showZones = value
         notifyDataSetChanged()
@@ -454,11 +448,6 @@ class ImageAdapter(
 
     fun setShowZoneThumbnails(value: Boolean) {
         showZoneThumbnails = value
-        notifyDataSetChanged()
-    }
-
-    fun setLayoutResId(newLayoutResId: Int) {
-        layoutResIdModifiable = newLayoutResId
         notifyDataSetChanged()
     }
 }

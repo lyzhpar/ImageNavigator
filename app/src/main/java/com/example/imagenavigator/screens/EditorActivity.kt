@@ -28,6 +28,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.bumptech.glide.Glide
 import com.example.imagenavigator.R
 import com.example.imagenavigator.adapters.ImageAdapter
+import com.example.imagenavigator.adapters.IncomingLinksAdapter
 import com.example.imagenavigator.databinding.ActivityEditorBinding
 import com.example.imagenavigator.model.AdventureData
 import com.example.imagenavigator.model.Zone
@@ -104,7 +105,7 @@ class EditorActivity : BaseActivity() {
     private var currentAdventureJsonUri: Uri? = null
     private var isBusy = false
     private var hasJustSaved = false
-    private lateinit var incomingLinksAdapter: ImageAdapter
+    private lateinit var incomingLinksAdapter: IncomingLinksAdapter
 
     private val prefs by lazy { getSharedPreferences("ImageNavigatorPrefs", Context.MODE_PRIVATE) }
 
@@ -256,8 +257,7 @@ class EditorActivity : BaseActivity() {
         }.keys.toSet()
 
         val incomingItems = imageAdapter.currentList.filter { it.fullPath in incomingPaths }
-        incomingLinksAdapter.highlightedPaths = incomingPaths
-        incomingLinksAdapter.submitList(incomingItems)
+        incomingLinksAdapter.submitList(incomingItems.map { it.fullPath })
 
         val maxRetries = 3
         var attempt = 0
@@ -387,8 +387,7 @@ class EditorActivity : BaseActivity() {
         setContentView(binding.root)
 
         val incomingLinksRecycler = findViewById<RecyclerView>(R.id.incomingLinksRecycler)
-        incomingLinksAdapter = ImageAdapter(
-            rootGroups = emptyList(),
+        incomingLinksAdapter = IncomingLinksAdapter(
             onImageSelected = { fullPath, _, _ ->
                 val selectedZone = binding.drawingView.selectedZone
                 if (selectedZone != null) {
@@ -397,9 +396,7 @@ class EditorActivity : BaseActivity() {
                     onImageSelected(fullPath, ImageClickSource.INCOMING_LINKS, true)
                 }
             },
-            onItemLongPress = {},
-            imageFileMap = imageFileMap,
-            layoutResId = R.layout.item_image_compact
+            imageFileMap = imageFileMap
         )
         incomingLinksRecycler.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
         incomingLinksRecycler.adapter = incomingLinksAdapter
@@ -460,6 +457,15 @@ class EditorActivity : BaseActivity() {
             showZoneThumbnails = showZoneThumbnails
         }
 
+        // Appliquer les préférences à l'adapter dès le départ
+        imageAdapter.setShowZones(showSidebarZones)
+        imageAdapter.setShowZoneThumbnails(showZoneThumbnails)
+        val zonesMap = getCurrentImageZonesMap()
+        imageAdapter.imageZonesMap = zonesMap
+        imageAdapter.notifyDataSetChanged()
+
+        // (Bloc déplacé ci-dessus pour appliquer les préférences d'affichage des zones dans la sidebar au bon moment)
+
         binding.recyclerViewThumbnails.apply {
             layoutManager = LinearLayoutManager(this@EditorActivity)
             setHasFixedSize(true)
@@ -471,7 +477,11 @@ class EditorActivity : BaseActivity() {
             animator.supportsChangeAnimations = false
         }
         // Affiche/masque la liste des miniatures selon la préférence utilisateur
-        binding.recyclerViewThumbnails.visibility = if (showImageThumbnails) View.VISIBLE else View.GONE
+        // La visibilité de la sidebar ne dépend plus de showImageThumbnails
+        // La bande du bas (incomingLinksRecycler) dépend de showImageThumbnails
+        binding.incomingLinksRecycler.visibility = if (showImageThumbnails) View.VISIBLE else View.GONE
+        binding.incomingLinksRecycler.layoutParams.height = if (showImageThumbnails) RecyclerView.LayoutParams.WRAP_CONTENT else 0
+        binding.incomingLinksRecycler.requestLayout()
 
 
         // 🛠 Accès propre aux éléments du header
@@ -1384,7 +1394,7 @@ class EditorActivity : BaseActivity() {
         checkboxCondensed.isChecked = condensedSidebar
 
         AlertDialog.Builder(this)
-            .setTitle("Options d’affichage")
+            //.setTitle("Options d’affichage")
             .setView(view)
             .setPositiveButton("OK") { _, _ ->
                 showImageThumbnails = checkboxThumbnails.isChecked
@@ -1399,22 +1409,16 @@ class EditorActivity : BaseActivity() {
                     .putBoolean("condensedSidebar", condensedSidebar)
                     .apply()
 
-                val existingParams = binding.drawingView.layoutParams
-                if (existingParams is androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams) {
-                    if (showImageThumbnails) {
-                        binding.incomingLinksRecycler.visibility = View.VISIBLE
-                        existingParams.height = 0
-                    } else {
-                        binding.incomingLinksRecycler.visibility = View.GONE
-                        existingParams.height = androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams.MATCH_PARENT
-                    }
-                    existingParams.behavior = com.google.android.material.appbar.AppBarLayout.ScrollingViewBehavior()
-                    binding.drawingView.layoutParams = existingParams
-                }
-                binding.drawingView.requestLayout()
+                binding.incomingLinksRecycler.visibility = if (showImageThumbnails) View.VISIBLE else View.GONE
+                binding.incomingLinksRecycler.layoutParams.height = if (showImageThumbnails) RecyclerView.LayoutParams.WRAP_CONTENT else 0
+                binding.incomingLinksRecycler.requestLayout()
+
+                imageAdapter.setShowZones(showSidebarZones)
+                imageAdapter.setShowZoneThumbnails(showZoneThumbnails)
+                imageAdapter.notifyDataSetChanged()
+
                 updateZoneSidebarDisplay()
                 updateZoneThumbnailDisplay()
-                updateSidebarLayoutMode()
             }
             .setNegativeButton("Annuler", null)
             .show()
@@ -1431,12 +1435,6 @@ class EditorActivity : BaseActivity() {
         imageAdapter.notifyDataSetChanged()
     }
 
-    private fun updateSidebarLayoutMode() {
-        imageAdapter.setLayoutResId(
-            if (condensedSidebar) R.layout.item_image_compact else R.layout.item_image
-        )
-        imageAdapter.notifyDataSetChanged()
-    }
 
 }
 
